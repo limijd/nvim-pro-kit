@@ -1,5 +1,5 @@
 # nvim-pro-kit
-Neovim professional all-in-one kit that is offline-installation friendly.
+nvim-pro-kit is a batteries-included Neovim configuration tailored for professional development workflows. Every dependency is vendored so you can install it completely offline while keeping your editor setup reproducible and version-controlled.
 
 ## 🚀 Installation
 
