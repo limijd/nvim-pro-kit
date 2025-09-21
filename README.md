@@ -3,17 +3,18 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
 
 ## 🚀 Installation
 
-Use the provided bootstrap script to install the configuration without touching
+Use the Python bootstrap installer to set up the configuration without touching
 the network:
 
 ```
-./bootstrap/install.sh
+python3 bootstrap/install.py
 ```
 
-By default it creates a symbolic link at `$XDG_CONFIG_HOME/nvim` (or
-`~/.config/nvim`) pointing to the repo's `nvim/` directory. Pass `--copy` if you
-prefer a physical copy, `--force` to overwrite an existing config, or
-`--target DIR` to install somewhere else.
+It mirrors the previous shell script, creating a symbolic link at
+`$XDG_CONFIG_HOME/nvim` (or `~/.config/nvim`) pointing to the repo's `nvim/`
+directory. Pass `--copy` if you prefer a physical copy, `--force` to overwrite
+an existing config, or `--target DIR` to install somewhere else. You can still
+run `bootstrap/install.sh` if you need a pure POSIX shell workflow.
 
 After linking you can start Neovim immediately, even on an offline machine.
 
