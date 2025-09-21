@@ -11,8 +11,9 @@ the network:
 ```
 
 By default it creates a symbolic link at `$XDG_CONFIG_HOME/nvim` (or
-`~/.config/nvim`). Pass `--copy` if you prefer a physical copy, `--force` to
-overwrite an existing config, or `--target DIR` to install somewhere else.
+`~/.config/nvim`) pointing to the repo's `nvim/` directory. Pass `--copy` if you
+prefer a physical copy, `--force` to overwrite an existing config, or
+`--target DIR` to install somewhere else.
 
 After linking you can start Neovim immediately, even on an offline machine.
 

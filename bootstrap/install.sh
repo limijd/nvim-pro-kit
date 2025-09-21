@@ -52,11 +52,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+NVIM_ROOT="$REPO_ROOT/nvim"
 CONFIG_HOME=${XDG_CONFIG_HOME:-"$HOME/.config"}
 TARGET=${TARGET:-"$CONFIG_HOME/nvim"}
 
 if [[ ! -d "$REPO_ROOT/vendor/plugins/lazy.nvim" ]]; then
   echo "lazy.nvim vendor directory is missing; installation cannot continue." >&2
+  exit 1
+fi
+
+if [[ ! -d "$NVIM_ROOT" ]]; then
+  echo "Repository is missing the nvim/ directory expected to contain init.lua" >&2
   exit 1
 fi
 
@@ -74,13 +80,12 @@ fi
 mkdir -p "$(dirname "$TARGET")"
 
 if [[ $MODE == "link" ]]; then
-  ln -s "$REPO_ROOT" "$TARGET"
+  ln -s "$NVIM_ROOT" "$TARGET"
 else
   if command -v rsync >/dev/null 2>&1; then
-    rsync -a --exclude ".git" "$REPO_ROOT/" "$TARGET/"
+    rsync -a --exclude ".git" "$NVIM_ROOT/" "$TARGET/"
   else
-    cp -a "$REPO_ROOT/." "$TARGET/"
-    rm -rf "$TARGET/.git"
+    cp -a "$NVIM_ROOT/." "$TARGET/"
   fi
 fi
 
