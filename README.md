@@ -1,6 +1,8 @@
 # nvim-pro-kit
 nvim-pro-kit is a batteries-included Neovim configuration tailored for professional development workflows. Every dependency is vendored so you can install it completely offline while keeping your editor setup reproducible and version-controlled.
 
+`nvim-pro-kit` 是为专业开发流程量身打造的全能型 Neovim 配置。所有依赖都已预先内建，即使在离线环境也能快速部署，同时确保编辑器配置可重现且易于版本控制。
+
 ## 🚀 Installation
 
 Use the Python bootstrap installer to set up the configuration without touching
