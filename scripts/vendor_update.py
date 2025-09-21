@@ -4,7 +4,7 @@
 vendor_update.py — One-stop git-subtree manager for vendored Neovim plugins.
 
 This tool keeps `vendor/plugins/` in sync with a single source of truth:
-`scripts/plugins-list.txt` (three columns: URL NAME REF; '#' comments allowed).
+`scripts/plugins-list.yaml` (YAML/JSON array of plugin metadata dictionaries).
 
 Default behavior:
   • If vendor/plugins/<NAME> is missing  →  git subtree add (snapshot import)
@@ -21,7 +21,7 @@ Typical usage:
   # Only act on specific plugins
   scripts/vendor_update.py --only telescope.nvim nvim-cmp --commit
 
-  # Also remove directories not listed in plugins-list.txt
+  # Also remove directories not listed in plugins-list.yaml
   scripts/vendor_update.py --prune --commit
 
   # Keep full upstream history (not recommended for large repos)
@@ -45,16 +45,17 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 
 # ---------- Configuration Defaults ----------
 VENDOR_DIR = Path("vendor/plugins")
-LIST_FILE_DEFAULT = Path("scripts/plugins-list.txt")
+LIST_FILE_DEFAULT = Path("scripts/plugins-list.yaml")
 
 
 # ---------- Small helpers ----------
@@ -81,27 +82,52 @@ def _require_clean_tree(allow_dirty: bool, root: Path) -> None:
         sys.exit("ERROR: Working tree not clean. Commit/stash or use --allow-dirty.")
 
 
-def _parse_list(list_file: Path) -> List[Tuple[str, str, str]]:
-    """Return [(url, name, ref), ...] from a 3-column txt file; '#' comments allowed."""
+def _parse_list(list_file: Path) -> List[Dict[str, Any]]:
+    """Return parsed plugin metadata from a YAML/JSON list of dictionaries."""
     if not list_file.exists():
         sys.exit(f"ERROR: list file not found: {list_file}")
-    lines = list_file.read_text(encoding="utf-8").splitlines()
 
-    items: List[Tuple[str, str, str]] = []
+    try:
+        raw: Any = json.loads(list_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        sys.exit(
+            "ERROR: Failed to parse plugin list as YAML/JSON. "
+            f"(line {exc.lineno} column {exc.colno}): {exc.msg}"
+        )
+
+    if not isinstance(raw, list):
+        sys.exit("ERROR: Plugin list must be a list of plugin entries.")
+
+    required_keys = {"name", "url", "ref", "category", "description", "depends"}
+    items: List[Dict[str, Any]] = []
     seen_names: Set[str] = set()
 
-    for idx, raw in enumerate(lines, start=1):
-        s = raw.strip()
-        if not s or s.startswith("#"):
-            continue
-        parts = s.split()
-        if len(parts) < 3:
-            sys.exit(f"ERROR: Bad line {idx} in {list_file} (need 3 columns): {raw!r}")
-        url, name, ref = parts[0], parts[1], parts[2]
+    for idx, entry in enumerate(raw, start=1):
+        if not isinstance(entry, dict):
+            sys.exit(f"ERROR: Entry #{idx} is not a mapping/dictionary: {entry!r}")
+        missing = required_keys - entry.keys()
+        if missing:
+            sys.exit(
+                "ERROR: Entry #{idx} is missing required keys: "
+                + ", ".join(sorted(missing))
+            )
+        name = entry["name"]
         if name in seen_names:
-            sys.exit(f"ERROR: Duplicate NAME '{name}' in {list_file} (line {idx}).")
+            sys.exit(f"ERROR: Duplicate NAME '{name}' in {list_file} (entry #{idx}).")
         seen_names.add(name)
-        items.append((url, name, ref))
+
+        depends = entry["depends"]
+        if not isinstance(depends, list):
+            sys.exit(
+                "ERROR: Entry #{idx} has non-list 'depends' field. Expected a list of names."
+            )
+        if not all(isinstance(dep, str) for dep in depends):
+            sys.exit(
+                "ERROR: Entry #{idx} contains non-string values in 'depends'."
+            )
+
+        items.append(entry)
+
     return items
 
 
@@ -140,10 +166,17 @@ def _git_rm_dir(root: Path, name: str, dry: bool) -> None:
 # ---------- CLI ----------
 def build_parser() -> argparse.ArgumentParser:
     epilog = (
-        "plugins-list.txt format (whitespace-separated):\n"
-        "  URL                                   NAME                        REF\n"
-        "  https://github.com/folke/lazy.nvim    lazy.nvim                   stable\n"
-        "  https://github.com/nvim-lua/plenary.nvim plenary.nvim            master\n"
+        "plugins-list.yaml format (YAML/JSON array):\n"
+        "  [\n"
+        "    {\n"
+        "      \"name\": \"lazy.nvim\",\n"
+        "      \"url\": \"https://github.com/folke/lazy.nvim\",\n"
+        "      \"ref\": \"stable\",\n"
+        "      \"category\": \"core\",\n"
+        "      \"description\": \"Plugin manager...\",\n"
+        "      \"depends\": []\n"
+        "    }\n"
+        "  ]\n"
         "\n"
         "NAME becomes the folder under vendor/plugins/NAME.\n"
         "REF can be a branch (main/master), a tag (v1.2.3), or a commit SHA.\n"
@@ -156,7 +189,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--list-file",
         default=str(LIST_FILE_DEFAULT),
-        help="Path to plugins list (default: scripts/plugins-list.txt)",
+        help="Path to plugins list (default: scripts/plugins-list.yaml)",
     )
     p.add_argument(
         "--only", nargs="+", default=[], help="Only act on specific plugin NAMEs"
@@ -209,13 +242,19 @@ def main() -> None:
 
     if args.list:
         print(f"Parsed {len(items)} plugin(s) from {list_file}:")
-        for url, name, ref in items:
-            print(f"  - {name:<28} {ref:<16}  {url}")
+        for entry in items:
+            name = entry["name"]
+            ref = entry["ref"]
+            url = entry["url"]
+            category = entry["category"]
+            print(f"  - {name:<28} {ref:<16}  {url}  ({category})")
         return
 
     (root / VENDOR_DIR).mkdir(parents=True, exist_ok=True)
 
-    want: Dict[str, Tuple[str, str]] = {name: (url, ref) for (url, name, ref) in items}
+    want: Dict[str, Tuple[str, str]] = {
+        entry["name"]: (entry["url"], entry["ref"]) for entry in items
+    }
     only: Set[str] = set(args.only)
     squash = not args.no_squash
 

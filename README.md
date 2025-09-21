@@ -28,21 +28,33 @@ Everything is reproducible and offline-ready.
 
 ### Plugin list
 
-The single source of truth is scripts/plugins-list.txt
+The single source of truth is `scripts/plugins-list.yaml`.
 
+```yaml
+[
+  {
+    "name": "lazy.nvim",
+    "url": "https://github.com/folke/lazy.nvim",
+    "ref": "stable",
+    "category": "core",
+    "description": "Plugin manager that lazily loads Neovim plugins for fast startup.",
+    "depends": []
+  },
+  {
+    "name": "plenary.nvim",
+    "url": "https://github.com/nvim-lua/plenary.nvim",
+    "ref": "master",
+    "category": "library",
+    "description": "Utility Lua functions used by many Neovim plugins.",
+    "depends": []
+  }
+]
 ```
-# URL                                         NAME                   REF
-https://github.com/folke/lazy.nvim            lazy.nvim              stable
-https://github.com/nvim-lua/plenary.nvim      plenary.nvim           master
-https://github.com/nvim-telescope/telescope.nvim telescope.nvim      master
-# …etc
 
-    URL → plugin upstream repository
-
-    NAME → folder name under vendor/plugins/
-
-    REF → branch, tag, or commit (e.g. main, stable, v0.1.6, abcd1234)
-```
+Although the file is YAML, we keep it JSON-compatible for simplicity. Each entry
+is sorted by `category` and `name`. `name` becomes the folder under
+`vendor/plugins/`, and `ref` may be a branch (main/master), a tag (v1.2.3), or a
+commit SHA.
 
 ### Syncing plugins
 
@@ -58,7 +70,7 @@ scripts/vendor_update.py --commit
 # Add/update only specific plugins
 scripts/vendor_update.py --only telescope.nvim nvim-cmp --commit
 
-# Also remove any directories not listed in plugins-list.txt
+# Also remove any directories not listed in plugins-list.yaml
 scripts/vendor_update.py --prune --commit
 
 # Keep full upstream history instead of squashing (not recommended)
@@ -81,13 +93,24 @@ All contributors should use `vendor_update.py` to manage plugins consistently. N
 
 ### Adding a new plugin
 
-1. Edit scripts/plugins-list.txt and add a new line:
+1. Edit `scripts/plugins-list.yaml` and add a new JSON/YAML object, keeping the
+   list sorted by `category` then `name`:
+```yaml
+{
+  "name": "repo-name",
+  "url": "https://github.com/owner/repo-name",
+  "ref": "main",
+  "category": "…",
+  "description": "One-line summary of what the plugin does.",
+  "depends": []
+}
 ```
-https://github.com/owner/repo-name   repo-name   main
-```
-    * URL: upstream GitHub repo
-    * NAME: short folder name under vendor/plugins/
-    * REF: branch, tag, or commit SHA
+    * `url`: upstream GitHub repo.
+    * `name`: short folder name under `vendor/plugins/`.
+    * `ref`: branch, tag, or commit SHA.
+    * `category`: grouping used for display/sorting (completion, lsp, etc.).
+    * `description`: brief purpose of the plugin.
+    * `depends`: array of plugin names that must be present first.
 2. Run the sync script: 
 ```
 scripts/vendor_update.py --commit
@@ -99,7 +122,7 @@ This will add the plugin under vendor/plugins/<NAME> and commit the change.
 
 1. Decide the new version:
     * For latest branch (main, master, stable) → nothing to change in the list.
-    * For a specific release → update the REF in plugins-list.txt to the new tag or commit.
+    * For a specific release → update the `ref` in `plugins-list.yaml` to the new tag or commit.
 
 2. Run:
 ```
@@ -110,7 +133,7 @@ scripts/vendor_update.py --only <plugin-name> --commit
 
 ### Removing a plugin
 
-1. Delete its line from plugins-list.txt.
+1. Delete its entry from `scripts/plugins-list.yaml`.
 2. Run:
 ```
 scripts/vendor_update.py --prune --commit

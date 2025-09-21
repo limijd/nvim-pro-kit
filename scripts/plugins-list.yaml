@@ -1,0 +1,114 @@
+[
+  {
+    "category": "completion",
+    "description": "LSP source for nvim-cmp to integrate Neovim completion capabilities.",
+    "depends": ["nvim-cmp"],
+    "url": "https://github.com/hrsh7th/cmp-nvim-lsp",
+    "name": "cmp-nvim-lsp",
+    "ref": "main"
+  },
+  {
+    "category": "completion",
+    "description": "LuaSnip completion source bridging snippet expansion into nvim-cmp.",
+    "depends": ["LuaSnip", "nvim-cmp"],
+    "url": "https://github.com/saadparwaiz1/cmp_luasnip",
+    "name": "cmp_luasnip",
+    "ref": "master"
+  },
+  {
+    "category": "completion",
+    "description": "Flexible completion engine for Neovim written in Lua.",
+    "depends": [],
+    "url": "https://github.com/hrsh7th/nvim-cmp",
+    "name": "nvim-cmp",
+    "ref": "main"
+  },
+  {
+    "category": "core",
+    "description": "Plugin manager that lazily loads Neovim plugins for fast startup.",
+    "depends": [],
+    "url": "https://github.com/folke/lazy.nvim",
+    "name": "lazy.nvim",
+    "ref": "stable"
+  },
+  {
+    "category": "git",
+    "description": "Lightweight Git integration with signs for the Neovim gutter.",
+    "depends": ["plenary.nvim"],
+    "url": "https://github.com/lewis6991/gitsigns.nvim",
+    "name": "gitsigns.nvim",
+    "ref": "main"
+  },
+  {
+    "category": "library",
+    "description": "Utility Lua functions used by many Neovim plugins.",
+    "depends": [],
+    "url": "https://github.com/nvim-lua/plenary.nvim",
+    "name": "plenary.nvim",
+    "ref": "master"
+  },
+  {
+    "category": "lsp",
+    "description": "Quickstart configurations for Neovim's built-in LSP client.",
+    "depends": [],
+    "url": "https://github.com/neovim/nvim-lspconfig",
+    "name": "nvim-lspconfig",
+    "ref": "master"
+  },
+  {
+    "category": "search",
+    "description": "Native FZF sorter for telescope.nvim written in C.",
+    "depends": ["telescope.nvim"],
+    "url": "https://github.com/nvim-telescope/telescope-fzf-native.nvim",
+    "name": "telescope-fzf-native.nvim",
+    "ref": "main"
+  },
+  {
+    "category": "search",
+    "description": "Highly extendable fuzzy finder over lists and files in Neovim.",
+    "depends": ["plenary.nvim"],
+    "url": "https://github.com/nvim-telescope/telescope.nvim",
+    "name": "telescope.nvim",
+    "ref": "master"
+  },
+  {
+    "category": "snippets",
+    "description": "Snippets engine written in Lua with advanced features.",
+    "depends": [],
+    "url": "https://github.com/L3MON4D3/LuaSnip",
+    "name": "LuaSnip",
+    "ref": "master"
+  },
+  {
+    "category": "syntax",
+    "description": "Incremental parsing library for better syntax highlighting in Neovim.",
+    "depends": [],
+    "url": "https://github.com/nvim-treesitter/nvim-treesitter",
+    "name": "nvim-treesitter",
+    "ref": "master"
+  },
+  {
+    "category": "terminal",
+    "description": "Toggleable floating terminal window for Neovim.",
+    "depends": [],
+    "url": "https://github.com/akinsho/toggleterm.nvim",
+    "name": "toggleterm.nvim",
+    "ref": "main"
+  },
+  {
+    "category": "theme",
+    "description": "Modern One Dark colorscheme for Neovim.",
+    "depends": [],
+    "url": "https://github.com/navarasu/onedark.nvim",
+    "name": "onedark.nvim",
+    "ref": "master"
+  },
+  {
+    "category": "ui",
+    "description": "Filetype icons for Neovim statuslines and file explorers.",
+    "depends": [],
+    "url": "https://github.com/nvim-tree/nvim-web-devicons",
+    "name": "nvim-web-devicons",
+    "ref": "master"
+  }
+]
