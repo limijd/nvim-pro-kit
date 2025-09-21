@@ -201,6 +201,9 @@ def main() -> None:
     root = _repo_root()
     _require_clean_tree(args.allow_dirty, root)
 
+    if args.push and not args.commit:
+        sys.exit("ERROR: --push requires --commit")
+
     list_file = root / Path(args.list_file)
     items = _parse_list(list_file)
 
