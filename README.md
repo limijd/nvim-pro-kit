@@ -1,6 +1,21 @@
 # nvim-pro-kit
 Neovim professional all-in-one kit that is offline-installation friendly.
 
+## 🚀 Installation
+
+Use the provided bootstrap script to install the configuration without touching
+the network:
+
+```
+./bootstrap/install.sh
+```
+
+By default it creates a symbolic link at `$XDG_CONFIG_HOME/nvim` (or
+`~/.config/nvim`). Pass `--copy` if you prefer a physical copy, `--force` to
+overwrite an existing config, or `--target DIR` to install somewhere else.
+
+After linking you can start Neovim immediately, even on an offline machine.
+
 ## 📦 Managing Vendored Plugins
 
 This repo vendors all Neovim plugins under vendor/plugins/
@@ -115,4 +130,13 @@ scripts/vendor_update.py --commit
 ```
 scripts/vendor_update.py --commit --push
 ```
+
+## 🛠️ Offline readiness
+
+* All plugins, including `lazy.nvim`, ship in `vendor/plugins/` so no downloads
+  are required at runtime.
+* Treesitter parsers are not auto-downloaded; run `:TSInstall <lang>` when you
+  have the appropriate toolchains available.
+* LSP servers are configured opportunistically: if a language server binary is
+  missing, the configuration skips it and warns once instead of failing.
 

@@ -1,0 +1,20 @@
+local opt = vim.opt
+
+opt.termguicolors = true
+opt.number = true
+opt.relativenumber = true
+opt.cursorline = true
+opt.expandtab = true
+opt.shiftwidth = 2
+opt.tabstop = 2
+opt.smartindent = true
+opt.signcolumn = "yes"
+opt.splitbelow = true
+opt.splitright = true
+opt.ignorecase = true
+opt.smartcase = true
+opt.timeoutlen = 400
+opt.updatetime = 250
+opt.completeopt = { "menu", "menuone", "noselect" }
+opt.clipboard = "unnamedplus"
+opt.wrap = false
