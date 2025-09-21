@@ -7,6 +7,7 @@ return {
   dependencies = {
     "plenary.nvim",
     "telescope-fzf-native.nvim",
+    "nvim-web-devicons",
   },
   config = function()
     local telescope = require("telescope")
