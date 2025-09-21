@@ -1,5 +1,5 @@
 # nvim-pro-kit
-nvim professionl all-in-one kit which is offline installation friendly
+Neovim professional all-in-one kit that is offline-installation friendly.
 
 ## 📦 Managing Vendored Plugins
 
@@ -29,7 +29,7 @@ https://github.com/nvim-telescope/telescope.nvim telescope.nvim      master
 
 ### Syncing plugins
 
-Use scripts/vendor_update.py to keep plugins in sync.
+Use `scripts/vendor_update.py` to keep plugins in sync.
 
 ```
 # Preview actions (no changes)
@@ -60,7 +60,7 @@ scripts/vendor_update.py --commit --push
 
 ## 👩‍💻 Contributor Workflow
 
-All contributors should use vendor_update.py to manage plugins consistently. Never edit vendor/plugins/ by hand. 
+All contributors should use `vendor_update.py` to manage plugins consistently. Never edit `vendor/plugins/` by hand.
 
 ### Adding a new plugin
 
