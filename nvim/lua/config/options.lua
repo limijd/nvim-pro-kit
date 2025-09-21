@@ -18,3 +18,4 @@ opt.updatetime = 250
 opt.completeopt = { "menu", "menuone", "noselect" }
 opt.clipboard = "unnamedplus"
 opt.wrap = false
+opt.mouse = "a"
