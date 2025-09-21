@@ -3,6 +3,19 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
 
 `nvim-pro-kit` 是为专业开发流程量身打造的全能型 Neovim 配置。所有依赖都已预先内建，即使在离线环境也能快速部署，同时确保编辑器配置可重现且易于版本控制。
 
+## 📚 Table of Contents
+
+- [🚀 Installation](#-installation)
+- [📦 Managing Vendored Plugins](#-managing-vendored-plugins)
+  - [Plugin list](#plugin-list)
+  - [Syncing plugins](#syncing-plugins)
+  - [Safety](#safety)
+- [👩‍💻 Contributor Workflow](#-contributor-workflow)
+  - [Adding a new plugin](#adding-a-new-plugin)
+  - [Updating an existing plugin](#updating-an-existing-plugin)
+  - [Removing a plugin](#removing-a-plugin)
+  - [Notes](#notes)
+
 ## 🚀 Installation
 
 Use the Python bootstrap installer to set up the configuration without touching
