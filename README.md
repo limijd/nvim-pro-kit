@@ -255,3 +255,56 @@ scripts/vendor_update.py --commit --push
 * LSP servers are configured opportunistically: if a language server binary is
   missing, the configuration skips it and warns once instead of failing.
 
+## 🎬 Demo: Fresh CentOS 7 Deployment
+
+The following walkthrough shows how to bring up `nvim-pro-kit` on a clean
+CentOS 7 workstation without relying on the public internet. Adapt the paths if
+your environment differs.
+
+1. **Prepare prerequisites**
+   * Install core packages:
+     ```bash
+     sudo yum install -y git python3
+     ```
+   * Ensure you have a Neovim binary. You can either use the system package
+     (`sudo yum install -y neovim`) or the portable AppImage provided in this
+     repository under `tools/nvim/`.
+
+2. **Obtain the repository snapshot**
+   * Copy the repository bundle (for example via USB drive) to the target
+     machine. If you have network access, a direct clone works too:
+     ```bash
+     git clone https://github.com/your-org/nvim-pro-kit.git
+     ```
+   * Change into the project directory:
+     ```bash
+     cd nvim-pro-kit
+     ```
+
+3. **Install the configuration**
+   * Run the Python installer to link the configuration into
+     `$XDG_CONFIG_HOME/nvim` (defaults to `~/.config/nvim`):
+     ```bash
+     python3 bootstrap/install.py
+     ```
+   * Use `--copy` if you prefer a physical copy instead of a symlink, or
+     `--target DIR` to install into a custom location.
+
+4. **Launch Neovim**
+   * Start Neovim with your preferred binary:
+     ```bash
+     nvim
+     ```
+   * The editor loads immediately with all vendored plugins and Tree-sitter
+     grammars, even when completely offline.
+
+5. **Post-install checks (optional)**
+   * Verify plugin status with `:Lazy` inside Neovim.
+   * Update Tree-sitter parsers when toolchains are available:
+     ```bash
+     scripts/treesitter-sync.py
+     ```
+
+You now have a fully configured Neovim setup ready for professional use on a
+fresh CentOS 7 machine.
+
