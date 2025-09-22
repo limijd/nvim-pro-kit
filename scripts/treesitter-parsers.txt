@@ -31,7 +31,6 @@ query
 regex
 rust
 sql
-sxhkd
 toml
 tsx
 typescript
