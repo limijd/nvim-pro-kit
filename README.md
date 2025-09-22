@@ -145,8 +145,8 @@ and removes any extras.
 ### Vendoring parser sources
 
 Run `scripts/treesitter-vendor.py` whenever the manifest changes or you want to refresh the vendored Tree-sitter sources. The script
-downloads the C/C++ files listed in each grammar definition and copies them under `vendor/tree-sitter/<lang>/`, storing the
-associated metadata in `vendor/tree-sitter/metadata.json`.
+downloads the C/C++ files listed in each grammar definition, copies them under `vendor/tree-sitter/<lang>/`, stores the associated
+metadata in `vendor/tree-sitter/metadata.json`, and stages the updated directory so it is ready to commit.
 
 ```
 # Snapshot parser sources into vendor/tree-sitter/
@@ -158,8 +158,18 @@ scripts/treesitter-vendor.py --check
 
 Set `NVIM_BIN` if you want to use a specific Neovim binary (for example the AppImage bundled under `tools/nvim/`).
 The generated metadata is consumed automatically by both the sync script and the runtime configuration so that `nvim-treesitter`
-rebuilds every parser from the checked-in sources even on an offline machine. Commit the updated `vendor/tree-sitter/` directory
-whenever you run the vendor script.
+rebuilds every parser from the checked-in sources even on an offline machine. A typical refresh now looks like:
+
+1. `scripts/treesitter-vendor.py`
+   * Clones or updates each grammar.
+   * Copies the declared sources into `vendor/tree-sitter/`.
+   * Regenerates `metadata.json`.
+   * Runs `git add -A vendor/tree-sitter` so the new snapshot is staged.
+2. `scripts/treesitter-sync.py`
+   * Rebuilds the parsers from the staged sources.
+   * Optionally prunes stale builds.
+
+Review the staged changes and commit when you are satisfied.
 
 ### Verification
 
