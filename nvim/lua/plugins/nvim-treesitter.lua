@@ -1,21 +1,17 @@
 local util = require("config.util")
+local manifest = require("config.treesitter_manifest")
 
 return {
   name = "nvim-treesitter",
   dir = util.vendor("nvim-treesitter"),
   event = { "BufReadPost", "BufNewFile" },
   config = function()
+    local ensure_installed = manifest.languages()
+
     require("nvim-treesitter.configs").setup({
-      ensure_installed = {
-        "bash",
-        "lua",
-        "vim",
-        "vimdoc",
-        "json",
-        "python",
-        "javascript",
-        "typescript",
-      },
+      -- Update scripts/treesitter-parsers.txt and run scripts/treesitter-sync.py
+      -- to modify this list.
+      ensure_installed = ensure_installed,
       auto_install = false,
       highlight = {
         enable = true,

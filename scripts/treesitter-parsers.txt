@@ -1,0 +1,40 @@
+# List of Tree-sitter grammars managed by nvim-pro-kit.
+# Keep this file alphabetized. It is consumed by scripts/treesitter-sync.py
+# and by the Neovim configuration (see nvim/lua/plugins/nvim-treesitter.lua).
+
+asm
+bash
+c
+cmake
+comment
+cpp
+css
+diff
+dockerfile
+fish
+git_rebase
+gitattributes
+gitcommit
+gitignore
+go
+gomod
+html
+javascript
+json
+jsonc
+lua
+make
+markdown
+markdown_inline
+python
+query
+regex
+rust
+sql
+sxhkd
+toml
+tsx
+typescript
+vim
+vimdoc
+yaml
