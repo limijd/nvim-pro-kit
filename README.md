@@ -148,6 +148,17 @@ Run `scripts/treesitter-vendor.py` whenever the manifest changes or you want to 
 downloads the C/C++ files listed in each grammar definition, copies them under `vendor/tree-sitter/<lang>/`, stores the associated
 metadata in `vendor/tree-sitter/metadata.json`, and stages the updated directory so it is ready to commit.
 
+The vendored repositories typically ship their own build files (for example `Makefile` or `CMakeLists.txt`). When you need to
+manually verify a build, prefer invoking those entry points instead of crafting a bespoke compiler command. For instance, the
+TypeScript grammar can be rebuilt with the provided makefile:
+
+```
+cd vendor/tree-sitter/typescript/typescript
+TS=true make libtree-sitter-typescript.so
+```
+
+Setting `TS=true` skips regeneration of `parser.c` while still honoring the flags specified by the grammar authors.
+
 ```
 # Snapshot parser sources into vendor/tree-sitter/
 scripts/treesitter-vendor.py

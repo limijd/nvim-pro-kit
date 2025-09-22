@@ -418,7 +418,7 @@
     "requires_generate_from_grammar": null,
     "revision": "75b3874edb2dc714fb1fd77a32013d0f8699989f",
     "url": "https://github.com/tree-sitter/tree-sitter-typescript",
-    "use_makefile": null
+    "use_makefile": true
   },
   "typescript": {
     "branch": null,
@@ -432,7 +432,7 @@
     "requires_generate_from_grammar": null,
     "revision": "75b3874edb2dc714fb1fd77a32013d0f8699989f",
     "url": "https://github.com/tree-sitter/tree-sitter-typescript",
-    "use_makefile": null
+    "use_makefile": true
   },
   "vim": {
     "branch": null,
