@@ -13,6 +13,15 @@ from pathlib import Path
 from typing import Iterable, MutableMapping, Sequence
 
 
+RUNTIME_REPOSITORY = "https://github.com/tree-sitter/tree-sitter"
+RUNTIME_INCLUDE_SUBDIR = Path("lib/include/tree_sitter")
+RUNTIME_REQUIRED_HEADERS = (
+    "parser.h",
+    "alloc.h",
+    "array.h",
+)
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Snapshot Tree-sitter parser sources into vendor/tree-sitter",
@@ -159,11 +168,91 @@ def git_clone(url: str, dest: Path, branch: str | None, revision: str | None) ->
             ) from exc
 
 
+def copy_runtime_headers(runtime_dir: Path, destination: Path) -> None:
+    if not runtime_dir.is_dir():
+        raise SystemExit(
+            f"error: vendored Tree-sitter runtime headers missing at {runtime_dir}"
+        )
+
+    target = destination / "tree_sitter"
+    if target.exists():
+        shutil.rmtree(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        shutil.copytree(runtime_dir, target)
+    except OSError as exc:
+        raise SystemExit(
+            f"error: failed to copy Tree-sitter runtime headers into {target}: {exc}"
+        ) from exc
+
+
+def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
+    runtime_dir = output_dir / "tree_sitter"
+    metadata_path = output_dir / "runtime.json"
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if check:
+        if not runtime_dir.is_dir():
+            raise SystemExit(
+                "error: vendored Tree-sitter runtime headers are missing"
+            )
+        missing = [
+            header
+            for header in RUNTIME_REQUIRED_HEADERS
+            if not (runtime_dir / header).is_file()
+        ]
+        if missing:
+            joined = ", ".join(missing)
+            raise SystemExit(
+                "error: vendored Tree-sitter runtime headers missing required files: "
+                f"{joined}"
+            )
+        if not metadata_path.is_file():
+            raise SystemExit("error: runtime metadata not found")
+        return runtime_dir
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_dest = Path(tmpdir) / "runtime"
+        git_clone(RUNTIME_REPOSITORY, repo_dest, None, None)
+
+        include_dir = repo_dest / RUNTIME_INCLUDE_SUBDIR
+        if not include_dir.is_dir():
+            raise SystemExit(
+                "error: Tree-sitter repository layout changed, include directory not found"
+            )
+
+        if runtime_dir.exists():
+            shutil.rmtree(runtime_dir)
+        shutil.copytree(include_dir, runtime_dir)
+
+        try:
+            result = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repo_dest, text=True
+            )
+        except subprocess.CalledProcessError as exc:
+            raise SystemExit("error: failed to determine Tree-sitter runtime revision") from exc
+
+    revision = result.strip()
+
+    metadata = {
+        "url": RUNTIME_REPOSITORY,
+        "revision": revision,
+    }
+    tmp_path = metadata_path.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp_path.replace(metadata_path)
+
+    return runtime_dir
+
+
 def copy_sources(
     lang: str,
     info: dict[str, object],
     repo_path: Path,
     dest_root: Path,
+    runtime_dir: Path | None,
 ) -> None:
     files = info.get("files")
     if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
@@ -190,11 +279,17 @@ def copy_sources(
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
+    if runtime_dir is not None:
+        src_dir = dest_base / "src"
+        if src_dir.is_dir():
+            copy_runtime_headers(runtime_dir, src_dir)
+
 
 def vendor_parsers(
     languages: Sequence[str],
     install_info: dict[str, dict[str, object]],
     output_dir: Path,
+    runtime_dir: Path | None,
     *,
     check: bool,
 ) -> dict[str, dict[str, object]]:
@@ -222,6 +317,14 @@ def vendor_parsers(
                 file_path = base / Path(rel)
                 if not file_path.is_file():
                     missing.append(str(file_path.relative_to(output_dir)))
+            if runtime_dir is not None:
+                runtime_missing = []
+                runtime_base = base / "src" / "tree_sitter"
+                for header in RUNTIME_REQUIRED_HEADERS:
+                    header_path = runtime_base / header
+                    if not header_path.is_file():
+                        runtime_missing.append(str(header_path.relative_to(output_dir)))
+                missing.extend(runtime_missing)
             if missing:
                 raise SystemExit(
                     "error: vendored parser sources missing required files for "
@@ -242,7 +345,7 @@ def vendor_parsers(
                 ) from exc
             resolved_revision = result.strip()
 
-            copy_sources(lang, info, repo_dest, output_dir)
+            copy_sources(lang, info, repo_dest, output_dir, runtime_dir)
 
         metadata[lang] = {
             "url": url,
@@ -310,10 +413,12 @@ def main(argv: Sequence[str]) -> None:
     install_info = gather_install_info(base_cmd, env)
 
     output_dir = root / args.output
+    runtime_dir = vendor_runtime(output_dir, check=args.check)
     metadata = vendor_parsers(
         manifest_langs,
         install_info,
         output_dir,
+        runtime_dir,
         check=args.check,
     )
 
