@@ -68,14 +68,7 @@ def load_manifest(path: Path) -> list[str]:
 
 def build_nvim_command(nvim_bin: str) -> list[str]:
     runtime_setup = (
-        "+lua do local root = vim.env.TREESITTER_SYNC_ROOT or '' "
-        "if root ~= '' then "
-        "local paths = {'/vendor/plugins/plenary.nvim','/vendor/plugins/nvim-treesitter','/nvim'} "
-        "for _, suffix in ipairs(paths) do "
-        "vim.opt.runtimepath:prepend(root .. suffix) "
-        "end "
-        "end "
-        "end"
+        "+lua (function(root) if root ~= '' then local paths = {'/vendor/plugins/plenary.nvim','/vendor/plugins/nvim-treesitter','/nvim'} for _, suffix in ipairs(paths) do vim.opt.runtimepath:prepend(root .. suffix) end end end)(vim.env.TREESITTER_SYNC_ROOT or '')"
     )
     return [
         nvim_bin,
@@ -120,6 +113,8 @@ def install_or_update(base_cmd: Sequence[str], env: MutableMapping[str, str], ch
         "+lua local manifest=require('config.treesitter_manifest');"
         "local langs=manifest.languages({ silent = true });"
         "if #langs==0 then error('Tree-sitter manifest is empty') end;"
+        "local vendor=require('config.treesitter_vendor');"
+        "vendor.apply(langs);"
         "local install=require('nvim-treesitter.install');"
         "local update=install.update({ with_sync = true });"
         "local unpack=table.unpack or unpack;"

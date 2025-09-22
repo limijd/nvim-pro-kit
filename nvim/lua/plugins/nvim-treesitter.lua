@@ -1,5 +1,6 @@
 local util = require("config.util")
 local manifest = require("config.treesitter_manifest")
+local vendor = require("config.treesitter_vendor")
 
 return {
   name = "nvim-treesitter",
@@ -7,6 +8,7 @@ return {
   event = { "BufReadPost", "BufNewFile" },
   config = function()
     local ensure_installed = manifest.languages()
+    vendor.apply(ensure_installed)
 
     require("nvim-treesitter.configs").setup({
       -- Update scripts/treesitter-parsers.txt and run scripts/treesitter-sync.py

@@ -142,6 +142,25 @@ The script runs Neovim headlessly, leveraging the vendored
 installation directory contains exactly the languages listed in the manifest
 and removes any extras.
 
+### Vendoring parser sources
+
+Run `scripts/treesitter-vendor.py` whenever the manifest changes or you want to refresh the vendored Tree-sitter sources. The script
+downloads the C/C++ files listed in each grammar definition and copies them under `vendor/tree-sitter/<lang>/`, storing the
+associated metadata in `vendor/tree-sitter/metadata.json`.
+
+```
+# Snapshot parser sources into vendor/tree-sitter/
+scripts/treesitter-vendor.py
+
+# Only verify that the committed sources match the manifest
+scripts/treesitter-vendor.py --check
+```
+
+Set `NVIM_BIN` if you want to use a specific Neovim binary (for example the AppImage bundled under `tools/nvim/`).
+The generated metadata is consumed automatically by both the sync script and the runtime configuration so that `nvim-treesitter`
+rebuilds every parser from the checked-in sources even on an offline machine. Commit the updated `vendor/tree-sitter/` directory
+whenever you run the vendor script.
+
 ### Verification
 
 Running `scripts/treesitter-sync.py --check` exits with a non-zero status if any
