@@ -281,7 +281,21 @@ your environment differs.
      cd nvim-pro-kit
      ```
 
-3. **Install the configuration**
+3. **Sync vendored assets**
+   * Ensure the vendored plugin snapshot matches `scripts/plugins-list.yaml`:
+     ```bash
+     python3 scripts/vendor_update.py
+     ```
+     This step is idempotent. On a freshly cloned repository it validates that
+     `vendor/plugins/` already contains the expected commits, and when run with
+     network access it will pull in any missing updates.
+   * Build the Tree-sitter parsers from the vendored sources so the `.so`
+     libraries exist locally:
+     ```bash
+     python3 scripts/treesitter-sync.py
+     ```
+
+4. **Install the configuration**
    * Run the Python installer to link the configuration into
      `$XDG_CONFIG_HOME/nvim` (defaults to `~/.config/nvim`):
      ```bash
@@ -290,7 +304,7 @@ your environment differs.
    * Use `--copy` if you prefer a physical copy instead of a symlink, or
      `--target DIR` to install into a custom location.
 
-4. **Launch Neovim**
+5. **Launch Neovim**
    * Start Neovim with your preferred binary:
      ```bash
      nvim
@@ -298,12 +312,8 @@ your environment differs.
    * The editor loads immediately with all vendored plugins and Tree-sitter
      grammars, even when completely offline.
 
-5. **Post-install checks (optional)**
+6. **Post-install checks (optional)**
    * Verify plugin status with `:Lazy` inside Neovim.
-   * Update Tree-sitter parsers when toolchains are available:
-     ```bash
-     scripts/treesitter-sync.py
-     ```
 
 You now have a fully configured Neovim setup ready for professional use on a
 fresh CentOS 7 machine.
