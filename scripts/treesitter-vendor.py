@@ -13,6 +13,126 @@ from pathlib import Path
 from typing import Iterable, MutableMapping, Sequence
 
 
+class BuildError(RuntimeError):
+    """Raised when a vendored parser fails to build."""
+
+
+ParserFiles = Sequence[str]
+
+
+def has_cpp_sources(files: ParserFiles) -> bool:
+    return any(Path(file).suffix in {".cc", ".cpp", ".cxx"} for file in files)
+
+
+def cleanup_artifacts(base_dir: Path, names: Sequence[str]) -> None:
+    for name in names:
+        path = base_dir / name
+        if path.exists():
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+
+def compile_with_compiler(
+    lang: str,
+    files: ParserFiles,
+    base_dir: Path,
+    *,
+    cxx_standard: str | None = None,
+) -> None:
+    compiler = os.environ.get("CC", "cc")
+    args: list[str] = [compiler, "-o", "parser.so", "-I./src"]
+    args.extend(str(Path(file)) for file in files)
+    args.append("-Os")
+
+    if has_cpp_sources(files):
+        args.append(f"-std={cxx_standard}" if cxx_standard else "-std=c++14")
+        args.append("-lstdc++")
+    else:
+        args.append("-std=c11")
+
+    if sys.platform == "darwin":
+        args.append("-bundle")
+    else:
+        args.append("-shared")
+
+    if os.name != "nt":
+        args.append("-fPIC")
+
+    try:
+        subprocess.run(args, cwd=base_dir, check=True)
+    except FileNotFoundError as exc:
+        raise BuildError(f"compiler {compiler!r} required to build {lang} not found") from exc
+    except subprocess.CalledProcessError as exc:
+        raise BuildError(f"failed to compile parser for {lang} using {compiler}") from exc
+    finally:
+        cleanup_artifacts(base_dir, ["parser.so", "parser.bundle", "parser.dll"])
+
+
+def compile_with_make(
+    lang: str,
+    base_dir: Path,
+    *,
+    env: MutableMapping[str, str] | None = None,
+    targets: Sequence[str] | None = None,
+) -> None:
+    make_path = shutil.which("gmake") or shutil.which("make")
+    if not make_path:
+        raise BuildError(f"required build tool 'make' not found for parser {lang}")
+
+    build_env = os.environ.copy()
+    if env:
+        build_env.update(env)
+
+    args = [make_path]
+    if targets:
+        args.extend(targets)
+
+    try:
+        subprocess.run(args, cwd=base_dir, env=build_env, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise BuildError(f"'make' build failed for parser {lang}") from exc
+    except FileNotFoundError as exc:
+        raise BuildError(f"required build tool 'make' not found for parser {lang}") from exc
+    else:
+        try:
+            subprocess.run(
+                [make_path, "clean"],
+                cwd=base_dir,
+                env=build_env,
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            pass
+
+
+def compile_parser(lang: str, info: dict[str, object], base_dir: Path) -> None:
+    files = info.get("files")
+    if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
+        raise BuildError(f"parser {lang} does not list source files to compile")
+
+    makefile = base_dir / "Makefile"
+    if makefile.is_file():
+        ts_command = os.environ.get("TS") or "true"
+        compile_with_make(
+            lang,
+            base_dir,
+            env={"TS": ts_command},
+            targets=None,
+        )
+        return
+
+    compile_with_compiler(
+        lang,
+        files,
+        base_dir,
+        cxx_standard=str(info.get("cxx_standard")) if info.get("cxx_standard") else None,
+    )
+
+
 RUNTIME_REPOSITORY = "https://github.com/tree-sitter/tree-sitter"
 RUNTIME_INCLUDE_SUBDIR = Path("lib/include/tree_sitter")
 RUNTIME_FALLBACK_HEADER_DIRS = (
@@ -173,16 +293,34 @@ def copy_runtime_headers(runtime_dir: Path, destination: Path) -> None:
         )
 
     target = destination / "tree_sitter"
-    if target.exists():
-        shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        shutil.copytree(runtime_dir, target)
-    except OSError as exc:
-        raise SystemExit(
-            f"error: failed to copy Tree-sitter runtime headers into {target}: {exc}"
-        ) from exc
+    if not target.exists():
+        try:
+            shutil.copytree(runtime_dir, target)
+        except OSError as exc:
+            raise SystemExit(
+                "error: failed to copy Tree-sitter runtime headers into "
+                f"{target}: {exc}"
+            ) from exc
+        return
+
+    for source in runtime_dir.rglob("*"):
+        relative = source.relative_to(runtime_dir)
+        destination_path = target / relative
+        if source.is_dir():
+            destination_path.mkdir(parents=True, exist_ok=True)
+            continue
+        if destination_path.exists():
+            continue
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy2(source, destination_path)
+        except OSError as exc:
+            raise SystemExit(
+                "error: failed to copy Tree-sitter runtime header "
+                f"{relative} into {target}: {exc}"
+            ) from exc
 
 
 def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
@@ -400,6 +538,16 @@ def vendor_parsers(
             resolved_revision = result.strip()
 
             copy_repo(lang, info, repo_dest, output_dir, runtime_dir)
+
+            location = info.get("location")
+            location_path = (
+                Path(location) if isinstance(location, str) and location else None
+            )
+            base_dir = dest_lang_dir / location_path if location_path else dest_lang_dir
+            try:
+                compile_parser(lang, info, base_dir)
+            except BuildError as exc:
+                raise SystemExit(f"error: {exc}") from exc
 
         metadata[lang] = {
             "url": url,

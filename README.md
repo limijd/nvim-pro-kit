@@ -146,7 +146,19 @@ and removes any extras.
 
 Run `scripts/treesitter-vendor.py` whenever the manifest changes or you want to refresh the vendored Tree-sitter sources. The script
 downloads the C/C++ files listed in each grammar definition, copies them under `vendor/tree-sitter/<lang>/`, stores the associated
-metadata in `vendor/tree-sitter/metadata.json`, and stages the updated directory so it is ready to commit.
+metadata in `vendor/tree-sitter/metadata.json`, and stages the updated directory so it is ready to commit. After snapshotting the
+sources the script compiles every parser using the build instructions recommended by each grammar (for example their `Makefile` or
+`CMakeLists.txt`). This keeps the vendored code honest with upstream without hard-coding a brittle compiler command.
+
+The TypeScript grammar, for example, provides a makefile that bakes in extra linker flags. The vendor script honours that entry
+point automatically, and you can invoke it manually when debugging a build:
+
+```
+cd vendor/tree-sitter/typescript/typescript
+TS=true make libtree-sitter-typescript.so
+```
+
+Setting `TS=true` skips regeneration of `parser.c` while still honoring the flags specified by the grammar authors.
 
 ```
 # Snapshot parser sources into vendor/tree-sitter/
