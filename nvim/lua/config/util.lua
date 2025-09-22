@@ -9,6 +9,14 @@ local function dir_exists(path)
 end
 
 local function find_repo_root()
+  local env_root = vim.env.NVIM_PRO_KIT_ROOT or vim.env.TREESITTER_SYNC_ROOT
+  if env_root and env_root ~= "" then
+    local normalized = vim.fs.normalize(env_root)
+    if dir_exists(normalized) then
+      return normalized
+    end
+  end
+
   local dir = vim.fs.normalize(config_root)
   while dir do
     local git_dir = dir .. "/.git"
