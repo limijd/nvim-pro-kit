@@ -266,6 +266,25 @@ def write_metadata(path: Path, data: dict[str, dict[str, object]]) -> None:
     tmp_path.replace(path)
 
 
+def stage_paths(root: Path, paths: Sequence[Path]) -> None:
+    if not paths:
+        return
+
+    rel_paths: list[str] = []
+    for path in paths:
+        try:
+            rel_paths.append(str(path.relative_to(root)))
+        except ValueError:
+            rel_paths.append(str(path))
+
+    cmd = ["git", "-C", str(root), "add", "-A", *rel_paths]
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        joined = " ".join(rel_paths)
+        raise SystemExit(f"error: failed to stage updated vendor sources ({joined})") from exc
+
+
 def main(argv: Sequence[str]) -> None:
     args = parse_args(argv)
 
@@ -299,7 +318,9 @@ def main(argv: Sequence[str]) -> None:
     )
 
     if not args.check:
-        write_metadata(output_dir / "metadata.json", metadata)
+        metadata_path = output_dir / "metadata.json"
+        write_metadata(metadata_path, metadata)
+        stage_paths(root, [output_dir, metadata_path])
 
 
 if __name__ == "__main__":
