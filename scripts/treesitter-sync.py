@@ -1,19 +1,39 @@
 #!/usr/bin/env python3
-"""Install, update, and prune Tree-sitter parsers listed in the manifest."""
+"""Build and install Tree-sitter parsers from vendored sources."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import Iterable, MutableMapping, Sequence
+from typing import Iterable, Sequence
+
+
+class BuildError(RuntimeError):
+    """Raised when building a parser fails."""
+
+
+def log(message: str) -> None:
+    """Print a status message with flushing enabled."""
+
+    print(message, flush=True)
+
+
+def format_command(args: Sequence[str]) -> str:
+    """Return a human readable representation of a command line."""
+
+    return " ".join(shlex.quote(arg) for arg in args)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Install, update, and prune Tree-sitter parsers",
+        description="Compile Tree-sitter parsers from vendored repositories.",
     )
     parser.add_argument(
         "--manifest",
@@ -22,14 +42,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Verify installed parsers match the manifest without modifying disk.",
+        help="Verify installed parsers match the manifest without rebuilding.",
     )
     prune_group = parser.add_mutually_exclusive_group()
     prune_group.add_argument(
         "--prune",
         dest="prune",
         action="store_true",
-        help="Remove parsers that are not listed in the manifest (default).",
+        help="Remove compiled parsers that are not listed in the manifest (default).",
     )
     prune_group.add_argument(
         "--no-prune",
@@ -66,140 +86,180 @@ def load_manifest(path: Path) -> list[str]:
     return languages
 
 
-def build_nvim_command(nvim_bin: str) -> list[str]:
-    runtime_setup = (
-        "+lua (function(root) if root ~= '' then local paths = {'/vendor/plugins/plenary.nvim','/vendor/plugins/nvim-treesitter','/nvim'} for _, suffix in ipairs(paths) do vim.opt.runtimepath:prepend(root .. suffix) end end end)(vim.env.TREESITTER_SYNC_ROOT or '')"
-    )
-    return [
-        nvim_bin,
-        "--headless",
-        "--clean",
-        runtime_setup,
-        "+runtime plugin/plenary.vim",
-        "+runtime plugin/nvim-treesitter.lua",
-    ]
-
-
-def run_nvim(
-    base_cmd: Sequence[str],
-    env: MutableMapping[str, str],
-    extra_args: Iterable[str],
-    *,
-    capture_output: bool = False,
-) -> str:
-    stdout = subprocess.PIPE if capture_output else None
-    stderr = subprocess.STDOUT if capture_output else None
+def load_metadata(path: Path) -> dict[str, dict[str, object]]:
+    if not path.is_file():
+        raise SystemExit(f"error: metadata not found at {path}")
     try:
-        result = subprocess.run(
-            [*base_cmd, *extra_args],
-            env=env,
-            check=True,
-            text=True,
-            stdout=stdout,
-            stderr=stderr,
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"error: failed to decode metadata at {path}: {exc}") from exc
+
+
+def shared_library_extension() -> str:
+    if sys.platform == "darwin":
+        return ".so"
+    if os.name == "nt":
+        return ".dll"
+    return ".so"
+
+
+def has_cpp_sources(files: Iterable[str]) -> bool:
+    return any(Path(file).suffix in {".cc", ".cpp", ".cxx"} for file in files)
+
+
+def ensure_parser_base(lang: str, info: dict[str, object], vendor_root: Path) -> Path:
+    repo_dir = vendor_root / lang
+    if not repo_dir.is_dir():
+        raise SystemExit(
+            f"error: vendored repository for {lang} is missing at {repo_dir}"
         )
-    except subprocess.CalledProcessError as exc:
-        if capture_output and exc.stdout:
-            sys.stderr.write(exc.stdout)
-        raise SystemExit("error: Neovim command failed") from exc
-    return result.stdout or ""
+
+    location = info.get("location")
+    location_path = Path(location) if isinstance(location, str) and location else None
+    base_dir = repo_dir / location_path if location_path else repo_dir
+    if not base_dir.is_dir():
+        raise SystemExit(
+            f"error: expected parser location for {lang} is missing at {base_dir}"
+        )
+    return base_dir
 
 
-def install_or_update(base_cmd: Sequence[str], env: MutableMapping[str, str], check: bool) -> None:
-    if check:
-        return
-
-    lua_cmd = (
-        "+lua local manifest=require('config.treesitter_manifest');"
-        "local langs=manifest.languages({ silent = true });"
-        "if #langs==0 then error('Tree-sitter manifest is empty') end;"
-        "local vendor=require('config.treesitter_vendor');"
-        "vendor.apply(langs);"
-        "local install=require('nvim-treesitter.install');"
-        "local runner=install.commands.TSInstallSync['run!'];"
-        "for _,lang in ipairs(langs) do"
-        " runner(lang);"
-        "end"
-    )
-
-    run_nvim(base_cmd, env, [lua_cmd, "+qa"])
-
-
-def collect_dirs(base_cmd: Sequence[str], env: MutableMapping[str, str]) -> tuple[str, str]:
-    lua_cmd = (
-        "+lua local configs=require('nvim-treesitter.configs');"
-        "local function first(...) local t={...};return t[1];end;"
-        "local parser_dir=first(configs.get_parser_install_dir());"
-        "local info_dir=first(configs.get_parser_info_dir());"
-        "io.write((parser_dir or '') .. '\n' .. (info_dir or ''))"
-    )
-    output = run_nvim(base_cmd, env, [lua_cmd, "+qa"], capture_output=True)
-    lines = output.splitlines()
-    parser_dir = lines[0].strip() if lines else ""
-    info_dir = lines[1].strip() if len(lines) > 1 else ""
-    return parser_dir, info_dir
-
-
-def list_parsers(parser_dir: str) -> set[str]:
-    if not parser_dir:
-        return set()
-    directory = Path(parser_dir)
-    if not directory.is_dir():
-        return set()
-
-    names: set[str] = set()
-    for pattern in ("*.so", "*.dll", "*.dylib", "*.wasm"):
-        for path in directory.glob(pattern):
-            names.add(path.stem.split(".")[0])
-    return names
-
-
-def list_revisions(info_dir: str) -> set[str]:
-    if not info_dir:
-        return set()
-    directory = Path(info_dir)
-    if not directory.is_dir():
-        return set()
-
-    return {path.stem for path in directory.glob("*.revision")}
-
-
-def prune_extras(
-    extra: Iterable[str],
-    parser_dir: str,
-    info_dir: str,
+def compile_parser(
+    lang: str,
+    info: dict[str, object],
+    vendor_root: Path,
+    runtime_include: Path,
+    output_path: Path,
 ) -> None:
-    parser_path = Path(parser_dir) if parser_dir else None
-    info_path = Path(info_dir) if info_dir else None
+    files = info.get("files")
+    if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
+        raise BuildError(f"parser {lang} does not list source files to compile")
 
+    base_dir = ensure_parser_base(lang, info, vendor_root)
+    missing: list[str] = []
+    for rel in files:
+        if not (base_dir / rel).is_file():
+            missing.append(rel)
+    if missing:
+        raise BuildError(
+            f"parser {lang} is missing required source files: {' '.join(missing)}"
+        )
+
+    compiler = os.environ.get("CC", "cc")
+    uses_cpp = has_cpp_sources(files)
+    with tempfile.TemporaryDirectory() as build_dir:
+        tmp_output = Path(build_dir) / output_path.name
+        args: list[str] = [compiler]
+        args.extend(["-I", "./src"])
+        args.extend(["-I", str(runtime_include)])
+        args.append("-Os")
+        if os.name != "nt":
+            args.append("-fPIC")
+
+        cxx_standard = str(info.get("cxx_standard")) if info.get("cxx_standard") else None
+        if uses_cpp:
+            args.append(f"-std={cxx_standard}" if cxx_standard else "-std=c++14")
+        else:
+            args.append("-std=c11")
+
+        if sys.platform == "darwin":
+            args.append("-bundle")
+        else:
+            args.append("-shared")
+
+        args.extend(["-o", str(tmp_output)])
+        args.extend(str(Path(rel)) for rel in files)
+        if uses_cpp:
+            args.append("-lstdc++")
+
+        log(f"[sync] {lang}: running (cwd={base_dir}) {format_command(args)}")
+        try:
+            subprocess.run(args, cwd=base_dir, check=True)
+        except FileNotFoundError as exc:
+            raise BuildError(f"compiler {compiler!r} required to build {lang} not found") from exc
+        except subprocess.CalledProcessError as exc:
+            raise BuildError(f"failed to compile parser for {lang}") from exc
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(tmp_output, output_path)
+
+
+def list_parsers(parser_dir: Path, extension: str) -> set[str]:
+    if not parser_dir.is_dir():
+        return set()
+    return {path.stem for path in parser_dir.glob(f"*{extension}")}
+
+
+def list_revisions(info_dir: Path) -> set[str]:
+    if not info_dir.is_dir():
+        return set()
+    return {path.stem for path in info_dir.glob("*.revision")}
+
+
+def prune_extras(extra: Iterable[str], parser_dir: Path, info_dir: Path, extension: str) -> None:
     extras = sorted(set(extra))
     if not extras:
         return
 
-    print(f"Pruning extraneous Tree-sitter parsers: {' '.join(extras)}")
+    log(f"[sync] Pruning extraneous parsers: {' '.join(extras)}")
     for lang in extras:
-        if parser_path:
-            for suffix in (".so", ".dll", ".dylib", ".wasm"):
-                try:
-                    (parser_path / f"{lang}{suffix}").unlink(missing_ok=True)
-                except OSError:
-                    pass
-        if info_path:
-            try:
-                (info_path / f"{lang}.revision").unlink(missing_ok=True)
-            except OSError:
-                pass
+        parser_path = parser_dir / f"{lang}{extension}"
+        try:
+            parser_path.unlink()
+        except OSError:
+            pass
+        revision_path = info_dir / f"{lang}.revision"
+        try:
+            revision_path.unlink()
+        except OSError:
+            pass
+
+
+def write_revision(info_dir: Path, lang: str, revision: str | None) -> None:
+    info_dir.mkdir(parents=True, exist_ok=True)
+    path = info_dir / f"{lang}.revision"
+    text = (revision or "").strip()
+    log(f"[sync] {lang}: writing revision {text or '<unknown>'} to {path}")
+    path.write_text(text + "\n", encoding="utf-8")
+
+
+def verify_installation(
+    lang: str,
+    info: dict[str, object],
+    parser_dir: Path,
+    info_dir: Path,
+    extension: str,
+) -> None:
+    parser_path = parser_dir / f"{lang}{extension}"
+    if not parser_path.is_file():
+        raise SystemExit(f"error: compiled parser missing for {lang} at {parser_path}")
+
+    revision = str(info.get("revision") or "").strip()
+    revision_path = info_dir / f"{lang}.revision"
+    if revision:
+        if not revision_path.is_file():
+            raise SystemExit(
+                f"error: revision file missing for {lang} at {revision_path}"
+            )
+        installed = revision_path.read_text(encoding="utf-8").strip()
+        if installed != revision:
+            raise SystemExit(
+                "error: revision mismatch for {lang}: expected {expected} got {actual}".format(
+                    lang=lang, expected=revision, actual=installed
+                )
+            )
 
 
 def report(
     manifest_langs: Sequence[str],
-    installed: Set[str],
-    revisions: Set[str],
+    installed: set[str],
+    revisions: set[str],
     *,
     check: bool,
     prune: bool,
-    parser_dir: str,
-    info_dir: str,
+    parser_dir: Path,
+    info_dir: Path,
+    extension: str,
 ) -> None:
     manifest_set = set(manifest_langs)
     missing = [lang for lang in manifest_langs if lang not in installed]
@@ -208,9 +268,7 @@ def report(
     if check:
         status = 0
         if missing:
-            sys.stderr.write(
-                "Missing Tree-sitter parsers: " + " ".join(missing) + "\n"
-            )
+            sys.stderr.write("Missing Tree-sitter parsers: " + " ".join(missing) + "\n")
             status = 1
         if extra:
             sys.stderr.write(
@@ -222,16 +280,16 @@ def report(
         return
 
     if prune and extra:
-        prune_extras(extra, parser_dir, info_dir)
+        prune_extras(extra, parser_dir, info_dir, extension)
     elif extra:
-        print(
-            "Extraneous Tree-sitter parsers detected (use --prune to remove): "
+        log(
+            "[sync] Extraneous Tree-sitter parsers detected (use --prune to remove): "
             + " ".join(sorted(extra))
         )
 
     if missing:
         sys.stderr.write(
-            "Parsers still missing after update: " + " ".join(missing) + "\n"
+            "Parsers still missing after build: " + " ".join(missing) + "\n"
         )
         raise SystemExit(1)
 
@@ -250,14 +308,42 @@ def main(argv: Sequence[str]) -> None:
             f"error: manifest {manifest_path} does not list any Tree-sitter parsers"
         )
 
-    nvim_bin = os.environ.get("NVIM_BIN", "nvim")
-    base_cmd = build_nvim_command(nvim_bin)
-    env = os.environ.copy()
-    env["TREESITTER_SYNC_ROOT"] = str(root)
+    log(f"[sync] Loaded manifest from {manifest_path} ({len(manifest_langs)} languages)")
 
-    install_or_update(base_cmd, env, args.check)
-    parser_dir, info_dir = collect_dirs(base_cmd, env)
-    installed = list_parsers(parser_dir)
+    metadata_path = root / "vendor" / "tree-sitter" / "metadata.json"
+    metadata = load_metadata(metadata_path)
+    vendor_root = metadata_path.parent
+    runtime_include = vendor_root / "tree_sitter"
+    if not runtime_include.is_dir():
+        raise SystemExit(
+            f"error: vendored runtime headers not found at {runtime_include}"
+        )
+
+    parser_dir = root / "vendor" / "plugins" / "nvim-treesitter" / "parser"
+    info_dir = root / "vendor" / "plugins" / "nvim-treesitter" / "parser-info"
+    extension = shared_library_extension()
+
+    if args.check:
+        for lang in manifest_langs:
+            info = metadata.get(lang)
+            if not info:
+                raise SystemExit(f"error: missing metadata for {lang}")
+            verify_installation(lang, info, parser_dir, info_dir, extension)
+    else:
+        for lang in manifest_langs:
+            info = metadata.get(lang)
+            if not info:
+                raise SystemExit(f"error: missing metadata for {lang}")
+            log(f"[sync] {lang}: compiling parser")
+            output_path = parser_dir / f"{lang}{extension}"
+            try:
+                compile_parser(lang, info, vendor_root, runtime_include, output_path)
+            except BuildError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+            revision = str(info.get("revision") or "").strip()
+            write_revision(info_dir, lang, revision)
+
+    installed = list_parsers(parser_dir, extension)
     revisions = list_revisions(info_dir)
     report(
         manifest_langs,
@@ -267,6 +353,7 @@ def main(argv: Sequence[str]) -> None:
         prune=args.prune,
         parser_dir=parser_dir,
         info_dir=info_dir,
+        extension=extension,
     )
 
 

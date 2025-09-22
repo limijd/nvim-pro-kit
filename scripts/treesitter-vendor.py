@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,124 +14,16 @@ from pathlib import Path
 from typing import Iterable, MutableMapping, Sequence
 
 
-class BuildError(RuntimeError):
-    """Raised when a vendored parser fails to build."""
+def log(message: str) -> None:
+    """Print a status message with flushing enabled."""
+
+    print(message, flush=True)
 
 
-ParserFiles = Sequence[str]
+def format_command(args: Sequence[str]) -> str:
+    """Return a human friendly representation of a shell command."""
 
-
-def has_cpp_sources(files: ParserFiles) -> bool:
-    return any(Path(file).suffix in {".cc", ".cpp", ".cxx"} for file in files)
-
-
-def cleanup_artifacts(base_dir: Path, names: Sequence[str]) -> None:
-    for name in names:
-        path = base_dir / name
-        if path.exists():
-            try:
-                path.unlink()
-            except OSError:
-                pass
-
-
-def compile_with_compiler(
-    lang: str,
-    files: ParserFiles,
-    base_dir: Path,
-    *,
-    cxx_standard: str | None = None,
-) -> None:
-    compiler = os.environ.get("CC", "cc")
-    args: list[str] = [compiler, "-o", "parser.so", "-I./src"]
-    args.extend(str(Path(file)) for file in files)
-    args.append("-Os")
-
-    if has_cpp_sources(files):
-        args.append(f"-std={cxx_standard}" if cxx_standard else "-std=c++14")
-        args.append("-lstdc++")
-    else:
-        args.append("-std=c11")
-
-    if sys.platform == "darwin":
-        args.append("-bundle")
-    else:
-        args.append("-shared")
-
-    if os.name != "nt":
-        args.append("-fPIC")
-
-    try:
-        subprocess.run(args, cwd=base_dir, check=True)
-    except FileNotFoundError as exc:
-        raise BuildError(f"compiler {compiler!r} required to build {lang} not found") from exc
-    except subprocess.CalledProcessError as exc:
-        raise BuildError(f"failed to compile parser for {lang} using {compiler}") from exc
-    finally:
-        cleanup_artifacts(base_dir, ["parser.so", "parser.bundle", "parser.dll"])
-
-
-def compile_with_make(
-    lang: str,
-    base_dir: Path,
-    *,
-    env: MutableMapping[str, str] | None = None,
-    targets: Sequence[str] | None = None,
-) -> None:
-    make_path = shutil.which("gmake") or shutil.which("make")
-    if not make_path:
-        raise BuildError(f"required build tool 'make' not found for parser {lang}")
-
-    build_env = os.environ.copy()
-    if env:
-        build_env.update(env)
-
-    args = [make_path]
-    if targets:
-        args.extend(targets)
-
-    try:
-        subprocess.run(args, cwd=base_dir, env=build_env, check=True)
-    except subprocess.CalledProcessError as exc:
-        raise BuildError(f"'make' build failed for parser {lang}") from exc
-    except FileNotFoundError as exc:
-        raise BuildError(f"required build tool 'make' not found for parser {lang}") from exc
-    else:
-        try:
-            subprocess.run(
-                [make_path, "clean"],
-                cwd=base_dir,
-                env=build_env,
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except OSError:
-            pass
-
-
-def compile_parser(lang: str, info: dict[str, object], base_dir: Path) -> None:
-    files = info.get("files")
-    if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
-        raise BuildError(f"parser {lang} does not list source files to compile")
-
-    makefile = base_dir / "Makefile"
-    if makefile.is_file():
-        ts_command = os.environ.get("TS") or "true"
-        compile_with_make(
-            lang,
-            base_dir,
-            env={"TS": ts_command},
-            targets=None,
-        )
-        return
-
-    compile_with_compiler(
-        lang,
-        files,
-        base_dir,
-        cxx_standard=str(info.get("cxx_standard")) if info.get("cxx_standard") else None,
-    )
+    return " ".join(shlex.quote(arg) for arg in args)
 
 
 RUNTIME_REPOSITORY = "https://github.com/tree-sitter/tree-sitter"
@@ -220,9 +113,11 @@ def run_nvim(
 ) -> str:
     stdout = subprocess.PIPE if capture_output else None
     stderr = subprocess.STDOUT if capture_output else None
+    full_cmd = [*base_cmd, *extra_args]
+    log(f"[vendor] Running: {format_command(full_cmd)}")
     try:
         result = subprocess.run(
-            [*base_cmd, *extra_args],
+            full_cmd,
             env=env,
             check=True,
             text=True,
@@ -239,6 +134,7 @@ def run_nvim(
 def gather_install_info(
     base_cmd: Sequence[str], env: MutableMapping[str, str]
 ) -> dict[str, dict[str, object]]:
+    log("[vendor] Gathering parser metadata from Neovim")
     lua_cmd = (
         "+lua local manifest=require('config.treesitter_manifest');"
         "local langs=manifest.languages({ silent = true });"
@@ -272,6 +168,7 @@ def git_clone(url: str, dest: Path, branch: str | None, revision: str | None) ->
     clone_cmd = ["git", "clone", url, str(dest)]
     if branch:
         clone_cmd.extend(["--branch", branch])
+    log(f"[vendor] Running: {format_command(clone_cmd)}")
     try:
         subprocess.run(clone_cmd, check=True)
     except subprocess.CalledProcessError as exc:
@@ -279,7 +176,9 @@ def git_clone(url: str, dest: Path, branch: str | None, revision: str | None) ->
 
     if revision:
         try:
-            subprocess.run(["git", "checkout", revision], cwd=dest, check=True)
+            checkout_cmd = ["git", "checkout", revision]
+            log(f"[vendor] Running: (cwd={dest}) {format_command(checkout_cmd)}")
+            subprocess.run(checkout_cmd, cwd=dest, check=True)
         except subprocess.CalledProcessError as exc:
             raise SystemExit(
                 f"error: failed to check out revision {revision} in {url}"
@@ -295,6 +194,7 @@ def copy_runtime_headers(runtime_dir: Path, destination: Path) -> None:
     target = destination / "tree_sitter"
     target.parent.mkdir(parents=True, exist_ok=True)
 
+    log(f"[vendor] Mirroring runtime headers into {destination}")
     if not target.exists():
         try:
             shutil.copytree(runtime_dir, target)
@@ -330,6 +230,7 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if check:
+        log("[vendor] Verifying vendored Tree-sitter runtime")
         if not runtime_dir.is_dir():
             raise SystemExit(
                 "error: vendored Tree-sitter runtime headers are missing"
@@ -349,6 +250,7 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
             raise SystemExit("error: runtime metadata not found")
         return runtime_dir
 
+    log("[vendor] Updating vendored Tree-sitter runtime headers")
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_dest = Path(tmpdir) / "runtime"
         git_clone(RUNTIME_REPOSITORY, repo_dest, None, None)
@@ -375,10 +277,12 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, destination)
 
+        rev_cmd = ["git", "rev-parse", "HEAD"]
+        log(
+            f"[vendor] Running: (cwd={repo_dest}) {format_command(rev_cmd)}"
+        )
         try:
-            result = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=repo_dest, text=True
-            )
+            result = subprocess.check_output(rev_cmd, cwd=repo_dest, text=True)
         except subprocess.CalledProcessError as exc:
             raise SystemExit("error: failed to determine Tree-sitter runtime revision") from exc
 
@@ -431,9 +335,15 @@ def copy_repo(
 
     dest_lang_dir = dest_root / lang
     if dest_lang_dir.exists():
+        log(f"[vendor] {lang}: removing previous snapshot at {dest_lang_dir}")
         shutil.rmtree(dest_lang_dir)
+    log(f"[vendor] {lang}: copying sources into {dest_lang_dir}")
     try:
-        shutil.copytree(repo_path, dest_lang_dir, ignore=shutil.ignore_patterns(".git"))
+        shutil.copytree(
+            repo_path,
+            dest_lang_dir,
+            ignore=shutil.ignore_patterns(".git"),
+        )
     except OSError as exc:
         raise SystemExit(
             f"error: failed to copy repository for {lang} into {dest_lang_dir}: {exc}"
@@ -507,6 +417,17 @@ def vendor_parsers(
 ) -> dict[str, dict[str, object]]:
     output_dir.mkdir(parents=True, exist_ok=True)
     metadata: dict[str, dict[str, object]] = {}
+    existing_metadata_path = output_dir / "metadata.json"
+    existing_metadata: dict[str, dict[str, object]] = {}
+    if existing_metadata_path.is_file():
+        try:
+            existing_metadata = json.loads(
+                existing_metadata_path.read_text(encoding="utf-8")
+            )
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                f"error: failed to decode existing metadata at {existing_metadata_path}: {exc}"
+            ) from exc
 
     for lang in languages:
         info = install_info.get(lang)
@@ -521,16 +442,36 @@ def vendor_parsers(
 
         dest_lang_dir = output_dir / lang
         if check:
+            log(f"[vendor] {lang}: verifying vendored snapshot")
             validate_repo(lang, info, dest_lang_dir, output_dir, runtime_dir)
+            if lang in existing_metadata:
+                metadata[lang] = existing_metadata[lang]
+            else:
+                metadata[lang] = {
+                    "url": url,
+                    "branch": branch,
+                    "revision": revision,
+                    "files": info.get("files", []),
+                    "location": info.get("location"),
+                    "generate_requires_npm": info.get("generate_requires_npm"),
+                    "requires_generate_from_grammar": info.get(
+                        "requires_generate_from_grammar"
+                    ),
+                    "use_makefile": info.get("use_makefile"),
+                    "cxx_standard": info.get("cxx_standard"),
+                }
             continue
 
+        log(f"[vendor] {lang}: fetching sources from {url}")
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_dest = Path(tmpdir) / "repo"
             git_clone(url, repo_dest, branch, revision)
+            rev_cmd = ["git", "rev-parse", "HEAD"]
+            log(
+                f"[vendor] {lang}: determining revision with {format_command(rev_cmd)}"
+            )
             try:
-                result = subprocess.check_output(
-                    ["git", "rev-parse", "HEAD"], cwd=repo_dest, text=True
-                )
+                result = subprocess.check_output(rev_cmd, cwd=repo_dest, text=True)
             except subprocess.CalledProcessError as exc:
                 raise SystemExit(
                     f"error: failed to determine HEAD revision for {lang}"
@@ -538,16 +479,8 @@ def vendor_parsers(
             resolved_revision = result.strip()
 
             copy_repo(lang, info, repo_dest, output_dir, runtime_dir)
-
-            location = info.get("location")
-            location_path = (
-                Path(location) if isinstance(location, str) and location else None
-            )
-            base_dir = dest_lang_dir / location_path if location_path else dest_lang_dir
-            try:
-                compile_parser(lang, info, base_dir)
-            except BuildError as exc:
-                raise SystemExit(f"error: {exc}") from exc
+            validate_repo(lang, info, dest_lang_dir, output_dir, runtime_dir)
+            log(f"[vendor] {lang}: snapshot captured at {resolved_revision}")
 
         metadata[lang] = {
             "url": url,
@@ -580,6 +513,7 @@ def prune_languages(output_dir: Path, languages: Sequence[str]) -> None:
 
     for path in output_dir.iterdir():
         if path.is_dir() and path.name not in keep:
+            log(f"[vendor] Removing obsolete parser snapshot {path}")
             shutil.rmtree(path)
 
 
@@ -595,6 +529,7 @@ def stage_paths(root: Path, paths: Sequence[Path]) -> None:
             rel_paths.append(str(path))
 
     cmd = ["git", "-C", str(root), "add", "-A", *rel_paths]
+    log(f"[vendor] Running: {format_command(cmd)}")
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
@@ -619,6 +554,8 @@ def main(argv: Sequence[str]) -> None:
         raise SystemExit(
             f"error: manifest {manifest_path} does not list any Tree-sitter parsers"
         )
+
+    log(f"[vendor] Loaded manifest from {manifest_path} ({len(manifest_langs)} languages)")
 
     base_cmd = build_nvim_command(args.nvim)
     env = os.environ.copy()
