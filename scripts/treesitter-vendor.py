@@ -15,7 +15,11 @@ from typing import Iterable, MutableMapping, Sequence
 
 RUNTIME_REPOSITORY = "https://github.com/tree-sitter/tree-sitter"
 RUNTIME_INCLUDE_SUBDIR = Path("lib/include/tree_sitter")
+RUNTIME_FALLBACK_HEADER_DIRS = (
+    Path("lib/src"),
+)
 RUNTIME_REQUIRED_HEADERS = (
+    "api.h",
     "parser.h",
     "alloc.h",
     "array.h",
@@ -226,6 +230,18 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
         if runtime_dir.exists():
             shutil.rmtree(runtime_dir)
         shutil.copytree(include_dir, runtime_dir)
+
+        for rel_dir in RUNTIME_FALLBACK_HEADER_DIRS:
+            source_dir = repo_dest / rel_dir
+            if not source_dir.is_dir():
+                continue
+            for path in source_dir.rglob("*.h"):
+                relative = path.relative_to(source_dir)
+                destination = runtime_dir / relative
+                if destination.exists():
+                    continue
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, destination)
 
         try:
             result = subprocess.check_output(
