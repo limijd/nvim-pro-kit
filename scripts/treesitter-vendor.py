@@ -293,16 +293,34 @@ def copy_runtime_headers(runtime_dir: Path, destination: Path) -> None:
         )
 
     target = destination / "tree_sitter"
-    if target.exists():
-        shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        shutil.copytree(runtime_dir, target)
-    except OSError as exc:
-        raise SystemExit(
-            f"error: failed to copy Tree-sitter runtime headers into {target}: {exc}"
-        ) from exc
+    if not target.exists():
+        try:
+            shutil.copytree(runtime_dir, target)
+        except OSError as exc:
+            raise SystemExit(
+                "error: failed to copy Tree-sitter runtime headers into "
+                f"{target}: {exc}"
+            ) from exc
+        return
+
+    for source in runtime_dir.rglob("*"):
+        relative = source.relative_to(runtime_dir)
+        destination_path = target / relative
+        if source.is_dir():
+            destination_path.mkdir(parents=True, exist_ok=True)
+            continue
+        if destination_path.exists():
+            continue
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy2(source, destination_path)
+        except OSError as exc:
+            raise SystemExit(
+                "error: failed to copy Tree-sitter runtime header "
+                f"{relative} into {target}: {exc}"
+            ) from exc
 
 
 def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
