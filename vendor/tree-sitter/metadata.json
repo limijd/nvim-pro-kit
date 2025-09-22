@@ -1,0 +1,478 @@
+{
+  "asm": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "04962e15f6b464cf1d75eada59506dc25090e186",
+    "url": "https://github.com/RubixDev/tree-sitter-asm",
+    "use_makefile": null
+  },
+  "bash": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "20f55fb9663568f16ebceaac7673d2aa530add46",
+    "url": "https://github.com/tree-sitter/tree-sitter-bash",
+    "use_makefile": null
+  },
+  "c": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "ae19b676b13bdcc13b7665397e6d9b14975473dd",
+    "url": "https://github.com/tree-sitter/tree-sitter-c",
+    "use_makefile": null
+  },
+  "cmake": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "cf9799600b2ba5e6620fdabddec3b2db8306bc46",
+    "url": "https://github.com/uyha/tree-sitter-cmake",
+    "use_makefile": null
+  },
+  "comment": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "689be73775bd2dd57b938b8e12bf50fec35a6ca3",
+    "url": "https://github.com/stsewd/tree-sitter-comment",
+    "use_makefile": null
+  },
+  "cpp": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": true,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "2a682d312b09eb737a08b4900ec786415574b6bf",
+    "url": "https://github.com/tree-sitter/tree-sitter-cpp",
+    "use_makefile": null
+  },
+  "css": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "6e327db434fec0ee90f006697782e43ec855adf5",
+    "url": "https://github.com/tree-sitter/tree-sitter-css",
+    "use_makefile": null
+  },
+  "diff": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "e42b8def4f75633568f1aecfe01817bf15164928",
+    "url": "https://github.com/the-mikedavis/tree-sitter-diff",
+    "use_makefile": null
+  },
+  "dockerfile": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "971acdd908568b4531b0ba28a445bf0bb720aba5",
+    "url": "https://github.com/camdencheek/tree-sitter-dockerfile",
+    "use_makefile": null
+  },
+  "fish": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "aa074a0bacde8b5823c592574d7138f156a95776",
+    "url": "https://github.com/ram02z/tree-sitter-fish",
+    "use_makefile": null
+  },
+  "git_rebase": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "bff4b66b44b020d918d67e2828eada1974a966aa",
+    "url": "https://github.com/the-mikedavis/tree-sitter-git-rebase",
+    "use_makefile": null
+  },
+  "gitattributes": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "1b7af09d45b579f9f288453b95ad555f1f431645",
+    "url": "https://github.com/ObserverOfTime/tree-sitter-gitattributes",
+    "use_makefile": null
+  },
+  "gitcommit": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "a716678c0f00645fed1e6f1d0eb221481dbd6f6d",
+    "url": "https://github.com/gbprod/tree-sitter-gitcommit",
+    "use_makefile": null
+  },
+  "gitignore": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "f4685bf11ac466dd278449bcfe5fd014e94aa504",
+    "url": "https://github.com/shunsambongi/tree-sitter-gitignore",
+    "use_makefile": null
+  },
+  "go": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "2346a3ab1bb3857b48b29d779a1ef9799a248cd7",
+    "url": "https://github.com/tree-sitter/tree-sitter-go",
+    "use_makefile": null
+  },
+  "gomod": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "6efb59652d30e0e9cd5f3b3a669afd6f1a926d3c",
+    "url": "https://github.com/camdencheek/tree-sitter-go-mod",
+    "use_makefile": null
+  },
+  "html": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "73a3947324f6efddf9e17c0ea58d454843590cc0",
+    "url": "https://github.com/tree-sitter/tree-sitter-html",
+    "use_makefile": null
+  },
+  "javascript": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "58404d8cf191d69f2674a8fd507bd5776f46cb11",
+    "url": "https://github.com/tree-sitter/tree-sitter-javascript",
+    "use_makefile": null
+  },
+  "json": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "001c28d7a29832b06b0e831ec77845553c89b56d",
+    "url": "https://github.com/tree-sitter/tree-sitter-json",
+    "use_makefile": null
+  },
+  "jsonc": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": true,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "02b01653c8a1c198ae7287d566efa86a135b30d5",
+    "url": "https://gitlab.com/WhyNotHugo/tree-sitter-jsonc.git",
+    "use_makefile": null
+  },
+  "lua": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "4fbec840c34149b7d5fe10097c93a320ee4af053",
+    "url": "https://github.com/MunifTanjim/tree-sitter-lua",
+    "use_makefile": null
+  },
+  "make": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "a4b9187417d6be349ee5fd4b6e77b4172c6827dd",
+    "url": "https://github.com/alemuller/tree-sitter-make",
+    "use_makefile": null
+  },
+  "markdown": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": "tree-sitter-markdown",
+    "requires_generate_from_grammar": null,
+    "revision": "2dfd57f547f06ca5631a80f601e129d73fc8e9f0",
+    "url": "https://github.com/MDeiml/tree-sitter-markdown",
+    "use_makefile": null
+  },
+  "markdown_inline": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": "tree-sitter-markdown-inline",
+    "requires_generate_from_grammar": null,
+    "revision": "2dfd57f547f06ca5631a80f601e129d73fc8e9f0",
+    "url": "https://github.com/MDeiml/tree-sitter-markdown",
+    "use_makefile": null
+  },
+  "python": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64",
+    "url": "https://github.com/tree-sitter/tree-sitter-python",
+    "use_makefile": null
+  },
+  "query": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "60e253d3c9d6b1131a0f75c85e4bdcc9a48d5b42",
+    "url": "https://github.com/nvim-treesitter/tree-sitter-query",
+    "use_makefile": null
+  },
+  "regex": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "b2ac15e27fce703d2f37a79ccd94a5c0cbe9720b",
+    "url": "https://github.com/tree-sitter/tree-sitter-regex",
+    "use_makefile": null
+  },
+  "rust": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "00d7cbc95f0b8ea2703129550fbd1853a13e0e29",
+    "url": "https://github.com/tree-sitter/tree-sitter-rust",
+    "use_makefile": null
+  },
+  "sql": {
+    "branch": "gh-pages",
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "b1ec2aa5091624e4729f0a771a6d631afebf1ed4",
+    "url": "https://github.com/derekstride/tree-sitter-sql",
+    "use_makefile": null
+  },
+  "toml": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": true,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "64b56832c2cffe41758f28e05c756a3a98d16f41",
+    "url": "https://github.com/tree-sitter-grammars/tree-sitter-toml",
+    "use_makefile": null
+  },
+  "tsx": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": true,
+    "location": "tsx",
+    "requires_generate_from_grammar": null,
+    "revision": "75b3874edb2dc714fb1fd77a32013d0f8699989f",
+    "url": "https://github.com/tree-sitter/tree-sitter-typescript",
+    "use_makefile": null
+  },
+  "typescript": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": true,
+    "location": "typescript",
+    "requires_generate_from_grammar": null,
+    "revision": "75b3874edb2dc714fb1fd77a32013d0f8699989f",
+    "url": "https://github.com/tree-sitter/tree-sitter-typescript",
+    "use_makefile": null
+  },
+  "vim": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "3dd4747082d1b717b8978211c06ef7b6cd16125b",
+    "url": "https://github.com/neovim/tree-sitter-vim",
+    "use_makefile": null
+  },
+  "vimdoc": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "ffa29e863738adfc1496717c4acb7aae92a80ed4",
+    "url": "https://github.com/neovim/tree-sitter-vimdoc",
+    "use_makefile": null
+  },
+  "yaml": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "3431ec21da1dde751bab55520963cf3a4f1121f3",
+    "url": "https://github.com/tree-sitter-grammars/tree-sitter-yaml",
+    "use_makefile": null
+  }
+}
