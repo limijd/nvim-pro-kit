@@ -10,6 +10,10 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
   - [Plugin list](#plugin-list)
   - [Syncing plugins](#syncing-plugins)
   - [Safety](#safety)
+- [🌳 Tree-sitter Grammars](#-tree-sitter-grammars)
+  - [Manifest](#manifest)
+  - [Sync script](#sync-script)
+  - [Verification](#verification)
 - [👩‍💻 Contributor Workflow](#-contributor-workflow)
   - [Adding a new plugin](#adding-a-new-plugin)
   - [Updating an existing plugin](#updating-an-existing-plugin)
@@ -101,6 +105,48 @@ scripts/vendor_update.py --commit --push
 * We strongly recommend keeping --squash (the default) to prevent thousands of upstream commits polluting your repo history.
 * Removal (--prune) is opt-in: nothing is deleted unless you request it.
 * If something goes wrong, simply revert the last commit — the previous snapshot is preserved in Git history.
+
+## 🌳 Tree-sitter Grammars
+
+Tree-sitter grammars are now managed with the same level of reproducibility as
+plugins. The Neovim configuration reads a manifest to decide which parsers to
+install, so every machine stays in sync with the repo.
+
+### Manifest
+
+`scripts/treesitter-parsers.txt` is the single source of truth for which
+grammars should be present. Keep it alphabetized. Lines starting with `#` are
+treated as comments and ignored by tooling. The Neovim config loads this list at
+startup to ensure all required parsers are present.
+
+### Sync script
+
+Use `scripts/treesitter-sync.py` to install, update, and prune parsers:
+
+```
+# Install or update everything listed in the manifest
+scripts/treesitter-sync.py
+
+# Skip pruning of unknown grammars (default behaviour is to prune)
+scripts/treesitter-sync.py --no-prune
+
+# Only check for drift without touching disk
+scripts/treesitter-sync.py --check
+
+# Use a different manifest file
+scripts/treesitter-sync.py --manifest path/to/file.txt
+```
+
+The script runs Neovim headlessly, leveraging the vendored
+`nvim-treesitter` and `plenary.nvim` plugins. By default it ensures the parser
+installation directory contains exactly the languages listed in the manifest
+and removes any extras.
+
+### Verification
+
+Running `scripts/treesitter-sync.py --check` exits with a non-zero status if any
+parsers are missing or if unexpected grammars are installed. This is ideal for
+CI or pre-commit hooks to guarantee consistent environments.
 
 ## 👩‍💻 Contributor Workflow
 
