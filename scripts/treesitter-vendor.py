@@ -148,12 +148,6 @@ def gather_install_info(
     return decoded
 
 
-def ensure_clean_dir(path: Path) -> None:
-    if path.is_dir():
-        shutil.rmtree(path)
-    path.mkdir(parents=True, exist_ok=True)
-
-
 def git_clone(url: str, dest: Path, branch: str | None, revision: str | None) -> None:
     clone_cmd = ["git", "clone", url, str(dest)]
     if branch:
@@ -263,7 +257,7 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
     return runtime_dir
 
 
-def copy_sources(
+def copy_repo(
     lang: str,
     info: dict[str, object],
     repo_path: Path,
@@ -276,29 +270,93 @@ def copy_sources(
 
     location = info.get("location")
     location_path = Path(location) if isinstance(location, str) and location else None
-    source_root = repo_path / location_path if location_path else repo_path
 
-    dest_base = dest_root / lang
-    if location_path:
-        dest_base = dest_base / location_path
+    source_base = repo_path / location_path if location_path else repo_path
+    if not source_base.is_dir():
+        raise SystemExit(
+            "error: expected directory for parser {lang} at {base} is missing".format(
+                lang=lang, base=source_base
+            )
+        )
 
-    ensure_clean_dir(dest_base)
-
+    missing = []
     for rel in files:
         rel_path = Path(rel)
-        source = source_root / rel_path
+        source = source_base / rel_path
         if not source.is_file():
-            raise SystemExit(
-                f"error: expected source file {source} for {lang} is missing"
-            )
-        destination = dest_base / rel_path
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
+            missing.append(rel_path.as_posix())
+    if missing:
+        joined = ", ".join(missing)
+        raise SystemExit(
+            f"error: repository for {lang} missing expected files: {joined}"
+        )
+
+    dest_lang_dir = dest_root / lang
+    if dest_lang_dir.exists():
+        shutil.rmtree(dest_lang_dir)
+    try:
+        shutil.copytree(repo_path, dest_lang_dir, ignore=shutil.ignore_patterns(".git"))
+    except OSError as exc:
+        raise SystemExit(
+            f"error: failed to copy repository for {lang} into {dest_lang_dir}: {exc}"
+        ) from exc
+
+    base_dir = dest_lang_dir / location_path if location_path else dest_lang_dir
 
     if runtime_dir is not None:
-        src_dir = dest_base / "src"
+        src_dir = base_dir / "src"
         if src_dir.is_dir():
             copy_runtime_headers(runtime_dir, src_dir)
+
+
+def validate_repo(
+    lang: str,
+    info: dict[str, object],
+    dest_lang_dir: Path,
+    output_dir: Path,
+    runtime_dir: Path | None,
+) -> None:
+    if not dest_lang_dir.is_dir():
+        raise SystemExit(
+            f"error: vendored parser directory missing for {lang} at {dest_lang_dir}"
+        )
+
+    location = info.get("location")
+    location_path = Path(location) if isinstance(location, str) and location else None
+    base_dir = dest_lang_dir / location_path if location_path else dest_lang_dir
+    if not base_dir.is_dir():
+        raise SystemExit(
+            f"error: vendored parser for {lang} missing expected location directory"
+        )
+
+    files = info.get("files") or []
+    missing: list[str] = []
+    for rel in files:
+        rel_path = Path(rel)
+        file_path = base_dir / rel_path
+        if not file_path.is_file():
+            try:
+                missing.append(str(file_path.relative_to(output_dir)))
+            except ValueError:
+                missing.append(str(file_path))
+
+    if runtime_dir is not None:
+        src_dir = base_dir / "src"
+        if src_dir.is_dir():
+            runtime_base = src_dir / "tree_sitter"
+            for header in RUNTIME_REQUIRED_HEADERS:
+                header_path = runtime_base / header
+                if not header_path.is_file():
+                    try:
+                        missing.append(str(header_path.relative_to(output_dir)))
+                    except ValueError:
+                        missing.append(str(header_path))
+
+    if missing:
+        raise SystemExit(
+            "error: vendored parser sources missing required files for "
+            f"{lang}: {' '.join(sorted(set(missing)))}"
+        )
 
 
 def vendor_parsers(
@@ -325,27 +383,7 @@ def vendor_parsers(
 
         dest_lang_dir = output_dir / lang
         if check:
-            required_files = info.get("files") or []
-            missing = []
-            location = info.get("location")
-            base = dest_lang_dir / location if isinstance(location, str) and location else dest_lang_dir
-            for rel in required_files:
-                file_path = base / Path(rel)
-                if not file_path.is_file():
-                    missing.append(str(file_path.relative_to(output_dir)))
-            if runtime_dir is not None:
-                runtime_missing = []
-                runtime_base = base / "src" / "tree_sitter"
-                for header in RUNTIME_REQUIRED_HEADERS:
-                    header_path = runtime_base / header
-                    if not header_path.is_file():
-                        runtime_missing.append(str(header_path.relative_to(output_dir)))
-                missing.extend(runtime_missing)
-            if missing:
-                raise SystemExit(
-                    "error: vendored parser sources missing required files for "
-                    f"{lang}: {' '.join(missing)}"
-                )
+            validate_repo(lang, info, dest_lang_dir, output_dir, runtime_dir)
             continue
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -361,7 +399,7 @@ def vendor_parsers(
                 ) from exc
             resolved_revision = result.strip()
 
-            copy_sources(lang, info, repo_dest, output_dir, runtime_dir)
+            copy_repo(lang, info, repo_dest, output_dir, runtime_dir)
 
         metadata[lang] = {
             "url": url,
@@ -383,6 +421,18 @@ def write_metadata(path: Path, data: dict[str, dict[str, object]]) -> None:
     text = json.dumps(data, indent=2, sort_keys=True)
     tmp_path.write_text(text + "\n", encoding="utf-8")
     tmp_path.replace(path)
+
+
+def prune_languages(output_dir: Path, languages: Sequence[str]) -> None:
+    if not output_dir.is_dir():
+        return
+
+    keep = set(languages)
+    keep.add("tree_sitter")
+
+    for path in output_dir.iterdir():
+        if path.is_dir() and path.name not in keep:
+            shutil.rmtree(path)
 
 
 def stage_paths(root: Path, paths: Sequence[Path]) -> None:
@@ -439,6 +489,7 @@ def main(argv: Sequence[str]) -> None:
     )
 
     if not args.check:
+        prune_languages(output_dir, manifest_langs)
         metadata_path = output_dir / "metadata.json"
         write_metadata(metadata_path, metadata)
         stage_paths(root, [output_dir, metadata_path])
