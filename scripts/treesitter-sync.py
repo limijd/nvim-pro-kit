@@ -116,9 +116,10 @@ def install_or_update(base_cmd: Sequence[str], env: MutableMapping[str, str], ch
         "local vendor=require('config.treesitter_vendor');"
         "vendor.apply(langs);"
         "local install=require('nvim-treesitter.install');"
-        "local update=install.update({ with_sync = true });"
-        "local unpack=table.unpack or unpack;"
-        "update(unpack(langs))"
+        "local runner=install.commands.TSInstallSync['run!'];"
+        "for _,lang in ipairs(langs) do"
+        " runner(lang);"
+        "end"
     )
 
     run_nvim(base_cmd, env, [lua_cmd, "+qa"])
