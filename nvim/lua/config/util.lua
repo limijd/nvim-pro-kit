@@ -2,6 +2,7 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 local config_root = vim.fn.stdpath("config")
+local resolved_config_root = uv.fs_realpath(config_root) or config_root
 
 local function dir_exists(path)
   local stat = uv.fs_stat(path)
@@ -17,7 +18,7 @@ local function find_repo_root()
     end
   end
 
-  local dir = vim.fs.normalize(config_root)
+  local dir = vim.fs.normalize(resolved_config_root)
   while dir do
     local git_dir = dir .. "/.git"
     local stat = uv.fs_stat(git_dir)
@@ -30,12 +31,12 @@ local function find_repo_root()
     end
     dir = parent
   end
-  return vim.fs.normalize(config_root)
+  return vim.fs.normalize(resolved_config_root)
 end
 
 local repo_root = find_repo_root()
 
-local vendor_root = config_root .. "/vendor/plugins"
+local vendor_root = resolved_config_root .. "/vendor/plugins"
 if not dir_exists(vendor_root) then
   local repo_vendor = repo_root .. "/vendor/plugins"
   if dir_exists(repo_vendor) then
