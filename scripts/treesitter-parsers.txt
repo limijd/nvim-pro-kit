@@ -4,14 +4,19 @@
 
 asm
 bash
+bison
 c
 cmake
 comment
 cpp
 css
+csv
+cuda
 diff
 dockerfile
+dot
 fish
+fortran
 git_rebase
 gitattributes
 gitcommit
@@ -23,12 +28,19 @@ javascript
 json
 jsonc
 lua
+latex
 make
 markdown
 markdown_inline
+matlab
+nasm
+objc
+objdump
+perl
 python
 query
 regex
+ruby
 rust
 sql
 toml
@@ -36,4 +48,7 @@ tsx
 typescript
 vim
 vimdoc
+verilog
+vhdl
+xml
 yaml

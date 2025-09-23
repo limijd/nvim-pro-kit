@@ -23,7 +23,7 @@ def log(message: str) -> None:
 def progress(scope: str, index: int, total: int, message: str) -> None:
     """Print a formatted progress message for parser processing."""
 
-    log(f"[{scope}][{index}/{total}] {message}")
+    log(f"\n[{scope}][{index}/{total}] {message}")
 
 
 def format_command(args: Sequence[str]) -> str:
@@ -34,9 +34,7 @@ def format_command(args: Sequence[str]) -> str:
 
 RUNTIME_REPOSITORY = "https://github.com/tree-sitter/tree-sitter"
 RUNTIME_INCLUDE_SUBDIR = Path("lib/include/tree_sitter")
-RUNTIME_FALLBACK_HEADER_DIRS = (
-    Path("lib/src"),
-)
+RUNTIME_FALLBACK_HEADER_DIRS = (Path("lib/src"),)
 RUNTIME_REQUIRED_HEADERS = (
     "api.h",
     "parser.h",
@@ -97,9 +95,7 @@ def load_manifest(path: Path) -> list[str]:
 
 
 def build_nvim_command(nvim_bin: str) -> list[str]:
-    runtime_setup = (
-        "+lua (function(root) if root ~= '' then local paths = {'/vendor/plugins/plenary.nvim','/vendor/plugins/nvim-treesitter','/nvim'} for _, suffix in ipairs(paths) do vim.opt.runtimepath:prepend(root .. suffix) end end end)(vim.env.TREESITTER_SYNC_ROOT or '')"
-    )
+    runtime_setup = "+lua (function(root) if root ~= '' then local paths = {'/vendor/plugins/plenary.nvim','/vendor/plugins/nvim-treesitter','/nvim'} for _, suffix in ipairs(paths) do vim.opt.runtimepath:prepend(root .. suffix) end end end)(vim.env.TREESITTER_SYNC_ROOT or '')"
     return [
         nvim_bin,
         "--headless",
@@ -163,8 +159,11 @@ def gather_install_info(
         decoded = json.loads(output)
     except json.JSONDecodeError as exc:
         preview = output.strip().splitlines()
-        preview = preview[0] if preview else ''
-        raise SystemExit("error: failed to decode install metadata: %s (first line: %r)" % (exc, preview)) from exc
+        preview = preview[0] if preview else ""
+        raise SystemExit(
+            "error: failed to decode install metadata: %s (first line: %r)"
+            % (exc, preview)
+        ) from exc
     if not isinstance(decoded, dict):
         raise SystemExit("error: unexpected install metadata format")
     return decoded
@@ -238,9 +237,7 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
     if check:
         log("[vendor] Verifying vendored Tree-sitter runtime")
         if not runtime_dir.is_dir():
-            raise SystemExit(
-                "error: vendored Tree-sitter runtime headers are missing"
-            )
+            raise SystemExit("error: vendored Tree-sitter runtime headers are missing")
         missing = [
             header
             for header in RUNTIME_REQUIRED_HEADERS
@@ -284,13 +281,13 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
                 shutil.copy2(path, destination)
 
         rev_cmd = ["git", "rev-parse", "HEAD"]
-        log(
-            f"[vendor] Running: (cwd={repo_dest}) {format_command(rev_cmd)}"
-        )
+        log(f"[vendor] Running: (cwd={repo_dest}) {format_command(rev_cmd)}")
         try:
             result = subprocess.check_output(rev_cmd, cwd=repo_dest, text=True)
         except subprocess.CalledProcessError as exc:
-            raise SystemExit("error: failed to determine Tree-sitter runtime revision") from exc
+            raise SystemExit(
+                "error: failed to determine Tree-sitter runtime revision"
+            ) from exc
 
     revision = result.strip()
 
@@ -299,7 +296,9 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
         "revision": revision,
     }
     tmp_path = metadata_path.with_suffix(".tmp")
-    tmp_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     tmp_path.replace(metadata_path)
 
     return runtime_dir
@@ -447,7 +446,9 @@ def vendor_parsers(
             raise SystemExit(f"error: parser {lang} does not define a download URL")
 
         branch = info.get("branch") if isinstance(info.get("branch"), str) else None
-        revision = info.get("revision") if isinstance(info.get("revision"), str) else None
+        revision = (
+            info.get("revision") if isinstance(info.get("revision"), str) else None
+        )
 
         dest_lang_dir = output_dir / lang
         if check:
@@ -487,9 +488,7 @@ def vendor_parsers(
             repo_dest = Path(tmpdir) / "repo"
             git_clone(url, repo_dest, branch, revision)
             rev_cmd = ["git", "rev-parse", "HEAD"]
-            log(
-                f"[vendor] {lang}: determining revision with {format_command(rev_cmd)}"
-            )
+            log(f"[vendor] {lang}: determining revision with {format_command(rev_cmd)}")
             try:
                 result = subprocess.check_output(rev_cmd, cwd=repo_dest, text=True)
             except subprocess.CalledProcessError as exc:
@@ -509,7 +508,9 @@ def vendor_parsers(
             "files": info.get("files", []),
             "location": info.get("location"),
             "generate_requires_npm": info.get("generate_requires_npm"),
-            "requires_generate_from_grammar": info.get("requires_generate_from_grammar"),
+            "requires_generate_from_grammar": info.get(
+                "requires_generate_from_grammar"
+            ),
             "use_makefile": info.get("use_makefile"),
             "cxx_standard": info.get("cxx_standard"),
         }
@@ -554,7 +555,9 @@ def stage_paths(root: Path, paths: Sequence[Path]) -> None:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         joined = " ".join(rel_paths)
-        raise SystemExit(f"error: failed to stage updated vendor sources ({joined})") from exc
+        raise SystemExit(
+            f"error: failed to stage updated vendor sources ({joined})"
+        ) from exc
 
 
 def main(argv: Sequence[str]) -> None:
@@ -575,7 +578,9 @@ def main(argv: Sequence[str]) -> None:
             f"error: manifest {manifest_path} does not list any Tree-sitter parsers"
         )
 
-    log(f"[vendor] Loaded manifest from {manifest_path} ({len(manifest_langs)} languages)")
+    log(
+        f"[vendor] Loaded manifest from {manifest_path} ({len(manifest_langs)} languages)"
+    )
 
     base_cmd = build_nvim_command(args.nvim)
     env = os.environ.copy()
