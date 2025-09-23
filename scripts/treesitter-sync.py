@@ -25,6 +25,12 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+def progress(scope: str, index: int, total: int, message: str) -> None:
+    """Print a formatted progress message for parser processing."""
+
+    log(f"[{scope}][{index}/{total}] {message}")
+
+
 def format_command(args: Sequence[str]) -> str:
     """Return a human readable representation of a command line."""
 
@@ -323,17 +329,34 @@ def main(argv: Sequence[str]) -> None:
     info_dir = root / "vendor" / "plugins" / "nvim-treesitter" / "parser-info"
     extension = shared_library_extension()
 
+    total = len(manifest_langs)
     if args.check:
-        for lang in manifest_langs:
+        for index, lang in enumerate(manifest_langs, 1):
+            if index > 1:
+                log("")
             info = metadata.get(lang)
             if not info:
                 raise SystemExit(f"error: missing metadata for {lang}")
+            progress(
+                "sync",
+                index,
+                total,
+                f"Verifying tree-sitter {lang} parser installation...",
+            )
             verify_installation(lang, info, parser_dir, info_dir, extension)
     else:
-        for lang in manifest_langs:
+        for index, lang in enumerate(manifest_langs, 1):
+            if index > 1:
+                log("")
             info = metadata.get(lang)
             if not info:
                 raise SystemExit(f"error: missing metadata for {lang}")
+            progress(
+                "sync",
+                index,
+                total,
+                f"Building tree-sitter {lang} parser...",
+            )
             log(f"[sync] {lang}: compiling parser")
             output_path = parser_dir / f"{lang}{extension}"
             try:

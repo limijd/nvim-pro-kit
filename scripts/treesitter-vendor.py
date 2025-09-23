@@ -20,6 +20,12 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+def progress(scope: str, index: int, total: int, message: str) -> None:
+    """Print a formatted progress message for parser processing."""
+
+    log(f"[{scope}][{index}/{total}] {message}")
+
+
 def format_command(args: Sequence[str]) -> str:
     """Return a human friendly representation of a shell command."""
 
@@ -429,7 +435,10 @@ def vendor_parsers(
                 f"error: failed to decode existing metadata at {existing_metadata_path}: {exc}"
             ) from exc
 
-    for lang in languages:
+    total = len(languages)
+    for index, lang in enumerate(languages, 1):
+        if index > 1:
+            log("")
         info = install_info.get(lang)
         if not info:
             raise SystemExit(f"error: missing install info for parser {lang}")
@@ -442,7 +451,12 @@ def vendor_parsers(
 
         dest_lang_dir = output_dir / lang
         if check:
-            log(f"[vendor] {lang}: verifying vendored snapshot")
+            progress(
+                "vendor",
+                index,
+                total,
+                f"Verifying tree-sitter {lang} parser snapshot...",
+            )
             validate_repo(lang, info, dest_lang_dir, output_dir, runtime_dir)
             if lang in existing_metadata:
                 metadata[lang] = existing_metadata[lang]
@@ -462,6 +476,12 @@ def vendor_parsers(
                 }
             continue
 
+        progress(
+            "vendor",
+            index,
+            total,
+            f"Pulling tree-sitter {lang} parser sources...",
+        )
         log(f"[vendor] {lang}: fetching sources from {url}")
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_dest = Path(tmpdir) / "repo"
