@@ -95,6 +95,33 @@
     "url": "https://github.com/tree-sitter/tree-sitter-css",
     "use_makefile": null
   },
+  "csv": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": "csv",
+    "requires_generate_from_grammar": null,
+    "revision": "7eb7297823605392d2bbcc4c09b1cd18d6fa9529",
+    "url": "https://github.com/amaanq/tree-sitter-csv",
+    "use_makefile": null
+  },
+  "cuda": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": true,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "48b066f334f4cf2174e05a50218ce2ed98b6fd01",
+    "url": "https://github.com/theHamsta/tree-sitter-cuda",
+    "use_makefile": null
+  },
   "diff": {
     "branch": null,
     "cxx_standard": null,
@@ -122,6 +149,19 @@
     "url": "https://github.com/camdencheek/tree-sitter-dockerfile",
     "use_makefile": null
   },
+  "dot": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "9ab85550c896d8b294d9b9ca1e30698736f08cea",
+    "url": "https://github.com/rydesun/tree-sitter-dot",
+    "use_makefile": null
+  },
   "fish": {
     "branch": null,
     "cxx_standard": null,
@@ -134,6 +174,20 @@
     "requires_generate_from_grammar": null,
     "revision": "aa074a0bacde8b5823c592574d7138f156a95776",
     "url": "https://github.com/ram02z/tree-sitter-fish",
+    "use_makefile": null
+  },
+  "fortran": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "8334abca785db3a041292e3b3b818a82a55b238f",
+    "url": "https://github.com/stadelmanma/tree-sitter-fortran",
     "use_makefile": null
   },
   "git_rebase": {
@@ -324,6 +378,74 @@
     "url": "https://github.com/MDeiml/tree-sitter-markdown",
     "use_makefile": null
   },
+  "matlab": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "96a3e8fb0a4ebd0db64db6b52043483937e9ca3a",
+    "url": "https://github.com/acristoffers/tree-sitter-matlab",
+    "use_makefile": null
+  },
+  "nasm": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "d1b3638d017f2a8585e26dcfc66fe1df94185e30",
+    "url": "https://github.com/naclsn/tree-sitter-nasm",
+    "use_makefile": null
+  },
+  "objc": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "181a81b8f23a2d593e7ab4259981f50122909fda",
+    "url": "https://github.com/amaanq/tree-sitter-objc",
+    "use_makefile": null
+  },
+  "objdump": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "28d3b2e25a0b1881d1b47ed1924ca276c7003d45",
+    "url": "https://github.com/ColinKennedy/tree-sitter-objdump",
+    "use_makefile": null
+  },
+  "perl": {
+    "branch": "release",
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "0c24d001dd1921e418fb933d208a7bd7dd3f923a",
+    "url": "https://github.com/tree-sitter-perl/tree-sitter-perl",
+    "use_makefile": null
+  },
   "python": {
     "branch": null,
     "cxx_standard": null,
@@ -364,6 +486,20 @@
     "url": "https://github.com/tree-sitter/tree-sitter-regex",
     "use_makefile": null
   },
+  "ruby": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "89bd7a8e5450cb6a942418a619d30469f259e5d6",
+    "url": "https://github.com/tree-sitter/tree-sitter-ruby",
+    "use_makefile": null
+  },
   "rust": {
     "branch": null,
     "cxx_standard": null,
@@ -388,7 +524,7 @@
     "generate_requires_npm": null,
     "location": null,
     "requires_generate_from_grammar": null,
-    "revision": "b1ec2aa5091624e4729f0a771a6d631afebf1ed4",
+    "revision": "486f30257d2c22f2ba1f67963bbaea38bc9c20f5",
     "url": "https://github.com/derekstride/tree-sitter-sql",
     "use_makefile": null
   },
@@ -434,6 +570,33 @@
     "url": "https://github.com/tree-sitter/tree-sitter-typescript",
     "use_makefile": null
   },
+  "verilog": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "9e06a0dddbef4e80a2091fd0a772cc93a55019f7",
+    "url": "https://github.com/gmlarumbe/tree-sitter-systemverilog",
+    "use_makefile": null
+  },
+  "vhdl": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": null,
+    "requires_generate_from_grammar": null,
+    "revision": "0c25aa064dc489ec5291e4879fa7ed41cf5fe680",
+    "url": "https://github.com/jpt13653903/tree-sitter-vhdl",
+    "use_makefile": null
+  },
   "vim": {
     "branch": null,
     "cxx_standard": null,
@@ -459,6 +622,20 @@
     "requires_generate_from_grammar": null,
     "revision": "ffa29e863738adfc1496717c4acb7aae92a80ed4",
     "url": "https://github.com/neovim/tree-sitter-vimdoc",
+    "use_makefile": null
+  },
+  "xml": {
+    "branch": null,
+    "cxx_standard": null,
+    "files": [
+      "src/parser.c",
+      "src/scanner.c"
+    ],
+    "generate_requires_npm": null,
+    "location": "xml",
+    "requires_generate_from_grammar": null,
+    "revision": "863dbc381f44f6c136a399e684383b977bb2beaa",
+    "url": "https://github.com/tree-sitter-grammars/tree-sitter-xml",
     "use_makefile": null
   },
   "yaml": {

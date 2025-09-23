@@ -16937,6 +16937,86 @@
                     "value": "("
                   },
                   {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "SEQ",
+                        "members": [
+                          {
+                            "type": "SEQ",
+                            "members": [
+                              {
+                                "type": "FIELD",
+                                "name": "unit",
+                                "content": {
+                                  "type": "SYMBOL",
+                                  "name": "object_reference"
+                                }
+                              },
+                              {
+                                "type": "SYMBOL",
+                                "name": "keyword_from"
+                              },
+                              {
+                                "type": "SYMBOL",
+                                "name": "term"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "REPEAT",
+                            "content": {
+                              "type": "SEQ",
+                              "members": [
+                                {
+                                  "type": "STRING",
+                                  "value": ","
+                                },
+                                {
+                                  "type": "SEQ",
+                                  "members": [
+                                    {
+                                      "type": "FIELD",
+                                      "name": "unit",
+                                      "content": {
+                                        "type": "SYMBOL",
+                                        "name": "object_reference"
+                                      }
+                                    },
+                                    {
+                                      "type": "SYMBOL",
+                                      "name": "keyword_from"
+                                    },
+                                    {
+                                      "type": "SYMBOL",
+                                      "name": "term"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "STRING",
+                    "value": ")"
+                  }
+                ]
+              },
+              {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "STRING",
+                    "value": "("
+                  },
+                  {
                     "type": "SEQ",
                     "members": [
                       {
@@ -20343,7 +20423,7 @@
     },
     "_identifier": {
       "type": "PATTERN",
-      "value": "[a-zA-Z_][0-9a-zA-Z_]*"
+      "value": "[A-Za-z_\\u00C0-\\u017F][0-9A-Za-z_\\u00C0-\\u017F]*"
     }
   },
   "extras": [
