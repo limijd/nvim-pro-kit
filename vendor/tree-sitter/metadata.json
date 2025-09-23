@@ -388,7 +388,7 @@
     "generate_requires_npm": null,
     "location": null,
     "requires_generate_from_grammar": null,
-    "revision": "b1ec2aa5091624e4729f0a771a6d631afebf1ed4",
+    "revision": "486f30257d2c22f2ba1f67963bbaea38bc9c20f5",
     "url": "https://github.com/derekstride/tree-sitter-sql",
     "use_makefile": null
   },
