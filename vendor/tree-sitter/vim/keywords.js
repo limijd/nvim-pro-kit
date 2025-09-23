@@ -469,11 +469,6 @@ const KEYWORDS = {
     opt: "al",
     ignore_comments_after: false,
   },
-  SUBSTITUTE: {
-    mandat: "s",
-    opt: "ubstitute",
-    ignore_comments_after: false,
-  },
 };
 
 function make_keywords($) {

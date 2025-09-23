@@ -9,13 +9,7 @@ message([[]])
  (normal_command
   (identifier)
   (argument_list
-   (argument
-    (bracket_argument
-      (bracket_argument_open)
-      (bracket_argument_content)
-      (bracket_argument_close)
-    )
-   )
+   (argument (bracket_argument))
   )
  )
  )
@@ -31,13 +25,7 @@ message([[an argument]])
  (normal_command
   (identifier)
   (argument_list
-    (argument
-      (bracket_argument
-        (bracket_argument_open)
-        (bracket_argument_content)
-        (bracket_argument_close)
-      )
-    )
+    (argument (bracket_argument))
   )
  )
  )
@@ -53,20 +41,8 @@ message([[first argument]] [[second argument]])
  (normal_command
   (identifier)
   (argument_list
-    (argument
-      (bracket_argument
-        (bracket_argument_open)
-        (bracket_argument_content)
-        (bracket_argument_close)
-      )
-    )
-    (argument
-      (bracket_argument
-        (bracket_argument_open)
-        (bracket_argument_content)
-        (bracket_argument_close)
-      )
-    )
+    (argument (bracket_argument))
+    (argument (bracket_argument))
   )
  )
  )
@@ -85,20 +61,8 @@ message(
  (normal_command
   (identifier)
   (argument_list
-    (argument
-      (bracket_argument
-        (bracket_argument_open)
-        (bracket_argument_content)
-        (bracket_argument_close)
-      )
-    )
-    (argument
-      (bracket_argument
-        (bracket_argument_open)
-        (bracket_argument_content)
-        (bracket_argument_close)
-      )
-    )
+    (argument (bracket_argument))
+    (argument (bracket_argument))
   )
  )
  )
@@ -116,13 +80,7 @@ with line break
  (normal_command
   (identifier)
   (argument_list
-    (argument
-      (bracket_argument
-        (bracket_argument_open)
-        (bracket_argument_content)
-        (bracket_argument_close)
-      )
-    )
+    (argument (bracket_argument))
   )
  )
  )
@@ -140,13 +98,7 @@ with line break ]==]
  (normal_command
   (identifier)
   (argument_list
-    (argument
-      (bracket_argument
-        (bracket_argument_open)
-        (bracket_argument_content)
-        (bracket_argument_close)
-      )
-    )
+    (argument (bracket_argument))
   )
  )
  )

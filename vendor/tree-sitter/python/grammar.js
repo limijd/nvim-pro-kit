@@ -60,7 +60,6 @@ module.exports = grammar({
   supertypes: $ => [
     $._simple_statement,
     $._compound_statement,
-    $.expression_statement,
     $.expression,
     $.primary_expression,
     $.pattern,
@@ -99,19 +98,6 @@ module.exports = grammar({
     $._left_hand_side,
     $.keyword_identifier,
   ],
-
-  reserved: {
-    global: _ => [
-      // https://docs.python.org/3/reference/lexical_analysis.html#keywords
-      'False', 'await', 'else', 'import', 'pass',
-      'None', 'break', 'except', 'in', 'raise',
-      'True', 'class', 'finally', 'is', 'return',
-      'and', 'continue', 'for', 'lambda', 'try',
-      'as', 'def', 'from', 'nonlocal', 'while',
-      'assert', 'del', 'global', 'not', 'with',
-      'async', 'elif', 'if', 'or', 'yield',
-    ],
-  },
 
   word: $ => $.identifier,
 
@@ -228,14 +214,11 @@ module.exports = grammar({
 
     expression_statement: $ => choice(
       $.expression,
-      $.tuple_expression,
+      seq(commaSep1($.expression), optional(',')),
       $.assignment,
       $.augmented_assignment,
       $.yield,
     ),
-
-    tuple_expression: $ =>
-      seq($.expression, ',', optional(seq(commaSep1($.expression), optional(',')))),
 
     named_expression: $ => seq(
       field('name', $._named_expression_lhs),
@@ -358,21 +341,43 @@ module.exports = grammar({
       'try',
       ':',
       field('body', $._suite),
-      repeat($.except_clause),
-      optional($.else_clause),
-      optional($.finally_clause),
+      choice(
+        seq(
+          repeat1($.except_clause),
+          optional($.else_clause),
+          optional($.finally_clause),
+        ),
+        seq(
+          repeat1($.except_group_clause),
+          optional($.else_clause),
+          optional($.finally_clause),
+        ),
+        $.finally_clause,
+      ),
     ),
 
     except_clause: $ => seq(
       'except',
-      optional(token(prec(1, '*'))),
-      optional(choice(
-        seq(
-          field('value', $.expression),
-          optional(seq('as', field('alias', $.expression))),
-        ),
-        commaSep1(field('value', $.expression)),
+      optional(seq(
+        field('value', $.expression),
+        optional(seq(
+          choice('as', ','),
+          field('alias', $.expression),
+        )),
       )),
+      ':',
+      $._suite,
+    ),
+
+    except_group_clause: $ => seq(
+      'except*',
+      seq(
+        $.expression,
+        optional(seq(
+          'as',
+          $.expression,
+        )),
+      ),
       ':',
       $._suite,
     ),

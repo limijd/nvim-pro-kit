@@ -95,17 +95,6 @@ module.exports = grammar({
     [$.type_parameter_declaration, $._simple_type, $.generic_type, $._expression],
   ],
 
-  reserved: {
-    global: $ => [
-      // https://go.dev/ref/spec#Keywords
-      'break', 'default', 'func', 'interface', 'select',
-      'case', 'defer', 'go', 'map', 'struct',
-      'chan', 'else', 'goto', 'package', 'switch',
-      'const', 'fallthrough', 'if', 'range', 'type',
-      'continue', 'for', 'import', 'return', 'var',
-    ],
-  },
-
   supertypes: $ => [
     $._expression,
     $._type,
@@ -270,7 +259,6 @@ module.exports = grammar({
 
     type_alias: $ => seq(
       field('name', $._type_identifier),
-      field('type_parameters', optional($.type_parameter_list)),
       '=',
       field('type', $._type),
     ),
@@ -282,7 +270,7 @@ module.exports = grammar({
         $.type_alias,
         seq(
           '(',
-          optionalTrailingSep(choice($.type_spec, $.type_alias), terminator),
+          repeat(seq(choice($.type_spec, $.type_alias), terminator)),
           ')',
         ),
       ),
@@ -438,11 +426,11 @@ module.exports = grammar({
 
     block: $ => seq(
       '{',
-      optional($.statement_list),
+      optional($._statement_list),
       '}',
     ),
 
-    statement_list: $ => choice(
+    _statement_list: $ => choice(
       seq(
         $._statement,
         repeat(seq(terminator, $._statement)),
@@ -606,13 +594,13 @@ module.exports = grammar({
       'case',
       field('value', $.expression_list),
       ':',
-      optional($.statement_list),
+      optional($._statement_list),
     ),
 
     default_case: $ => seq(
       'default',
       ':',
-      optional($.statement_list),
+      optional($._statement_list),
     ),
 
     type_switch_statement: $ => seq(
@@ -640,7 +628,7 @@ module.exports = grammar({
       'case',
       field('type', commaSep1($._type)),
       ':',
-      optional($.statement_list),
+      optional($._statement_list),
     ),
 
     select_statement: $ => seq(
@@ -654,7 +642,7 @@ module.exports = grammar({
       'case',
       field('communication', choice($.send_statement, $.receive_statement)),
       ':',
-      optional($.statement_list),
+      optional($._statement_list),
     ),
 
     _expression: $ => choice(
@@ -732,12 +720,12 @@ module.exports = grammar({
       field('field', $._field_identifier),
     )),
 
-    index_expression: $ => prec(PREC.primary, prec.dynamic(1, seq(
+    index_expression: $ => prec(PREC.primary, seq(
       field('operand', $._expression),
       '[',
       field('index', $._expression),
       ']',
-    ))),
+    )),
 
     slice_expression: $ => prec(PREC.primary, seq(
       field('operand', $._expression),
@@ -946,18 +934,6 @@ module.exports = grammar({
  */
 function sep1(rule, separator) {
   return seq(rule, repeat(seq(separator, rule)));
-}
-
-/**
- * Creates a rule to match zero or more of the rules separated by {sep},
- * with an optional one at the end.
- *
- * @param {RuleOrLiteral} rule
- *
- * @param {RuleOrLiteral} separator
- */
-function optionalTrailingSep(rule, separator) {
-  return optional(seq(rule, repeat(seq(separator, rule)), optional(separator)));
 }
 
 /**

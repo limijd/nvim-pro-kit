@@ -1,8 +1,8 @@
 {
   "name": "tree-sitter-query",
-  "version": "0.7.0",
+  "version": "0.5.1",
   "description": "TS query grammar for tree-sitter",
-  "repository": "https://github.com/tree-sitter-grammars/tree-sitter-query",
+  "repository": "github:tree-sitter-grammars/tree-sitter-query",
   "license": "Apache-2.0",
   "author": {
     "name": "Steven Sojka"
@@ -17,7 +17,6 @@
   ],
   "files": [
     "grammar.js",
-    "tree-sitter.json",
     "binding.gyp",
     "prebuilds/**",
     "bindings/node/*",
@@ -26,19 +25,19 @@
     "*.wasm"
   ],
   "dependencies": {
-    "node-addon-api": "^8.3.1",
-    "node-gyp-build": "^4.8.4"
+    "node-addon-api": "^8.1.0",
+    "node-gyp-build": "^4.8.2"
   },
   "devDependencies": {
     "prebuildify": "^6.0.1",
-    "tree-sitter-cli": "^0.25.3"
+    "tree-sitter-cli": "^0.24.3"
   },
   "peerDependencies": {
-    "tree-sitter": "^0.22.4"
+    "tree-sitter": "^0.21.1"
   },
   "peerDependenciesMeta": {
     "tree-sitter": {
-      "optional": true
+      "node-addon-api": "$node-addon-api"
     }
   },
   "scripts": {

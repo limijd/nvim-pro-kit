@@ -1,7 +1,6 @@
 from unittest import TestCase
 
-import tree_sitter
-import tree_sitter_query
+import tree_sitter, tree_sitter_query
 
 
 class TestLanguage(TestCase):

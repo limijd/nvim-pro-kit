@@ -304,7 +304,8 @@ export { "string import" as "string export" } from 'foo';
   (export_statement
     (export_clause
       (export_specifier
-        name: (identifier))))
+        name: (identifier)
+        alias: (identifier))))
   (export_statement
     source: (string
       (string_fragment)))
@@ -868,98 +869,6 @@ var x, y = {}, z;
       (object))
     (variable_declarator
       (identifier))))
-
-============================================
-Using declarations
-============================================
-
-using file = getFile();
-await using resource = getResource();
-using x = a, y = b;
-
----
-
-(program
-  (using_declaration
-    (variable_declarator
-      (identifier)
-      (call_expression
-        (identifier)
-        (arguments))))
-  (using_declaration
-    (variable_declarator
-      (identifier)
-      (call_expression
-        (identifier)
-        (arguments))))
-  (using_declaration
-    (variable_declarator
-      (identifier)
-      (identifier))
-    (variable_declarator
-      (identifier)
-      (identifier))))
-
-============================================
-Using declarations in for loops
-============================================
-
-for (using item of items) {
-  process(item);
-}
-
-for await (await using resource of resources) {
-  consume(resource);
-}
-
----
-
-(program
-  (for_in_statement
-    (identifier)
-    (identifier)
-    (statement_block
-      (expression_statement
-        (call_expression
-          (identifier)
-          (arguments
-            (identifier))))))
-  (for_in_statement
-    (identifier)
-    (identifier)
-    (statement_block
-      (expression_statement
-        (call_expression
-          (identifier)
-          (arguments
-            (identifier)))))))
-
-============================================
-'of' as identifier in declarations
-============================================
-
-for (let of of []) break;
-for (const of = '';;) break;
-const of = 2;
-
----
-
-(program
-  (for_in_statement
-    (identifier)
-    (array)
-    (break_statement))
-  (for_statement
-    (lexical_declaration
-      (variable_declarator
-        (identifier)
-        (string)))
-    (empty_statement)
-    (break_statement))
-  (lexical_declaration
-    (variable_declarator
-      (identifier)
-      (number))))
 
 ============================================
 Comments

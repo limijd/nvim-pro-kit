@@ -224,10 +224,6 @@
           "named": true
         },
         {
-          "type": "substitute_statement",
-          "named": true
-        },
-        {
           "type": "syntax_statement",
           "named": true
         },
@@ -587,10 +583,6 @@
           },
           {
             "type": "stopinsert_statement",
-            "named": true
-          },
-          {
-            "type": "substitute_statement",
             "named": true
           },
           {
@@ -1156,10 +1148,6 @@
           "named": true
         },
         {
-          "type": "substitute_statement",
-          "named": true
-        },
-        {
           "type": "syntax_statement",
           "named": true
         },
@@ -1659,10 +1647,6 @@
           "named": true
         },
         {
-          "type": "substitute_statement",
-          "named": true
-        },
-        {
           "type": "syntax_statement",
           "named": true
         },
@@ -1935,10 +1919,6 @@
         },
         {
           "type": "stopinsert_statement",
-          "named": true
-        },
-        {
-          "type": "substitute_statement",
           "named": true
         },
         {
@@ -4576,10 +4556,6 @@
           "named": true
         },
         {
-          "type": "substitute_statement",
-          "named": true
-        },
-        {
           "type": "syntax_statement",
           "named": true
         },
@@ -6012,10 +5988,6 @@
           "named": true
         },
         {
-          "type": "substitute_statement",
-          "named": true
-        },
-        {
           "type": "syntax_statement",
           "named": true
         },
@@ -7112,10 +7084,6 @@
         {
           "type": "marker_definition",
           "named": true
-        },
-        {
-          "type": "parameter",
-          "named": true
         }
       ]
     }
@@ -7347,10 +7315,6 @@
         },
         {
           "type": "stopinsert_statement",
-          "named": true
-        },
-        {
-          "type": "substitute_statement",
           "named": true
         },
         {
@@ -7911,10 +7875,6 @@
           "named": true
         },
         {
-          "type": "substitute_statement",
-          "named": true
-        },
-        {
           "type": "syntax_statement",
           "named": true
         },
@@ -8332,32 +8292,6 @@
     "type": "stopinsert_statement",
     "named": true,
     "fields": {}
-  },
-  {
-    "type": "substitute_statement",
-    "named": true,
-    "fields": {
-      "range": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "range",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "pattern",
-          "named": true
-        }
-      ]
-    }
   },
   {
     "type": "syntax_argument",
@@ -9316,10 +9250,6 @@
           "named": true
         },
         {
-          "type": "substitute_statement",
-          "named": true
-        },
-        {
           "type": "syntax_statement",
           "named": true
         },
@@ -9499,18 +9429,7 @@
   {
     "type": "unknown_builtin_statement",
     "named": true,
-    "fields": {
-      "range": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "range",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": true,
       "required": true,
@@ -9636,18 +9555,7 @@
   {
     "type": "user_command",
     "named": true,
-    "fields": {
-      "range": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "range",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": true,
       "required": true,
@@ -9889,10 +9797,6 @@
         },
         {
           "type": "stopinsert_statement",
-          "named": true
-        },
-        {
-          "type": "substitute_statement",
           "named": true
         },
         {
@@ -10984,11 +10888,11 @@
   },
   {
     "type": "file",
-    "named": false
+    "named": true
   },
   {
     "type": "file",
-    "named": true
+    "named": false
   },
   {
     "type": "file_format",
@@ -11000,10 +10904,6 @@
   },
   {
     "type": "fileformat",
-    "named": false
-  },
-  {
-    "type": "filetype",
     "named": false
   },
   {
@@ -11594,10 +11494,6 @@
   {
     "type": "string_literal",
     "named": true
-  },
-  {
-    "type": "substitute",
-    "named": false
   },
   {
     "type": "sync",

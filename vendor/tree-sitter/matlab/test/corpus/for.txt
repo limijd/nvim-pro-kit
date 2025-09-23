@@ -5,9 +5,6 @@ For Statement: Simple
 for i = 1:10
     1
 end
-for i = colVect'
-  1
-end
 
 --------------------------------------------------------------------------------
 
@@ -19,20 +16,13 @@ end
         (number)
         (number)))
     (block
-      (number)))
-  (for_statement
-    (iterator
-      (identifier)
-      (postfix_operator
-        (identifier)))
-    (block
       (number))))
 
 ================================================================================
 For Statement: Nested
 ================================================================================
 
-for (R = 1:N)
+for R = 1:N
     for C = 1:N
         continue
     end

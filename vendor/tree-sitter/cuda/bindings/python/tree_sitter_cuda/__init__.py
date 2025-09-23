@@ -1,4 +1,4 @@
-"""CUDA grammar for tree-sitter"""
+"Cuda grammar for tree-sitter"
 
 from ._binding import language
 

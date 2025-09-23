@@ -1,0 +1,12 @@
+============================================
+core/package/empty
+============================================
+
+package foo;
+endpackage
+
+----
+
+(source_file
+  (package_declaration
+    name: (simple_identifier)))

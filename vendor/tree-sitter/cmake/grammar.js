@@ -18,17 +18,7 @@ const commands = [
 module.exports = grammar({
   name: "cmake",
 
-  externals: ($) => [
-    $.bracket_argument_open,
-    $.bracket_argument_content,
-    $.bracket_argument_close,
-
-    $.bracket_comment_open,
-    $.bracket_comment_content,
-    $.bracket_comment_close,
-
-    $.line_comment,
-  ],
+  externals: ($) => [$.bracket_argument, $.bracket_comment, $.line_comment],
   extras: (_) => [],
 
   rules: {
@@ -44,9 +34,6 @@ module.exports = grammar({
     normal_var: ($) => seq("$", "{", $.variable, "}"),
     env_var: ($) => seq("$", "ENV", "{", $.variable, "}"),
     cache_var: ($) => seq("$", "CACHE", "{", $.variable, "}"),
-
-    bracket_argument: ($) => seq($.bracket_argument_open, $.bracket_argument_content, $.bracket_argument_close),
-    bracket_comment: ($) => seq($.bracket_comment_open, $.bracket_comment_content, $.bracket_comment_close),
 
     argument: ($) => choice($.bracket_argument, $.quoted_argument, $.unquoted_argument),
     _untrimmed_argument: ($) => choice(/\s/, $.bracket_comment, $.line_comment, $.argument, $._paren_argument),
@@ -84,7 +71,7 @@ module.exports = grammar({
     endmacro_command: ($) => command($.endmacro, optional($.argument_list)),
     macro_def: ($) => seq($.macro_command, $.body, $.endmacro_command),
 
-    block_command: ($) => command($.block, optional($.argument_list)),
+    block_command: ($) => command($.block, $.argument_list),
     endblock_command: ($) => command($.endblock, optional($.argument_list)),
     block_def: ($) => seq($.block_command, $.body, $.endblock_command),
 

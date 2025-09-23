@@ -15,16 +15,18 @@
 //! [Parser]: https://docs.rs/tree-sitter/*/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/
 
-use tree_sitter_language::LanguageFn;
+use tree_sitter::Language;
 
 extern "C" {
-    fn tree_sitter_perl() -> *const ();
+    fn tree_sitter_perl() -> Language;
 }
 
-/// The tree-sitter [`LanguageFn`][LanguageFn] for this grammar.
+/// Get the tree-sitter [Language][] for this grammar.
 ///
-/// [LanguageFn]: https://docs.rs/tree-sitter-language/*/tree_sitter_language/struct.LanguageFn.html
-pub const LANGUAGE: LanguageFn = unsafe { LanguageFn::from_raw(tree_sitter_perl) };
+/// [Language]: https://docs.rs/tree-sitter/*/tree_sitter/struct.Language.html
+pub fn language() -> Language {
+    unsafe { tree_sitter_perl() }
+}
 
 /// The content of the [`node-types.json`][] file for this grammar.
 ///
@@ -44,7 +46,7 @@ mod tests {
     fn test_can_load_grammar() {
         let mut parser = tree_sitter::Parser::new();
         parser
-            .set_language(&super::LANGUAGE.into())
+            .set_language(super::language())
             .expect("Error loading perl language");
     }
 }

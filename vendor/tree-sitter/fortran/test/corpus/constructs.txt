@@ -356,8 +356,7 @@ end interface operator (.not.)
 (translation_unit
   (interface
     (interface_statement
-      (operator
-        (operator_name)))
+      (operator))
     (procedure_statement
       (procedure_kind)
       (method_name))
@@ -365,12 +364,10 @@ end interface operator (.not.)
       (procedure_kind)
       (method_name))
     (end_interface_statement
-      (operator
-        (operator_name))))
+      (operator)))
   (interface
     (interface_statement
-      (operator
-        (operator_name)))
+      (operator))
     (procedure_statement
       (procedure_kind)
       (method_name))
@@ -388,8 +385,7 @@ end interface operator (.not.)
         (identifier))
       (end_function_statement))
     (end_interface_statement
-      (operator
-        (operator_name)))))
+      (operator))))
 
 ================================================================================
 Interface (assignment)
@@ -422,8 +418,7 @@ interface operator(+) ; module procedure test_plus ; end interface
 (translation_unit
   (interface
     (interface_statement
-      (operator
-        (operator_name)))
+      (operator))
     (procedure_statement
       (procedure_kind)
       (method_name))
@@ -448,14 +443,12 @@ end module
     (use_statement
       (module_name)
       (included_items
-        (operator
-          (operator_name))
+        (operator)
         (assignment)))
     (public_statement
       (assignment))
     (private_statement
-      (operator
-        (operator_name)))
+      (operator))
     (end_module_statement)))
 
 ================================================================================
@@ -920,8 +913,7 @@ end program
           (procedure_attribute)
           (binding
             (binding_name
-              (operator
-                (operator_name)))
+              (operator))
             (method_name)))
         (procedure_statement
           (procedure_kind)
@@ -1091,7 +1083,7 @@ Derived Type Procedure Pointer Components
 
 program test
   type foo
-    procedure(some_interface), pointer :: bar => null(), jaff => null(bar)
+    procedure(some_interface), pointer :: bar => null()
     procedure(some_interface), pointer, nopass :: quux
   end type foo
 end program test
@@ -1111,11 +1103,7 @@ end program test
           (procedure_attribute))
         (pointer_init_declarator
           (identifier)
-          (null_literal))
-        (pointer_init_declarator
-          (identifier)
-          (null_literal
-            (identifier))))
+          (null_literal)))
       (variable_declaration
         (procedure
           (procedure_interface)
@@ -1250,10 +1238,9 @@ module test
     end subroutine do_nothing
   end interface
 contains
-  subroutine apply(f, g, h)
+  subroutine apply(f, g)
     procedure(do_nothing) :: f
     procedure(do_nothing), optional :: g
-    procedure(real(kind=real64)), optional :: h
     call f()
   end subroutine apply
 end module test
@@ -1280,7 +1267,6 @@ end module test
           (name)
           (parameters
             (identifier)
-            (identifier)
             (identifier)))
         (variable_declaration
           (procedure
@@ -1289,15 +1275,6 @@ end module test
         (variable_declaration
           (procedure
             (procedure_interface))
-          (type_qualifier)
-          (identifier))
-        (variable_declaration
-          (procedure
-            (intrinsic_type
-              (kind
-                (keyword_argument
-                  (identifier)
-                  (identifier)))))
           (type_qualifier)
           (identifier))
         (subroutine_call

@@ -116,8 +116,29 @@
             "value": "\\"
           },
           {
-            "type": "PATTERN",
-            "value": "."
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "PATTERN",
+                "value": "[^xu0-7]"
+              },
+              {
+                "type": "PATTERN",
+                "value": "[0-7]{1,3}"
+              },
+              {
+                "type": "PATTERN",
+                "value": "x[0-9a-fA-F]{2}"
+              },
+              {
+                "type": "PATTERN",
+                "value": "u[0-9a-fA-F]{4}"
+              },
+              {
+                "type": "PATTERN",
+                "value": "u\\{[0-9a-fA-F]+\\}"
+              }
+            ]
           }
         ]
       }
@@ -141,7 +162,7 @@
     },
     "identifier": {
       "type": "PATTERN",
-      "value": "[a-zA-Z0-9\\-_][a-zA-Z0-9.\\-_]*"
+      "value": "[a-zA-Z0-9\\-_\\$][a-zA-Z0-9.\\-_\\$]*"
     },
     "_immediate_identifier": {
       "type": "ALIAS",
@@ -149,7 +170,7 @@
         "type": "IMMEDIATE_TOKEN",
         "content": {
           "type": "PATTERN",
-          "value": "[a-zA-Z0-9\\-_][a-zA-Z0-9.\\-_]*"
+          "value": "[a-zA-Z0-9\\-_\\$][a-zA-Z0-9.\\-_\\$]*"
         }
       },
       "named": true,
@@ -209,11 +230,8 @@
           ]
         },
         {
-          "type": "IMMEDIATE_TOKEN",
-          "content": {
-            "type": "STRING",
-            "value": "\""
-          }
+          "type": "STRING",
+          "value": "\""
         }
       ]
     },
@@ -229,7 +247,7 @@
               "value": 2,
               "content": {
                 "type": "PATTERN",
-                "value": "[^\"\\\\\\n]+"
+                "value": "[^\"\\\\]+"
               }
             }
           },
@@ -288,7 +306,7 @@
           "value": "["
         },
         {
-          "type": "REPEAT1",
+          "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
             "name": "definition"
@@ -331,7 +349,7 @@
           "value": "("
         },
         {
-          "type": "REPEAT1",
+          "type": "REPEAT",
           "content": {
             "type": "SEQ",
             "members": [
@@ -717,20 +735,12 @@
           }
         },
         {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "FIELD",
-              "name": "parameters",
-              "content": {
-                "type": "SYMBOL",
-                "name": "parameters"
-              }
-            },
-            {
-              "type": "BLANK"
-            }
-          ]
+          "type": "FIELD",
+          "name": "parameters",
+          "content": {
+            "type": "SYMBOL",
+            "name": "parameters"
+          }
         },
         {
           "type": "STRING",

@@ -13,7 +13,6 @@
   (keyword_gin)
   (keyword_brin)
   (keyword_array)
-  (keyword_object_id)
 ] @function.call
 
 (relation

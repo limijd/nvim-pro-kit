@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tree-sitter-yaml"
 description = "YAML grammar for tree-sitter"
-version = "0.7.1"
+version = "0.7.0"
 keywords = ["incremental", "parsing", "tree-sitter", "yaml"]
 classifiers = [
   "Intended Audience :: Developers",
@@ -17,7 +17,7 @@ authors = [
   { name = "Ika", email = "ikatyang@gmail.com" },
   { name = "Amaan Qureshi", email = "amaanq12@gmail.com" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license.text = "MIT"
 readme = "README.md"
 
@@ -25,8 +25,8 @@ readme = "README.md"
 Homepage = "https://github.com/tree-sitter-grammars/tree-sitter-yaml"
 
 [project.optional-dependencies]
-core = ["tree-sitter~=0.24"]
+core = ["tree-sitter~=0.22"]
 
 [tool.cibuildwheel]
-build = "cp310-*"
+build = "cp39-*"
 build-frontend = "build"

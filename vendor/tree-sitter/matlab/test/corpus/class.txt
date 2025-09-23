@@ -62,18 +62,6 @@ classdef DifferentValidation
    end;
 end
 
-classdef Class
-  properties
-
-    foo1
-
-    foo2
-
-    foo3
-
-  end
-end
-
 --------------------------------------------------------------------------------
 
 (source_file
@@ -103,41 +91,22 @@ end
           (identifier)
           (identifier))
         (default_value
-          (number)))))
-  (class_definition
-    (identifier)
-    (properties
-      (property
-        (identifier))
-      (property
-        (identifier))
-      (property
-        (identifier)))))
+          (number))))))
 
 ================================================================================
 Class Definition: Methods
 ================================================================================
 
 classdef Class
-   methods (Access = protected)
-      function out = method1(obj,inputArg)
-         ...
-      end
-   end
-   methods (Access = private)
-      function out = method2(obj,inputArg)
-          ...
+    methods (Access = public)
+        function out = a(in)
+            1
+        end;
 
-      end
-      out1 = f2(obj, in1);
-   end
-end
-
-classdef Super
-    methods(Abstract)
-        a = f(obj);
-        b = g(obj);
-    end
+        function out = b(~)
+            2
+        end
+    end;
 end
 
 --------------------------------------------------------------------------------
@@ -155,47 +124,17 @@ end
           (identifier))
         (identifier)
         (function_arguments
-          (identifier)
           (identifier))
-        (line_continuation)))
-    (methods
-      (attributes
-        (attribute
-          (identifier)
-          (identifier)))
+        (block
+          (number)))
       (function_definition
         (function_output
           (identifier))
         (identifier)
         (function_arguments
-          (identifier)
-          (identifier))
-        (line_continuation))
-      (function_signature
-        (function_output
-          (identifier))
-        (identifier)
-        (function_arguments
-          (identifier)
-          (identifier)))))
-  (class_definition
-    (identifier)
-    (methods
-      (attributes
-        (attribute
-          (identifier)))
-      (function_signature
-        (function_output
-          (identifier))
-        (identifier)
-        (function_arguments
-          (identifier)))
-      (function_signature
-        (function_output
-          (identifier))
-        (identifier)
-        (function_arguments
-          (identifier))))))
+          (ignored_argument))
+        (block
+          (number))))))
 
 ================================================================================
 Class Definition: Arguments
@@ -456,51 +395,13 @@ Class: Metaclass operator
 --------------------------------------------------------------------------------
 
 (source_file
-  (metaclass_operator
-    (identifier))
-  (metaclass_operator
-    (identifier)
-    (identifier)
-    (identifier))
-  (ERROR)
-  (string
-    (string_content)))
-
-================================================================================
-Class: Enumeration with expressions
-================================================================================
-
-classdef FlowRate < int32
-   enumeration
-      Low    (10)
-      Medium (FlowRate.Low*5)
-      High   (FlowRate.Low*10)
-   end
-end
-
---------------------------------------------------------------------------------
-
-(source_file
-  (class_definition
-    (identifier)
-    (superclasses
-      (property_name
-        (identifier)))
-    (enumeration
-      (enum
+      (metaclass_operator
+        (identifier))
+      (metaclass_operator
         (identifier)
-        (number))
-      (enum
         (identifier)
-        (binary_operator
-          (field_expression
-            (identifier)
-            (identifier))
-          (number)))
-      (enum
-        (identifier)
-        (binary_operator
-          (field_expression
-            (identifier)
-            (identifier))
-          (number))))))
+        (identifier))
+      (ERROR)
+      (identifier)
+      (MISSING ";")
+      (string))

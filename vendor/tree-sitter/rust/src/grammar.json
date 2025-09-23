@@ -546,10 +546,6 @@
         },
         {
           "type": "STRING",
-          "value": "expr_2021"
-        },
-        {
-          "type": "STRING",
           "value": "ident"
         },
         {
@@ -571,10 +567,6 @@
         {
           "type": "STRING",
           "value": "pat"
-        },
-        {
-          "type": "STRING",
-          "value": "pat_param"
         },
         {
           "type": "STRING",
@@ -5175,10 +5167,6 @@
               {
                 "type": "SYMBOL",
                 "name": "function_type"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "tuple_type"
               }
             ]
           }
@@ -7616,18 +7604,6 @@
               {
                 "type": "STRING",
                 "value": "static"
-              },
-              {
-                "type": "BLANK"
-              }
-            ]
-          },
-          {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "STRING",
-                "value": "async"
               },
               {
                 "type": "BLANK"

@@ -30,8 +30,6 @@ Object-like macro definitions
 #define ONE
 #define TWO int a = b;
 #define FOUR (mno * pq)
-#define FIVE_WITH_TRAILING_WHITESPACE 
-#define SIX
 
 --------------------------------------------------------------------------------
 
@@ -43,11 +41,7 @@ Object-like macro definitions
     value: (preproc_arg))
   (preproc_def
     name: (identifier)
-    value: (preproc_arg))
-  (preproc_def
-    name: (identifier))
-  (preproc_def
-    name: (identifier)))
+    value: (preproc_arg)))
 
 ================================================================================
 Function-like macro definitions

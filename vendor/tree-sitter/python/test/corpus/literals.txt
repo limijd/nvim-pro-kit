@@ -19,21 +19,34 @@ Integers
 --------------------------------------------------------------------------------
 
 (module
-  (unary_operator
+  (expression_statement
+    (unary_operator
+      (integer)))
+  (expression_statement
     (integer))
-  (integer)
-  (integer)
-  (integer)
-  (unary_operator
+  (expression_statement
     (integer))
-  (integer)
-  (integer)
-  (integer)
-  (integer)
-  (integer)
-  (integer)
-  (integer)
-  (integer))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (unary_operator
+      (integer)))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (integer))
+  (expression_statement
+    (integer)))
 
 ================================================================================
 Floats
@@ -51,16 +64,24 @@ Floats
 --------------------------------------------------------------------------------
 
 (module
-  (unary_operator
+  (expression_statement
+    (unary_operator
+      (float)))
+  (expression_statement
+    (unary_operator
+      (float)))
+  (expression_statement
     (float))
-  (unary_operator
+  (expression_statement
     (float))
-  (float)
-  (float)
-  (float)
-  (float)
-  (float)
-  (float))
+  (expression_statement
+    (float))
+  (expression_statement
+    (float))
+  (expression_statement
+    (float))
+  (expression_statement
+    (float)))
 
 ================================================================================
 Scientific Notation Floats
@@ -76,13 +97,19 @@ Scientific Notation Floats
 --------------------------------------------------------------------------------
 
 (module
-  (float)
-  (float)
-  (float)
-  (float)
-  (float)
-  (unary_operator
-    (float)))
+  (expression_statement
+    (float))
+  (expression_statement
+    (float))
+  (expression_statement
+    (float))
+  (expression_statement
+    (float))
+  (expression_statement
+    (float))
+  (expression_statement
+    (unary_operator
+      (float))))
 
 ================================================================================
 Strings
@@ -106,77 +133,90 @@ f'\N{GREEK CAPITAL LETTER DELTA}'
 --------------------------------------------------------------------------------
 
 (module
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence))
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence))
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence)
-      (escape_sequence))
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence))
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence))
-    (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence)
+        (escape_sequence))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence))
+      (string_end))))
 
 ================================================================================
 Raw strings
@@ -200,39 +240,46 @@ fg"'
 --------------------------------------------------------------------------------
 
 (module
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence))
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence))
-    (string_end))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence))
+      (string_end)))
   (comment)
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
   (comment)
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (integer))
-    (string_end))
-  (string
-    (string_start)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (interpolation
+        (integer))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end))))
 
 ================================================================================
 Raw strings with escaped quotes
@@ -244,20 +291,21 @@ re.compile(r"(\n|\A)#include\s*['\"]"
 --------------------------------------------------------------------------------
 
 (module
-  (call
-    (attribute
-      (identifier)
-      (identifier))
-    (argument_list
-      (concatenated_string
-        (string
-          (string_start)
-          (string_content)
-          (string_end))
-        (string
-          (string_start)
-          (string_content)
-          (string_end))))))
+  (expression_statement
+    (call
+      (attribute
+        (identifier)
+        (identifier))
+      (argument_list
+        (concatenated_string
+          (string
+            (string_start)
+            (string_content)
+            (string_end))
+          (string
+            (string_start)
+            (string_content)
+            (string_end)))))))
 
 ================================================================================
 Format strings
@@ -290,91 +338,102 @@ def test(self):
 
 (module
   (comment)
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (call
-        (identifier)
-        (argument_list
-          (string
-            (string_start)
-            (string_content)
-            (interpolation
-              (identifier))
-            (string_content)
-            (string_end)))))
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier))
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier))
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_interpolation)
-      (escape_interpolation))
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier))
-    (string_content
-      (escape_interpolation))
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_interpolation))
-    (interpolation
-      (identifier))
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_interpolation)
-      (escape_interpolation))
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_interpolation))
-    (interpolation
-      (identifier))
-    (string_content
-      (escape_interpolation))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (expression_list
-        (identifier)))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (yield
-        (identifier)))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (expression_list
-        (list_splat
-          (identifier))))
-    (string_end))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (interpolation
+        (call
+          (identifier)
+          (argument_list
+            (string
+              (string_start)
+              (string_content)
+              (interpolation
+                (identifier))
+              (string_content)
+              (string_end)))))
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (interpolation
+        (identifier))
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (interpolation
+        (identifier))
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_interpolation)
+        (escape_interpolation))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (interpolation
+        (identifier))
+      (string_content
+        (escape_interpolation))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_interpolation))
+      (interpolation
+        (identifier))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_interpolation)
+        (escape_interpolation))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_interpolation))
+      (interpolation
+        (identifier))
+      (string_content
+        (escape_interpolation))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (expression_list
+          (identifier)))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (yield
+          (identifier)))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (expression_list
+          (list_splat
+            (identifier))))
+      (string_end)))
   (function_definition
     (identifier)
     (parameters)
@@ -400,22 +459,23 @@ def test(self):
     (parameters
       (identifier))
     (block
-      (call
-        (attribute
-          (identifier)
-          (identifier))
-        (argument_list
-          (string
-            (string_start)
-            (string_content)
-            (interpolation
-              (integer)
-              (comment))
-            (string_end))
-          (string
-            (string_start)
-            (string_content)
-            (string_end)))))))
+      (expression_statement
+        (call
+          (attribute
+            (identifier)
+            (identifier))
+          (argument_list
+            (string
+              (string_start)
+              (string_content)
+              (interpolation
+                (integer)
+                (comment))
+              (string_end))
+            (string
+              (string_start)
+              (string_content)
+              (string_end))))))))
 
 ================================================================================
 Format strings with format specifiers
@@ -431,128 +491,67 @@ f"{value:{width + padding!r}.{precision}}"
 --------------------------------------------------------------------------------
 
 (module
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier)
-      (format_specifier))
-    (string_content)
-    (interpolation
-      (identifier)
-      (format_specifier))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (identifier)
-      (format_specifier
-        (format_expression
-          (attribute
-            (identifier)
-            (identifier)))
-        (format_expression
-          (attribute
-            (identifier)
-            (identifier)))))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (identifier)
-      (format_specifier))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (identifier))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (identifier)
-      (format_specifier))
-    (string_end))
-  (string
-    (string_start)
-    (interpolation
-      (identifier)
-      (format_specifier
-        (format_expression
-          (binary_operator
-            (identifier)
-            (identifier))
-          (type_conversion))
-        (format_expression
-          (identifier))))
-    (string_end)))
-
-================================================================================
-Template Strings
-================================================================================
-
-t"Hello, {first_name} {last_name}!"
-t"a {b:2} {c:34.5}"
-tr"Path: {path}\n"
-t"""
-Multi-line template
-with {variable}
-"""
-t"Use {{braces}} to escape"
-t"Result: {a + b}"
-
---------------------------------------------------------------------------------
-
-(module
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier))
-    (string_content)
-    (interpolation
-      (identifier))
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier)
-      (format_specifier))
-    (string_content)
-    (interpolation
-      (identifier)
-      (format_specifier))
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier))
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (identifier))
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_interpolation)
-      (escape_interpolation))
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (interpolation
-      (binary_operator
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (interpolation
         (identifier)
-        (identifier)))
-    (string_end)))
+        (format_specifier))
+      (string_content)
+      (interpolation
+        (identifier)
+        (format_specifier))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (identifier)
+        (format_specifier
+          (format_expression
+            (attribute
+              (identifier)
+              (identifier)))
+          (format_expression
+            (attribute
+              (identifier)
+              (identifier)))))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (identifier)
+        (format_specifier))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (identifier))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (identifier)
+        (format_specifier))
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (interpolation
+        (identifier)
+        (format_specifier
+          (format_expression
+            (binary_operator
+              (identifier)
+              (identifier))
+            (type_conversion))
+          (format_expression
+            (identifier))))
+      (string_end))))
 
 ================================================================================
 Unicode escape sequences
@@ -563,13 +562,14 @@ Unicode escape sequences
 --------------------------------------------------------------------------------
 
 (module
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence))
-    (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence))
+      (string_end))))
 
 ================================================================================
 Other primitives
@@ -582,9 +582,12 @@ None
 --------------------------------------------------------------------------------
 
 (module
-  (true)
-  (false)
-  (none))
+  (expression_statement
+    (true))
+  (expression_statement
+    (false))
+  (expression_statement
+    (none)))
 
 ================================================================================
 Concatenated strings
@@ -595,19 +598,20 @@ Concatenated strings
 --------------------------------------------------------------------------------
 
 (module
-  (concatenated_string
-    (string
-      (string_start)
-      (string_content)
-      (string_end))
-    (string
-      (string_start)
-      (string_content)
-      (string_end))
-    (string
-      (string_start)
-      (string_content)
-      (string_end))))
+  (expression_statement
+    (concatenated_string
+      (string
+        (string_start)
+        (string_content)
+        (string_end))
+      (string
+        (string_start)
+        (string_content)
+        (string_end))
+      (string
+        (string_start)
+        (string_content)
+        (string_end)))))
 
 ================================================================================
 Multi-line strings
@@ -652,40 +656,47 @@ and another escaped newline\n\
 --------------------------------------------------------------------------------
 
 (module
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content)
-    (string_end))
-  (string
-    (string_start)
-    (string_content
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence)
-      (escape_sequence))
-    (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content)
+      (string_end)))
+  (expression_statement
+    (string
+      (string_start)
+      (string_content
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence))
+      (string_end))))
 
 ================================================================================
 Lists
@@ -702,38 +713,45 @@ Lists
 --------------------------------------------------------------------------------
 
 (module
-  (list
-    (identifier)
-    (identifier)
+  (expression_statement
     (list
       (identifier)
-      (identifier)))
-  (list
-    (list_splat
-      (tuple)))
-  (list
-    (list_splat
-      (list)))
-  (list
-    (list_splat
-      (identifier)))
-  (list
-    (attribute
+      (identifier)
+      (list
+        (identifier)
+        (identifier))))
+  (expression_statement
+    (list
       (list_splat
-        (identifier))
-      (identifier)))
-  (list
-    (attribute
-      (subscript
+        (tuple))))
+  (expression_statement
+    (list
+      (list_splat
+        (list))))
+  (expression_statement
+    (list
+      (list_splat
+        (identifier))))
+  (expression_statement
+    (list
+      (attribute
         (list_splat
           (identifier))
-        (identifier))
-      (identifier)))
-  (list
-    (call
-      (list_splat
-        (identifier))
-      (argument_list))))
+        (identifier))))
+  (expression_statement
+    (list
+      (attribute
+        (subscript
+          (list_splat
+            (identifier))
+          (identifier))
+        (identifier))))
+  (expression_statement
+    (list
+      (call
+        (list_splat
+          (identifier))
+        (argument_list)))))
 
 ================================================================================
 List comprehensions
@@ -747,53 +765,57 @@ List comprehensions
 --------------------------------------------------------------------------------
 
 (module
-  (list_comprehension
-    (binary_operator
-      (identifier)
-      (identifier))
-    (for_in_clause
-      (tuple_pattern
+  (expression_statement
+    (list_comprehension
+      (binary_operator
         (identifier)
         (identifier))
-      (identifier)))
-  (list_comprehension
-    (identifier)
-    (for_in_clause
+      (for_in_clause
+        (tuple_pattern
+          (identifier)
+          (identifier))
+        (identifier))))
+  (expression_statement
+    (list_comprehension
       (identifier)
-      (identifier))
-    (for_in_clause
-      (identifier)
-      (identifier)))
-  (list_comprehension
-    (tuple
-      (identifier)
-      (identifier))
-    (for_in_clause
-      (identifier)
-      (list
-        (integer)
-        (integer)
-        (integer)))
-    (for_in_clause
-      (identifier)
-      (list
-        (integer)
-        (integer)
-        (integer)))
-    (if_clause
-      (true)))
-  (list_comprehension
-    (identifier)
-    (for_in_clause
-      (identifier)
-      (lambda
-        (true))
-      (lambda
-        (false)))
-    (if_clause
-      (call
+      (for_in_clause
         (identifier)
-        (argument_list)))))
+        (identifier))
+      (for_in_clause
+        (identifier)
+        (identifier))))
+  (expression_statement
+    (list_comprehension
+      (tuple
+        (identifier)
+        (identifier))
+      (for_in_clause
+        (identifier)
+        (list
+          (integer)
+          (integer)
+          (integer)))
+      (for_in_clause
+        (identifier)
+        (list
+          (integer)
+          (integer)
+          (integer)))
+      (if_clause
+        (true))))
+  (expression_statement
+    (list_comprehension
+      (identifier)
+      (for_in_clause
+        (identifier)
+        (lambda
+          (true))
+        (lambda
+          (false)))
+      (if_clause
+        (call
+          (identifier)
+          (argument_list))))))
 
 ================================================================================
 Dictionaries
@@ -810,37 +832,44 @@ Dictionaries
 --------------------------------------------------------------------------------
 
 (module
-  (dictionary
-    (pair
-      (identifier)
-      (integer))
-    (pair
-      (identifier)
-      (integer)))
-  (dictionary)
-  (dictionary
-    (dictionary_splat
-      (dictionary)))
-  (dictionary
-    (dictionary_splat
-      (identifier)))
-  (dictionary
-    (dictionary_splat
-      (attribute
+  (expression_statement
+    (dictionary
+      (pair
         (identifier)
+        (integer))
+      (pair
+        (identifier)
+        (integer))))
+  (expression_statement
+    (dictionary))
+  (expression_statement
+    (dictionary
+      (dictionary_splat
+        (dictionary))))
+  (expression_statement
+    (dictionary
+      (dictionary_splat
         (identifier))))
-  (dictionary
-    (dictionary_splat
-      (attribute
-        (subscript
+  (expression_statement
+    (dictionary
+      (dictionary_splat
+        (attribute
           (identifier)
-          (identifier))
-        (identifier))))
-  (dictionary
-    (dictionary_splat
-      (call
-        (identifier)
-        (argument_list)))))
+          (identifier)))))
+  (expression_statement
+    (dictionary
+      (dictionary_splat
+        (attribute
+          (subscript
+            (identifier)
+            (identifier))
+          (identifier)))))
+  (expression_statement
+    (dictionary
+      (dictionary_splat
+        (call
+          (identifier)
+          (argument_list))))))
 
 ================================================================================
 Dictionary comprehensions
@@ -852,25 +881,27 @@ Dictionary comprehensions
 --------------------------------------------------------------------------------
 
 (module
-  (dictionary_comprehension
-    (pair
-      (identifier)
-      (identifier))
-    (for_in_clause
-      (pattern_list
+  (expression_statement
+    (dictionary_comprehension
+      (pair
         (identifier)
         (identifier))
-      (identifier)))
-  (dictionary_comprehension
-    (pair
-      (identifier)
-      (identifier))
-    (for_in_clause
-      (identifier)
-      (identifier))
-    (for_in_clause
-      (identifier)
-      (identifier))))
+      (for_in_clause
+        (pattern_list
+          (identifier)
+          (identifier))
+        (identifier))))
+  (expression_statement
+    (dictionary_comprehension
+      (pair
+        (identifier)
+        (identifier))
+      (for_in_clause
+        (identifier)
+        (identifier))
+      (for_in_clause
+        (identifier)
+        (identifier)))))
 
 ================================================================================
 Sets
@@ -882,13 +913,15 @@ Sets
 --------------------------------------------------------------------------------
 
 (module
-  (set
-    (identifier)
-    (identifier)
-    (identifier))
-  (set
-    (list_splat
-      (dictionary))))
+  (expression_statement
+    (set
+      (identifier)
+      (identifier)
+      (identifier)))
+  (expression_statement
+    (set
+      (list_splat
+        (dictionary)))))
 
 ================================================================================
 Set comprehensions
@@ -900,26 +933,28 @@ Set comprehensions
 --------------------------------------------------------------------------------
 
 (module
-  (set_comprehension
-    (subscript
+  (expression_statement
+    (set_comprehension
       (subscript
+        (subscript
+          (identifier)
+          (identifier))
+        (identifier))
+      (for_in_clause
+        (pattern_list
+          (identifier)
+          (identifier)
+          (identifier))
+        (identifier))))
+  (expression_statement
+    (set_comprehension
+      (identifier)
+      (for_in_clause
         (identifier)
         (identifier))
-      (identifier))
-    (for_in_clause
-      (pattern_list
+      (for_in_clause
         (identifier)
-        (identifier)
-        (identifier))
-      (identifier)))
-  (set_comprehension
-    (identifier)
-    (for_in_clause
-      (identifier)
-      (identifier))
-    (for_in_clause
-      (identifier)
-      (identifier))))
+        (identifier)))))
 
 ================================================================================
 Simple Tuples
@@ -933,17 +968,21 @@ Simple Tuples
 --------------------------------------------------------------------------------
 
 (module
-  (tuple)
-  (tuple
-    (identifier)
-    (identifier))
-  (tuple
-    (identifier)
-    (identifier)
-    (identifier))
-  (tuple
-    (identifier)
-    (identifier)))
+  (expression_statement
+    (tuple))
+  (expression_statement
+    (tuple
+      (identifier)
+      (identifier)))
+  (expression_statement
+    (tuple
+      (identifier)
+      (identifier)
+      (identifier)))
+  (expression_statement
+    (tuple
+      (identifier)
+      (identifier))))
 
 ================================================================================
 Generator expression
@@ -957,43 +996,47 @@ dict((a, b) for a, b in d)
 --------------------------------------------------------------------------------
 
 (module
-  (generator_expression
-    (subscript
-      (subscript
-        (identifier)
-        (identifier))
-      (identifier))
-    (for_in_clause
-      (pattern_list
-        (identifier)
-        (identifier)
-        (identifier))
-      (identifier)))
-  (call
-    (identifier)
+  (expression_statement
     (generator_expression
-      (tuple
-        (identifier)
+      (subscript
+        (subscript
+          (identifier)
+          (identifier))
         (identifier))
       (for_in_clause
         (pattern_list
           (identifier)
+          (identifier)
           (identifier))
         (identifier))))
-  (generator_expression
-    (identifier)
-    (for_in_clause
+  (expression_statement
+    (call
       (identifier)
-      (identifier))
-    (for_in_clause
+      (generator_expression
+        (tuple
+          (identifier)
+          (identifier))
+        (for_in_clause
+          (pattern_list
+            (identifier)
+            (identifier))
+          (identifier)))))
+  (expression_statement
+    (generator_expression
       (identifier)
-      (identifier)))
-  (generator_expression
-    (identifier)
-    (for_in_clause
-      (identifier)
-      (call
+      (for_in_clause
         (identifier)
-        (argument_list
-          (integer)
-          (integer))))))
+        (identifier))
+      (for_in_clause
+        (identifier)
+        (identifier))))
+  (expression_statement
+    (generator_expression
+      (identifier)
+      (for_in_clause
+        (identifier)
+        (call
+          (identifier)
+          (argument_list
+            (integer)
+            (integer)))))))

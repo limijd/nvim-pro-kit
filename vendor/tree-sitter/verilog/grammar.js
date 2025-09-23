@@ -1,15 +1,8 @@
-/**
- * @file SystemVerilog 1800-2023 Parser
- * @author Gonzalo M. Larumbe <gonzalomlarumbe@gmail.com>
- * @license MIT
- */
-
 /* eslint-disable arrow-parens */
 /* eslint-disable camelcase */
 /* eslint-disable-next-line spaced-comment */
 /* eslint-disable-no-undef */
 /* eslint-disable-no-unused-vars */
-
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
@@ -217,12 +210,14 @@ function paren_expr(expr) {
   ));
 }
 
+function directive(command) {
+  return alias(new RegExp('`' + command), 'directive_' + command);
+}
 
-/**
- *
- * SystemVerilog parser grammar based on IEEE Std 1800-2023.
- *
- */
+
+/*
+    Verilog parser grammar based on IEEE Std 1800-2023.
+*/
 
 const rules = {
 
@@ -252,13 +247,13 @@ const rules = {
     'library',
     $.library_identifier,
     commaSep1($.file_path_spec),
-    optseq('-', 'incdir', commaSep1($.file_path_spec)), // The correct thing would be having '-incdir' as a single token, or '-' followed by token.immediate('incdir'), but this won't let recognizing 'incdir' as a reserved word
+    optseq('-incdir', commaSep1($.file_path_spec)),
     ';'
   ),
 
   include_statement: $ => seq('include', $.file_path_spec, ';'),
 
-  file_path_spec: $ => /[^ ;\n]+/, // Do not allow whitespaces on library filenames
+  file_path_spec: $ => /[^;\n]+/,
 
 
 // ** A.1.2 SystemVerilog source text
@@ -278,7 +273,6 @@ const rules = {
     $.module_keyword,
     optional($.lifetime),
     field('name', $.module_identifier),
-    repeat(choice($.conditional_compilation_directive, $.package_import_declaration)), // New option, Out of LRM
     repeat($.package_import_declaration),
     optional($.parameter_port_list)
   ),
@@ -483,8 +477,7 @@ const rules = {
   ),
 
   parameter_port_declaration: $ => choice(
-    alias($._local_parameter_declaration_no_semicolon, $.local_parameter_declaration),
-    alias($._parameter_declaration_no_semicolon, $.parameter_declaration),
+    $.any_parameter_declaration,
     seq($.data_type, $.list_of_param_assignments),
     $.type_parameter_declaration,
   ),
@@ -669,7 +662,7 @@ const rules = {
 // ** A.1.5 Configuration source text
   config_declaration: $ => seq(
     'config', field('name', $.config_identifier), ';',
-    repeat($.local_parameter_declaration),
+    repseq($.local_parameter_declaration, ';'),
     $.design_statement,
     repeat($.config_rule_statement),
     enclosing('endconfig', $.config_identifier)
@@ -827,8 +820,7 @@ const rules = {
       $.interface_class_declaration,
       $.covergroup_declaration,
     )),
-    $.local_parameter_declaration,
-    $.parameter_declaration,
+    seq($.any_parameter_declaration, ';'),
     ';',
     $._directives, // Out of LRM
   ),
@@ -840,7 +832,7 @@ const rules = {
       repeat($.class_item_qualifier),
       $.data_type,
       $.const_identifier,
-      optseq('=', choice($.constant_expression, $.class_new)), // $.class_new out of LRM but added to be consistent with non-const data declarations
+      optseq('=', $.constant_expression),
       ';'
     )
   )),
@@ -879,8 +871,7 @@ const rules = {
   interface_class_item: $ => choice(
     $.type_declaration,
     seq(repeat($.attribute_instance), $.interface_class_method),
-    $.local_parameter_declaration,
-    $.parameter_declaration,
+    seq($.any_parameter_declaration, ';'),
     ';'
   ),
 
@@ -1012,8 +1003,7 @@ const rules = {
     $.class_declaration,
     $.interface_class_declaration,
     $.class_constructor_declaration,
-    $.local_parameter_declaration,
-    $.parameter_declaration,
+    seq($.any_parameter_declaration, ';'),
     $.covergroup_declaration,
     $._assertion_item_declaration,
     ';',
@@ -1037,25 +1027,23 @@ const rules = {
 // * A.2 Declarations
 // ** A.2.1 Declaration types
 // *** A.2.1.1 Module parameter declarations
-  _local_parameter_declaration_no_semicolon: $ => seq(
+  local_parameter_declaration: $ => seq(
     'localparam',
     choice(
       seq(optional($.data_type_or_implicit), $.list_of_param_assignments),
       $.type_parameter_declaration,
     )),
 
-  _parameter_declaration_no_semicolon: $ => seq(
+  parameter_declaration: $ => seq(
     'parameter',
     choice(
       seq(optional($.data_type_or_implicit), $.list_of_param_assignments),
       $.type_parameter_declaration,
     )),
 
-  local_parameter_declaration: $ => seq($._local_parameter_declaration_no_semicolon, ';'),
-
-  parameter_declaration: $ => seq($._parameter_declaration_no_semicolon, ';'),
-
   type_parameter_declaration: $ => seq('type', optional($._forward_type), $.list_of_type_assignments),
+
+  any_parameter_declaration: $ => choice($.local_parameter_declaration, $.parameter_declaration),
 
   specparam_declaration: $ => seq('specparam', optional($.packed_dimension), $.list_of_specparam_assignments, ';'),
 
@@ -1176,18 +1164,16 @@ const rules = {
 
 // ** A.2.2 Declaration data types
 // *** A.2.2.1 Net and variable types
-  // $.integral_number, $.constant_mintypmax_expression and $.type_reference replace the $.constant_primary
+  // $.constant_mintypmax_expression and $.type_reference replace the $.constant_primary
   // branch, as these are the only possible options of $.constant_primary in a static cast.
   // A.10.45: It shall be legal to use a type_reference constant_primary as the casting_type in a static cast.
   casting_type: $ => choice(
     $._simple_type,
-    $.integral_number,                              // $.constant_primary branch
     seq('(', $.constant_mintypmax_expression, ')'), // $.constant_primary branch
     $.type_reference,                               // $.constant_primary branch
     $._signing,
     'string',
-    'const',
-    $.hierarchical_identifier, // Out of LRM but supported by most tools
+    'const'
   ),
 
   data_type: $ => prec('data_type', choice(
@@ -1202,7 +1188,7 @@ const rules = {
     ),
     seq(
       'enum', optional($.enum_base_type),
-      '{', repeat1(choice($._directives, seq($.enum_name_declaration, optional(',')))), '}', // _directives out of LRM, (e.g. allow use of `ifdefs in enums)
+      '{', choice($._directives, commaSep1($.enum_name_declaration)), '}', // _directives out of LRM, (e.g. allow use of `ifdefs in structs)
       repeat($.packed_dimension)
     ),
     'string',
@@ -1433,11 +1419,7 @@ const rules = {
 
   net_decl_assignment: $ => seq($.net_identifier, repeat($.unpacked_dimension), optseq('=', $.expression)),
 
-  param_assignment: $ => seq(
-    choice($.parameter_identifier, $.text_macro_usage), // $.text_macro_usage Out of LRM
-    repeat($._variable_dimension),
-    optseq('=', $.constant_param_expression)
-  ),
+  param_assignment: $ => seq($.parameter_identifier, repeat($._variable_dimension), optseq('=', $.constant_param_expression)),
 
   specparam_assignment: $ => choice(
     seq($.specparam_identifier, '=', $.constant_mintypmax_expression),
@@ -1470,12 +1452,7 @@ const rules = {
 
   type_assignment: $ => seq(
     field('name', $.type_identifier),
-    optseq('=',
-      field('value', choice(
-        $._data_type_or_incomplete_class_scoped_type,
-        $.text_macro_usage, // Out of LRM
-      ))
-    )
+    optseq('=', field('value', $._data_type_or_incomplete_class_scoped_type))
   ),
 
   variable_decl_assignment: $ => choice(
@@ -1497,8 +1474,11 @@ const rules = {
   ),
 
   class_new: $ => choice(
-    seq(optional($.class_scope), 'new', optseq('(', optional($.list_of_arguments), ')')),
-    seq('new', $.expression)
+    // TODO: Removing dynamic precedences results in detection of other rules where new is
+    // not treated as a kewyord but as a hierarchical identifier. This could probably be
+    // solved better after fixing some conflicts with precedences
+    prec.dynamic(1, seq(optional($.class_scope), 'new', optseq('(', optional($.list_of_arguments), ')'))),
+    prec.dynamic(0, seq('new', $.expression))
   ),
 
   dynamic_array_new: $ => seq('new', '[', $.expression, ']', optseq('(', $.expression, ')')),
@@ -1670,8 +1650,7 @@ const rules = {
     repeat($.attribute_instance),
     choice(
       $.data_declaration,
-      $.local_parameter_declaration,
-      $.parameter_declaration,
+      seq($.any_parameter_declaration, ';'),
       $.let_declaration
     )
   ),
@@ -1967,10 +1946,7 @@ const rules = {
     repeat($.attribute_instance),
     choice(
       $._coverage_spec,
-      seq($.coverage_option, ';'),
-      $.include_compiler_directive,        // Out of LRM
-      $.conditional_compilation_directive, // Out of LRM
-      $.text_macro_usage,                  // Out of LRM
+      seq($.coverage_option, ';')
     ),
   ),
 
@@ -2603,7 +2579,8 @@ const rules = {
 
 // ** A.5.4 UDP instantiation
   udp_instantiation: $ => seq(
-    field('instance_type', $.udp_identifier),
+    // field('instance_type', $.udp_identifier), // TODO: For some reason results in parse errors with tree-sitter 0.22.6, in core/instantiation/user_defined_primitives
+    $.udp_identifier,
     optional($.drive_strength),
     optional($.delay2),
     prec.dynamic(-1, commaSep1($.udp_instance)), // Give $.hierarchical_instance and $.module_instantiation higher priority
@@ -2827,12 +2804,12 @@ const rules = {
 
 
 // ** A.6.6 Conditional statements
-  conditional_statement: $ => seq(
+  conditional_statement: $ => prec.right(seq(
     optional($.unique_priority),
-    'if', '(', $.cond_predicate, ')', $.statement_or_null, optional($.conditional_compilation_directive),                 // $.conditional_compilation_directive out of LRM
-    repseq('else', 'if', '(', $.cond_predicate, ')', $.statement_or_null, optional($.conditional_compilation_directive)), // $.conditional_compilation_directive out of LRM
-    prec.dynamic(-1, optseq('else', $.statement_or_null))
-  ),
+    'if', '(', $.cond_predicate, ')', $.statement_or_null,
+    repseq('else', 'if', '(', $.cond_predicate, ')', $.statement_or_null),
+    optseq('else', $.statement_or_null)
+  )),
 
   unique_priority: $ => choice('unique', 'unique0', 'priority'),
 
@@ -2874,8 +2851,7 @@ const rules = {
 
   case_item: $ => choice(
     seq(commaSep1($.case_item_expression), ':', $.statement_or_null),
-    seq('default', optional(':'), $.statement_or_null),
-    $.conditional_compilation_directive, // Out of LRM
+    seq('default', optional(':'), $.statement_or_null)
   ),
 
   case_pattern_item: $ => choice(
@@ -3694,7 +3670,7 @@ const rules = {
   )),
 
   subroutine_call: $ => choice(
-    $.tf_call,
+    prec.dynamic(-1, $.tf_call), // Give $.method_call higher priority
     $.system_tf_call,
     $.method_call,
     seq(optseq('std', '::'), $.randomize_call),
@@ -3716,13 +3692,12 @@ const rules = {
       repeat($.attribute_instance),
       field('arguments', optseq('(', optional($.list_of_arguments), ')'))
     ),
-    prec.dynamic(1, $._built_in_method_call)
+    $._built_in_method_call
   )),
 
   _built_in_method_call: $ => choice(
     $.array_manipulation_call,
     $.randomize_call,
-    $.new_method_call,                       // Out of LRM, mostly for super.new()
     $.string_method_call,                    // Out of LRM
     $.enum_method_call,                      // Out of LRM
     $.associative_array_method_call,         // Out of LRM
@@ -3730,11 +3705,6 @@ const rules = {
     $.enum_or_associative_array_method_call, // Out of LRM
     $.array_or_queue_method_call,            // Out of LRM
   ),
-
-  new_method_call: $ => prec.right(seq(
-    'new',
-    optseq('(', optional($.list_of_arguments), ')'),
-  )),
 
   array_manipulation_call: $ => prec.right(seq(
     $.array_method_name,
@@ -3753,9 +3723,14 @@ const rules = {
 
   identifier_list: $ => commaSep1($._identifier),
 
+  // TODO: Modified with respect to LRM:
+  // The $.implicit_class_handle should be matched by $.primary second
+  // condition. However there must be some precedences that prevent this from
+  // being detected. This workaround might complicate a bit more the parser but
+  // seems to work well.
   _method_call_root: $ => choice(
     $.primary,
-    prec.dynamic(1, $.implicit_class_handle), // 'this' also belongs to $.primary. Setting this prec allows detecting 'this' as something different as a regular identifier
+    prec.dynamic(2, seq($.implicit_class_handle, optional($.select))), // optional($.select) out of LRM
     $.class_type,       // Out of LRM: Added to support calling parameterized static methods
     $.text_macro_usage, // Out of LRM, Added to fix parsing errors in UVM
   ),
@@ -3833,9 +3808,7 @@ const rules = {
     seq($.variable_lvalue, repeat($.attribute_instance), $.inc_or_dec_operator)
   )),
 
-  // INFO: $.cond_predicate already includes $.expression as a choice, but right associativity
-  //       will not be preserved if there are intermediate nodes between $.expression
-  conditional_expression: $ => conditional_expr($, choice($.cond_predicate, $.expression), $.expression),
+  conditional_expression: $ => conditional_expr($, $.cond_predicate, $.expression),
 
   constant_expression: $ => choice(
     $.constant_primary,
@@ -3887,8 +3860,7 @@ const rules = {
     $.conditional_expression,
     $.inside_expression,
     $.tagged_union_expression,
-    $.text_macro_usage,               // Out of LRM
-    $.file_or_line_compiler_directive // Out of LRM
+    $.text_macro_usage, // Out of LRM
   ),
 
   tagged_union_expression: $ => prec.right(seq(
@@ -3954,16 +3926,16 @@ const rules = {
   constant_primary: $ => prec('constant_primary', choice(
     $.primary_literal,
     seq($.ps_parameter_identifier, optional($.constant_select)),
-    // seq($.specparam_identifier, optseq('[', $._constant_range_expression, ']')),
-    // $.genvar_identifier,
-    // seq($.formal_port_identifier, optional($.constant_select)),
-    // seq(optchoice($.package_scope, $.class_scope), $.enum_identifier),
+    // seq($.specparam_identifier, optseq('[', $._constant_range_expression, ']')), // TODO:
+    $.genvar_identifier,
+    seq($.formal_port_identifier, optional($.constant_select)),
+    seq(optchoice($.package_scope, $.class_scope), $.enum_identifier),
     $.empty_unpacked_array_concatenation,
     seq($.constant_concatenation, optseq('[', $._constant_range_expression, ']')),
     seq($.constant_multiple_concatenation, optseq('[', $._constant_range_expression, ']')),
-    $.constant_function_call, // Out of LRM: original was 'seq($.constant_function_call, optseq('[', $._constant_range_expression, ']'))'
+    seq($.constant_function_call, optseq('[', $._constant_range_expression, ']')),
     // $._constant_let_expression, // No need to add since it's syntax is the same as a tf_call/constant_function_call (true ambiguity that adds conflicts)
-    paren_expr($.constant_mintypmax_expression),
+    seq('(', $.constant_mintypmax_expression, ')'),
     $.constant_cast,
     $._constant_assignment_pattern_expression,
     $.type_reference,
@@ -3997,13 +3969,13 @@ const rules = {
     $.empty_unpacked_array_concatenation,
     seq($.concatenation, optseq('[', $.range_expression, ']')),
     seq($.multiple_concatenation, optseq('[', $.range_expression, ']')),
-    $.function_subroutine_call,
+    prec.dynamic(-99, $.function_subroutine_call), // Avoid giving precedence to nested method_call instead of to hierarchical_identifier
     // $.let_expression,  // No need to add since its syntax is the same as a tf_call/subroutine_call (true ambiguity that adds conflicts)
-    paren_expr($.mintypmax_expression),
+    seq('(', $.mintypmax_expression, ')'),
     $.cast,
     $.assignment_pattern_expression,
     $.streaming_concatenation,
-    // $.sequence_method_call, //  Remove to narrow conflicts
+    // $.sequence_method_call, // TODO: Remove temporarily to narrow conflicts
     'this',
     '$',
     'null',
@@ -4115,8 +4087,7 @@ const rules = {
     ),
     seq('{', commaSep1($.variable_lvalue), '}'),
     seq(optional($._assignment_pattern_expression_type), $.assignment_pattern_variable_lvalue),
-    $.streaming_concatenation,
-    $.text_macro_usage // Out of LRM
+    $.streaming_concatenation
   )),
 
   nonrange_variable_lvalue: $ => seq(
@@ -4260,8 +4231,8 @@ const rules = {
   quoted_string: $ => seq(
     '"',
     repeat(choice(
-      $.quoted_string_item,
-      $.string_escape_seq
+      $._quoted_string_item,
+      $._string_escape_seq
     )),
     '"'
   ),
@@ -4269,19 +4240,19 @@ const rules = {
   triple_quoted_string: $ => seq(
     '"""',
     repeat(choice(
-      $.triple_quoted_string_item,
+      $._triple_quoted_string_item,
       token(prec(1, seq('"', /[^"]/))),
       token(prec(1, seq('""', /[^"]/))),
-      $.string_escape_seq
+      $._string_escape_seq
     )),
     '"""'
   ),
 
-  quoted_string_item: $ => token.immediate(prec(1, /[^\\"\n]+/)), // any_ASCII_character except \ or newline or "
+  _quoted_string_item: $ => token.immediate(prec(1, /[^\\"\n]+/)), // any_ASCII_character except \ or newline or "
 
-  triple_quoted_string_item: $ => token.immediate(prec(1, /[^\\"]+/)), //  any_ASCII_character except \
+  _triple_quoted_string_item: $ => token.immediate(prec(1, /[^\\"]+/)), //  any_ASCII_character except \
 
-  string_escape_seq: $ => token(prec(1, seq(
+  _string_escape_seq: $ => token(prec(1, seq(
     '\\',
     choice(
       /[^x0-7]/,           // \any_ASCII_character (exclude 'x' and '0-7' since those would be matched by following cases)
@@ -4306,15 +4277,17 @@ const rules = {
   // block_comment: $ => /* comment_text */
   // comment_text: $ => { Any_ASCII_character }
 
-  one_line_comment: $ => token(seq('//', /.*/)),
-
   // http://stackoverflow.com/questions/13014947/regex-to-match-a-c-style-multiline-comment/36328890#36328890
   // from: https://github.com/tree-sitter/tree-sitter-c/blob/master/grammar.js
-  block_comment: $ => token(seq(
-    '/*',
-    /[^*]*\*+([^/*][^*]*\*+)*/,
-    '/'
+  comment: $ => token(choice(
+    seq('//', /.*/), // $._one_line_comment -> seq('//', $.comment_text)
+    seq(             // $._block_comment
+      '/*',
+      /[^*]*\*+([^/*][^*]*\*+)*/,
+      '/'
+    )
   )),
+
 
 // ** A.9.3 Identifiers
   array_identifier: $ => $._identifier, // Seems unused
@@ -4508,7 +4481,7 @@ const rules = {
 
 
 // ** 22-3 `resetall
-  resetall_compiler_directive: $ => '`resetall',
+  resetall_compiler_directive: $ => directive('resetall'),
 
 
 // ** 22-4 `include
@@ -4519,24 +4492,22 @@ const rules = {
   )),
 
   include_compiler_directive: $ => seq(
-    '`include',
+    directive('include'),
     choice(
       $.quoted_string,
       $.system_lib_string,
-      $.text_macro_usage, // Out of LRM (test sv-tests/chapter-22/22.5.1--include-define-expansion)
+      $.text_macro_usage,// Out of LRM (test sv-tests/chapter-22/22.5.1--include-define-expansion)
     )
   ),
 
 
 // ** 22.5 `define, `undef, and `undefineall
-  // Slightly out of LRM to allow basic parsing of preprocessor defines (i.e. macro formal arguments)
+  default_text: $ => /\w+/,
 
-  default_text: $ => token(prec(-1, /[^,\\\n\)]+/)),
-
-  macro_text: $ => token(prec(-1, /(\\(.|\r?\n)|[^\\\n])*/)),
+  macro_text: $ => /(\\(.|\r?\n)|[^\\\n])*/,
 
   text_macro_definition: $ => seq(
-    '`define',
+    directive('define'),
     $.text_macro_name,
     optional($.macro_text),
     token.immediate(/\r?\n/),
@@ -4544,22 +4515,22 @@ const rules = {
 
   text_macro_name: $ => seq(
     $.text_macro_identifier,
-    optseq(token.immediate('('), $.list_of_formal_arguments, ')')
+    optseq('(', $.list_of_formal_arguments, ')')
   ),
 
   list_of_formal_arguments: $ => commaSep1($.formal_argument),
 
-  formal_argument: $ => reserved('macros', seq(
+  formal_argument: $ => seq(
     $.simple_identifier,
-    optseq('=', optchoice($.default_text, $.string_literal, $.tf_call, $.text_macro_usage, $.simple_identifier)),
-  )),
+    optseq('=', $.default_text)
+  ),
 
-  text_macro_identifier: $ => reserved('macros', $._identifier),
+  text_macro_identifier: $ => $._identifier,
 
   text_macro_usage: $ => prec.right(seq(
     '`',
     $.text_macro_identifier,
-    reserved('macros', optseq('(', optional($.list_of_actual_arguments), ')'))
+    optseq('(', optional($.list_of_actual_arguments), ')')
   )),
 
   list_of_actual_arguments: $ => list_of_args($, 'list_of_arguments', $.actual_argument),
@@ -4567,28 +4538,26 @@ const rules = {
   actual_argument: $ => choice(
     // Out of LRM, needed to support parameterized data types and constraints as macro args (common in the UVM)
     $.param_expression, // e.g: `uvm_component_utils_param
-    $.constraint_block, // e.g: `uvm_do_with
-    repseq1($.constraint_block_item, optional(';')),
-    ';'
+    $.constraint_block  // e.g: `uvm_do_with
   ),
 
-  undefine_compiler_directive: $ => seq('`undef', $.text_macro_identifier),
+  undefine_compiler_directive: $ => seq(directive('undef'), $.text_macro_identifier),
 
-  undefineall_compiler_directive: $ => '`undefineall',
+  undefineall_compiler_directive: $ => directive('undefineall'),
 
 
 // ** 22.6 `ifdef, `else, `elsif, `endif, `ifndef
   // Modified with respect to LRM: do not parse preprocessed code
   conditional_compilation_directive: $ => choice(
     seq($._ifdef_or_ifndef, $.ifdef_condition),
-    seq('`elsif', $.ifdef_condition),
-    '`else',
-    '`endif'
+    seq(directive('elsif'), $.ifdef_condition),
+    directive('else'),
+    directive('endif')
   ),
 
   _ifdef_or_ifndef: $ => choice(
-    '`ifdef',
-    '`ifndef'
+    directive('ifdef'),
+    directive('ifndef')
   ),
 
   ifdef_condition: $ => choice(
@@ -4608,7 +4577,7 @@ const rules = {
 
 // ** 22-7 timescale
   timescale_compiler_directive: $ => seq(
-    '`timescale',
+    directive('timescale'),
     $.time_literal, // time_unit,
     '/',
     $.time_literal, // time_precision
@@ -4617,7 +4586,7 @@ const rules = {
 
 // ** 22-8 default_nettype
   default_nettype_compiler_directive: $ => seq(
-    '`default_nettype',
+    directive('default_nettype'),
     $.default_nettype_value,
     token.immediate(/\r?\n/),
   ),
@@ -4627,21 +4596,21 @@ const rules = {
 
 // ** 22-9
   unconnected_drive_compiler_directive: $ => seq(
-    '`unconnected_drive',
+    directive('unconnected_drive'),
     choice('pull0', 'pull1'),
     token.immediate(/\r?\n/),
   ),
 
 
 // ** 22.10 `celldefine and `endcelldefine
-  celldefine_compiler_directive: $ => '`celldefine',
+  celldefine_compiler_directive: $ => directive('celldefine'),
 
-  endcelldefine_compiler_directive: $ => '`endcelldefine',
+  endcelldefine_compiler_directive: $ => directive('endcelldefine'),
 
 
 // ** 22.11 `pragma
   pragma: $ => prec.right(seq(
-    '`pragma',
+    directive('pragma'),
     $.pragma_name,
     commaSep($.pragma_expression),
   )),
@@ -4661,31 +4630,28 @@ const rules = {
     $._identifier,
   ),
 
-  pragma_keyword: $ => choice(
-    $.simple_identifier,
-    'end' // Out of LRM, needed for 'pragma protect end' since end is a reserved keyword
-  ),
+  pragma_keyword: $ => $.simple_identifier,
 
 
 // ** 22-12 `line
   line_compiler_directive: $ => seq(
-    '`line',
+    directive('line'),
     $.unsigned_number,
-    $.quoted_string,
+    alias($.quoted_string, $.filename),
     alias(token(/[0-2]/), $.level),
     token.immediate(/\r?\n/),
   ),
 
 // ** 22.13 `__FILE__ and `__LINE__
   file_or_line_compiler_directive: $ => choice(
-    '`__FILE__',
-    '`__LINE__',
+    directive('__FILE__'),
+    directive('__LINE__'),
   ),
 
 
 // ** 22.14 `begin_keywords, `end_keywords
   keywords_directive: $ => seq(
-    '`begin_keywords',
+    directive('begin_keywords'),
     '\"',
     $.version_specifier,
     '\"',
@@ -4703,7 +4669,7 @@ const rules = {
     '1364-1995',
   ),
 
-  endkeywords_directive: $ => '`end_keywords',
+  endkeywords_directive: $ => directive('end_keywords'),
 
 };
 
@@ -4711,70 +4677,17 @@ const rules = {
 // * Tree-sitter
 // ** Module exports
 module.exports = grammar({
-  name: 'systemverilog',
+  name: 'verilog',
   word: $ => $.simple_identifier,
   rules: rules,
-  extras: $ => [/\s/, $.one_line_comment, $.block_comment],
-
-  // Annex B
-  reserved: {
-    global: $ => [
-      // Keywords
-      'accept_on', 'alias', 'always', 'always_comb', 'always_ff',
-      'always_latch', 'and', 'assert', 'assign', 'assume', 'automatic',
-      'before', 'begin', 'bind', 'bins', 'binsof', 'bit', 'break', 'buf',
-      'bufif0', 'bufif1', 'byte', 'case', 'casex', 'casez', 'cell', 'chandle',
-      'checker', 'class', 'clocking', 'cmos', 'config', 'const', 'constraint',
-      'context', 'continue', 'cover', 'covergroup', 'coverpoint', 'cross',
-      'deassign', 'default', 'defparam', 'design', 'disable', 'dist', 'do',
-      'edge', 'else', 'end', 'endcase', 'endchecker', 'endclass', 'endclocking',
-      'endconfig', 'endfunction', 'endgenerate', 'endgroup', 'endinterface',
-      'endmodule', 'endpackage', 'endprimitive', 'endprogram', 'endproperty',
-      'endsequence', 'endspecify', 'endtable', 'endtask', 'enum', 'event',
-      'eventually', 'expect', 'export', 'extends', 'extern', 'final',
-      'first_match', 'for', 'force', 'foreach', 'forever', 'fork', 'forkjoin',
-      'function', 'generate', 'genvar', 'global', 'highz0', 'highz1', 'if',
-      'iff', 'ifnone', 'ignore_bins', 'illegal_bins', 'implements', 'implies',
-      'import', 'incdir', 'include', 'initial', 'inout', 'input', 'inside',
-      'instance', 'int', 'integer', 'interconnect', 'interface', 'intersect',
-      'join', 'join_any', 'join_none', 'large', 'let', 'liblist', 'library',
-      'local', 'localparam', 'logic', 'longint', 'macromodule', 'matches',
-      'medium', 'modport', 'module', 'nand', 'negedge', 'nettype', 'new',
-      'nexttime', 'nmos', 'nor', 'noshowcancelled', 'not', 'notif0', 'notif1',
-      'null', 'or', 'output', 'package', 'packed', 'parameter', 'pmos',
-      'posedge', 'primitive', 'priority', 'program', 'property', 'protected',
-      'pull0', 'pull1', 'pulldown', 'pullup', 'pulsestyle_ondetect',
-      'pulsestyle_onevent', 'pure', 'rand', 'randc', 'randcase', 'randsequence',
-      'rcmos', 'real', 'realtime', 'ref', 'reg', 'reject_on', 'release',
-      'repeat', 'restrict', 'return', 'rnmos', 'rpmos', 'rtran', 'rtranif0',
-      'rtranif1', 's_always', 's_eventually', 's_nexttime', 's_until',
-      's_until_with', 'scalared', 'sequence', 'shortint', 'shortreal',
-      'showcancelled', 'signed', 'small', 'soft', 'solve', 'specify',
-      'specparam', 'static', 'string', 'strong', 'strong0', 'strong1', 'struct',
-      'super', 'supply0', 'supply1', 'sync_accept_on', 'sync_reject_on',
-      'table', 'tagged', 'task', 'this', 'throughout', 'time', 'timeprecision',
-      'timeunit', 'tran', 'tranif0', 'tranif1', 'tri', 'tri0', 'tri1', 'triand',
-      'trior', 'trireg', 'type', 'typedef', 'union', 'unique', 'unique0',
-      'unsigned', 'until', 'until_with', 'untyped', 'use', 'uwire', 'var',
-      'vectored', 'virtual', 'void', 'wait', 'wait_order', 'wand', 'weak',
-      'weak0', 'weak1', 'while', 'wildcard', 'wire', 'with', 'within', 'wor',
-      'xnor', 'xor',
-      // Compiler directives
-      '`__FILE__', '`__LINE__', '`begin_keywords', '`celldefine',
-      '`default_nettype', '`define', '`else', '`elsif', '`end_keywords',
-      '`endcelldefine', '`endif', '`ifdef', '`ifndef', '`include', '`line',
-      '`pragma', '`resetall', '`timescale', '`unconnected_drive', '`undef',
-      '`undefineall',
-    ],
-
-    macros: $ => [],
-  },
+  extras: $ => [/\s/, $.comment],
 
 // ** Inline
   inline: $ => [
     $.snippets,
 
     $.var_data_type,
+    $.any_parameter_declaration,
     $.elaboration_severity_system_task,
     $.attr_name,
 
@@ -5506,14 +5419,6 @@ module.exports = grammar({
     ['select_expression', 'tf_call'],
 
 
-    // Out of LRM support for hierarchical identifiers in static casting
-    //
-    //   _identifier  •  '''  …
-    //   1:  (_simple_type  _identifier)  •  '''  …             (precedence: '_simple_type')
-    //   2:  (hierarchical_identifier  _identifier)  •  '''  …  (precedence: 'hierarchical_identifier')
-    ['_simple_type', 'hierarchical_identifier'],
-
-
     // Leave these two standalone to avoid having to replicate code with function 'list_of_args'
     ['property_list_of_arguments'],
     ['sequence_list_of_arguments'],
@@ -5982,6 +5887,7 @@ module.exports = grammar({
     [$.tf_call, $.constant_primary, $.hierarchical_identifier],
     [$.tf_call, $.constant_primary],
     [$.data_type, $.class_type, $.tf_call, $.constant_primary, $.hierarchical_identifier],
+    [$.data_type, $.tf_call, $.constant_primary, $.hierarchical_identifier],
     [$.data_type, $.class_type, $.tf_call, $.constant_primary],
 
 
@@ -6111,6 +6017,7 @@ module.exports = grammar({
     [$.module_path_primary, $.primary_literal],
     [$.tf_call, $.constant_primary, $.module_path_primary, $.hierarchical_identifier],
     [$.module_path_primary, $.primary],
+    [$.casting_type, $.path_delay_expression, $.constant_primary],
     [$.full_path_description, $.full_edge_sensitive_path_description],
     [$.parallel_path_description, $.parallel_edge_sensitive_path_description],
     [$.scalar_timing_check_condition, $.mintypmax_expression],
@@ -6134,26 +6041,6 @@ module.exports = grammar({
 
     // Allow constraint blocks on text_macro_usage
     [$.constraint_block, $.empty_unpacked_array_concatenation],
-
-
-    // Allow text_macro_usage on LHS of blocking and non-blocking assignments (on $.variable_lvalue)
-    [$.variable_lvalue, $._directives],
-    [$.expression, $.variable_lvalue],
-    [$.constant_expression, $.expression, $.variable_lvalue],
-
-
-    // Fix macro arguments parsing
-    [$._identifier, $.formal_argument],
-
-
-    // Support for `ifdefs in module header package import section
-    [$._module_header],
-
-
-    // Remove 'optseq('[', $._constant_range_expression, ']'))' from $.constant_function_call in $.constant_primary
-    [$.constant_primary, $.hierarchical_identifier],
-    [$.constant_primary, $.net_lvalue, $.hierarchical_identifier],
-    [$.data_type, $.constant_primary, $.hierarchical_identifier],
 
   ],
 

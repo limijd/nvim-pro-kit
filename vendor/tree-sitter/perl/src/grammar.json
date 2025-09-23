@@ -1934,13 +1934,8 @@
       "type": "CHOICE",
       "members": [
         {
-          "type": "ALIAS",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_term_rightward"
-          },
-          "named": true,
-          "value": "list_expression"
+          "type": "SYMBOL",
+          "name": "list_expression"
         },
         {
           "type": "SYMBOL",
@@ -1959,7 +1954,7 @@
             "name": "_term"
           },
           {
-            "type": "REPEAT1",
+            "type": "REPEAT",
             "content": {
               "type": "SEQ",
               "members": [
@@ -1981,6 +1976,23 @@
                 }
               ]
             }
+          }
+        ]
+      }
+    },
+    "list_expression": {
+      "type": "PREC",
+      "value": -1,
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "_term"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "_term_rightward"
           }
         ]
       }
@@ -4194,7 +4206,7 @@
           },
           {
             "type": "SYMBOL",
-            "name": "_listexpr"
+            "name": "_term_rightward"
           }
         ]
       }
@@ -5089,7 +5101,7 @@
                 "name": "list",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               }
             ]
@@ -5118,7 +5130,7 @@
                 "name": "list",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               }
             ]
@@ -5155,7 +5167,7 @@
                 "name": "list",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               },
               {
@@ -5192,7 +5204,7 @@
                 "name": "list",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               },
               {
@@ -5268,7 +5280,7 @@
                 "name": "list",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               }
             ]
@@ -5309,7 +5321,7 @@
                 "name": "list",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               },
               {
@@ -5400,7 +5412,7 @@
             "members": [
               {
                 "type": "SYMBOL",
-                "name": "_listexpr"
+                "name": "_term_rightward"
               },
               {
                 "type": "BLANK"
@@ -5644,7 +5656,7 @@
                 "name": "arguments",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               }
             ]
@@ -5669,7 +5681,7 @@
                 "name": "arguments",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_listexpr"
+                  "name": "_term_rightward"
                 }
               }
             ]
@@ -5735,7 +5747,7 @@
                         "name": "arguments",
                         "content": {
                           "type": "SYMBOL",
-                          "name": "_listexpr"
+                          "name": "_term_rightward"
                         }
                       }
                     ]
@@ -9168,11 +9180,12 @@
       "postinc_expression"
     ],
     [
-      "_listexpr",
-      "_term_rightward"
+      "return_expression"
     ],
     [
-      "return_expression"
+      "_listexpr",
+      "list_expression",
+      "_term_rightward"
     ],
     [
       "function",

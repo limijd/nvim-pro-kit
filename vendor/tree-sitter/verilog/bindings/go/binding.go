@@ -1,15 +1,13 @@
-package tree_sitter_systemverilog
+package tree_sitter_verilog
 
 // #cgo CFLAGS: -std=c11 -fPIC
 // #include "../../src/parser.c"
-// #if __has_include("../../src/scanner.c")
-// #include "../../src/scanner.c"
-// #endif
+// // NOTE: if your language has an external scanner, add it here.
 import "C"
 
 import "unsafe"
 
 // Get the tree-sitter Language for this grammar.
 func Language() unsafe.Pointer {
-	return unsafe.Pointer(C.tree_sitter_systemverilog())
+	return unsafe.Pointer(C.tree_sitter_verilog())
 }

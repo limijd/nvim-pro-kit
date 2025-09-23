@@ -395,15 +395,11 @@
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
-      "required": false,
+      "multiple": false,
+      "required": true,
       "types": [
         {
           "type": "constraint_block",
-          "named": true
-        },
-        {
-          "type": "constraint_block_item",
           "named": true
         },
         {
@@ -1397,10 +1393,6 @@
           "named": true
         },
         {
-          "type": "conditional_compilation_directive",
-          "named": true
-        },
-        {
           "type": "statement_or_null",
           "named": true
         }
@@ -1525,19 +1517,11 @@
           "named": true
         },
         {
-          "type": "hierarchical_identifier",
-          "named": true
-        },
-        {
           "type": "integer_atom_type",
           "named": true
         },
         {
           "type": "integer_vector_type",
-          "named": true
-        },
-        {
-          "type": "integral_number",
           "named": true
         },
         {
@@ -1577,6 +1561,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "celldefine_compiler_directive",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "charge_strength",
@@ -2186,10 +2175,6 @@
           "named": true
         },
         {
-          "type": "class_new",
-          "named": true
-        },
-        {
           "type": "constant_expression",
           "named": true
         },
@@ -2732,10 +2717,6 @@
       "types": [
         {
           "type": "cond_predicate",
-          "named": true
-        },
-        {
-          "type": "conditional_compilation_directive",
           "named": true
         },
         {
@@ -3730,10 +3711,6 @@
           "named": true
         },
         {
-          "type": "conditional_compilation_directive",
-          "named": true
-        },
-        {
           "type": "cover_cross",
           "named": true
         },
@@ -3743,14 +3720,6 @@
         },
         {
           "type": "coverage_option",
-          "named": true
-        },
-        {
-          "type": "include_compiler_directive",
-          "named": true
-        },
-        {
-          "type": "text_macro_usage",
           "named": true
         }
       ]
@@ -4940,6 +4909,16 @@
     }
   },
   {
+    "type": "endcelldefine_compiler_directive",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "endkeywords_directive",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "enum_base_type",
     "named": true,
     "fields": {},
@@ -5333,10 +5312,6 @@
           "named": true
         },
         {
-          "type": "file_or_line_compiler_directive",
-          "named": true
-        },
-        {
           "type": "inc_or_dec_expression",
           "named": true
         },
@@ -5434,6 +5409,11 @@
   },
   {
     "type": "file_or_line_compiler_directive",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "filename",
     "named": true,
     "fields": {}
   },
@@ -5545,18 +5525,6 @@
         },
         {
           "type": "simple_identifier",
-          "named": true
-        },
-        {
-          "type": "string_literal",
-          "named": true
-        },
-        {
-          "type": "text_macro_usage",
-          "named": true
-        },
-        {
-          "type": "tf_call",
           "named": true
         }
       ]
@@ -8039,11 +8007,11 @@
       "required": true,
       "types": [
         {
-          "type": "level",
+          "type": "filename",
           "named": true
         },
         {
-          "type": "quoted_string",
+          "type": "level",
           "named": true
         },
         {
@@ -8750,6 +8718,10 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
           "type": "text_macro_usage",
           "named": true
         }
@@ -8819,10 +8791,6 @@
         },
         {
           "type": "enum_or_associative_array_method_call",
-          "named": true
-        },
-        {
-          "type": "new_method_call",
           "named": true
         },
         {
@@ -9052,10 +9020,6 @@
       "types": [
         {
           "type": "attribute_instance",
-          "named": true
-        },
-        {
-          "type": "conditional_compilation_directive",
           "named": true
         },
         {
@@ -9710,10 +9674,6 @@
       "types": [
         {
           "type": "attribute_instance",
-          "named": true
-        },
-        {
-          "type": "conditional_compilation_directive",
           "named": true
         },
         {
@@ -10679,21 +10639,6 @@
     }
   },
   {
-    "type": "new_method_call",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": false,
-      "types": [
-        {
-          "type": "list_of_arguments",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "next_state",
     "named": true,
     "fields": {},
@@ -11392,10 +11337,6 @@
           "named": true
         },
         {
-          "type": "text_macro_usage",
-          "named": true
-        },
-        {
           "type": "unpacked_dimension",
           "named": true
         },
@@ -11787,7 +11728,7 @@
     "fields": {},
     "children": {
       "multiple": false,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "simple_identifier",
@@ -12997,21 +12938,7 @@
   {
     "type": "quoted_string",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "quoted_string_item",
-          "named": true
-        },
-        {
-          "type": "string_escape_seq",
-          "named": true
-        }
-      ]
-    }
+    "fields": {}
   },
   {
     "type": "randcase_item",
@@ -13233,6 +13160,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "resetall_compiler_directive",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "restrict_property_statement",
@@ -15788,21 +15720,7 @@
   {
     "type": "triple_quoted_string",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "string_escape_seq",
-          "named": true
-        },
-        {
-          "type": "triple_quoted_string_item",
-          "named": true
-        }
-      ]
-    }
+    "fields": {}
   },
   {
     "type": "type_assignment",
@@ -15844,10 +15762,6 @@
           },
           {
             "type": "simple_identifier",
-            "named": true
-          },
-          {
-            "type": "text_macro_usage",
             "named": true
           }
         ]
@@ -16119,22 +16033,7 @@
   {
     "type": "udp_instantiation",
     "named": true,
-    "fields": {
-      "instance_type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "escaped_identifier",
-            "named": true
-          },
-          {
-            "type": "simple_identifier",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": true,
       "required": true,
@@ -16145,6 +16044,14 @@
         },
         {
           "type": "drive_strength",
+          "named": true
+        },
+        {
+          "type": "escaped_identifier",
+          "named": true
+        },
+        {
+          "type": "simple_identifier",
           "named": true
         },
         {
@@ -16311,6 +16218,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "undefineall_compiler_directive",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "unique_priority",
@@ -16536,10 +16448,6 @@
         },
         {
           "type": "streaming_concatenation",
-          "named": true
-        },
-        {
-          "type": "text_macro_usage",
           "named": true
         },
         {
@@ -16920,6 +16828,10 @@
     "named": false
   },
   {
+    "type": "-incdir",
+    "named": false
+  },
+  {
     "type": ".",
     "named": false
   },
@@ -17184,70 +17096,6 @@
     "named": false
   },
   {
-    "type": "`__FILE__",
-    "named": false
-  },
-  {
-    "type": "`__LINE__",
-    "named": false
-  },
-  {
-    "type": "`begin_keywords",
-    "named": false
-  },
-  {
-    "type": "`default_nettype",
-    "named": false
-  },
-  {
-    "type": "`define",
-    "named": false
-  },
-  {
-    "type": "`else",
-    "named": false
-  },
-  {
-    "type": "`elsif",
-    "named": false
-  },
-  {
-    "type": "`endif",
-    "named": false
-  },
-  {
-    "type": "`ifdef",
-    "named": false
-  },
-  {
-    "type": "`ifndef",
-    "named": false
-  },
-  {
-    "type": "`include",
-    "named": false
-  },
-  {
-    "type": "`line",
-    "named": false
-  },
-  {
-    "type": "`pragma",
-    "named": false
-  },
-  {
-    "type": "`timescale",
-    "named": false
-  },
-  {
-    "type": "`unconnected_drive",
-    "named": false
-  },
-  {
-    "type": "`undef",
-    "named": false
-  },
-  {
     "type": "accept_on",
     "named": false
   },
@@ -17352,11 +17200,6 @@
     "named": false
   },
   {
-    "type": "block_comment",
-    "named": true,
-    "extra": true
-  },
-  {
     "type": "break",
     "named": false
   },
@@ -17397,10 +17240,6 @@
     "named": false
   },
   {
-    "type": "celldefine_compiler_directive",
-    "named": true
-  },
-  {
     "type": "chandle",
     "named": false
   },
@@ -17419,6 +17258,10 @@
   {
     "type": "cmos",
     "named": false
+  },
+  {
+    "type": "comment",
+    "named": true
   },
   {
     "type": "compare",
@@ -17489,6 +17332,90 @@
     "named": false
   },
   {
+    "type": "directive___FILE__",
+    "named": false
+  },
+  {
+    "type": "directive___LINE__",
+    "named": false
+  },
+  {
+    "type": "directive_begin_keywords",
+    "named": false
+  },
+  {
+    "type": "directive_celldefine",
+    "named": false
+  },
+  {
+    "type": "directive_default_nettype",
+    "named": false
+  },
+  {
+    "type": "directive_define",
+    "named": false
+  },
+  {
+    "type": "directive_else",
+    "named": false
+  },
+  {
+    "type": "directive_elsif",
+    "named": false
+  },
+  {
+    "type": "directive_end_keywords",
+    "named": false
+  },
+  {
+    "type": "directive_endcelldefine",
+    "named": false
+  },
+  {
+    "type": "directive_endif",
+    "named": false
+  },
+  {
+    "type": "directive_ifdef",
+    "named": false
+  },
+  {
+    "type": "directive_ifndef",
+    "named": false
+  },
+  {
+    "type": "directive_include",
+    "named": false
+  },
+  {
+    "type": "directive_line",
+    "named": false
+  },
+  {
+    "type": "directive_pragma",
+    "named": false
+  },
+  {
+    "type": "directive_resetall",
+    "named": false
+  },
+  {
+    "type": "directive_timescale",
+    "named": false
+  },
+  {
+    "type": "directive_unconnected_drive",
+    "named": false
+  },
+  {
+    "type": "directive_undef",
+    "named": false
+  },
+  {
+    "type": "directive_undefineall",
+    "named": false
+  },
+  {
     "type": "disable",
     "named": false
   },
@@ -17521,10 +17448,6 @@
     "named": false
   },
   {
-    "type": "endcelldefine_compiler_directive",
-    "named": true
-  },
-  {
     "type": "endchecker",
     "named": false
   },
@@ -17555,10 +17478,6 @@
   {
     "type": "endinterface",
     "named": false
-  },
-  {
-    "type": "endkeywords_directive",
-    "named": true
   },
   {
     "type": "endmodule",
@@ -17774,10 +17693,6 @@
   },
   {
     "type": "import",
-    "named": false
-  },
-  {
-    "type": "incdir",
     "named": false
   },
   {
@@ -18009,11 +17924,6 @@
     "named": false
   },
   {
-    "type": "one_line_comment",
-    "named": true,
-    "extra": true
-  },
-  {
     "type": "option",
     "named": false
   },
@@ -18130,10 +18040,6 @@
     "named": false
   },
   {
-    "type": "quoted_string_item",
-    "named": true
-  },
-  {
     "type": "rand",
     "named": false
   },
@@ -18188,10 +18094,6 @@
   {
     "type": "repeat",
     "named": false
-  },
-  {
-    "type": "resetall_compiler_directive",
-    "named": true
   },
   {
     "type": "restrict",
@@ -18330,10 +18232,6 @@
     "named": false
   },
   {
-    "type": "string_escape_seq",
-    "named": true
-  },
-  {
     "type": "strong",
     "named": false
   },
@@ -18458,10 +18356,6 @@
     "named": false
   },
   {
-    "type": "triple_quoted_string_item",
-    "named": true
-  },
-  {
     "type": "trireg",
     "named": false
   },
@@ -18476,10 +18370,6 @@
   {
     "type": "typedef",
     "named": false
-  },
-  {
-    "type": "undefineall_compiler_directive",
-    "named": true
   },
   {
     "type": "union",

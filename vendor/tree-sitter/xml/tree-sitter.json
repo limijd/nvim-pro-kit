@@ -51,9 +51,5 @@
         "common/scanner.h"
       ]
     }
-  ],
-  "bindings": {
-    "go": false,
-    "swift": false
-  }
+  ]
 }

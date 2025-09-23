@@ -8,12 +8,11 @@
       "file-types": [
         "cmake",
         "CMakeLists.txt"
-      ],
-      "highlights": "queries/highlights.scm"
+      ]
     }
   ],
   "metadata": {
-    "version": "0.7.1",
+    "version": "0.6.1",
     "license": "MIT",
     "description": "CMake grammar for tree-sitter",
     "authors": [

@@ -14,6 +14,7 @@ def _get_query(name, file):
 def __getattr__(name):
     if name == "HIGHLIGHTS_QUERY":
         return _get_query("HIGHLIGHTS_QUERY", "highlights.scm")
+
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

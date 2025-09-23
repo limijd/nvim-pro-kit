@@ -328,10 +328,6 @@
         {
           "type": "string_scalar",
           "named": true
-        },
-        {
-          "type": "timestamp_scalar",
-          "named": true
         }
       ]
     }
@@ -486,8 +482,7 @@
   },
   {
     "type": "comment",
-    "named": true,
-    "extra": true
+    "named": true
   },
   {
     "type": "directive_name",
@@ -527,10 +522,6 @@
   },
   {
     "type": "tag_prefix",
-    "named": true
-  },
-  {
-    "type": "timestamp_scalar",
     "named": true
   },
   {

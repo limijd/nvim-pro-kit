@@ -5,17 +5,17 @@
 (capture
   (identifier) @type)
 
+(anonymous_node
+  (string) @string)
+
 (predicate
   name: (identifier) @function.call)
 
 (named_node
   name: (identifier) @variable)
 
-(missing_node
-  name: (identifier) @variable)
-
 (field_definition
-  name: (identifier) @variable.member)
+  name: (identifier) @property)
 
 (negated_field
   "!" @operator
@@ -36,22 +36,14 @@
   ")"
 ] @punctuation.bracket
 
-[
-  ":"
-  "/"
-] @punctuation.delimiter
+":" @punctuation.delimiter
 
 [
   "@"
   "#"
 ] @punctuation.special
 
-(predicate
-  "." @punctuation.special)
-
-"_" @character.special
-
-"MISSING" @keyword
+"_" @constant
 
 ((parameters
   (identifier) @number)
@@ -61,42 +53,35 @@
   .
   (comment)*
   .
-  (comment) @keyword.import @nospell)
+  (comment) @keyword.import)
   (#lua-match? @keyword.import "^;+ *inherits *:"))
 
 ((program
   .
   (comment)*
   .
-  (comment) @keyword.directive @nospell)
+  (comment) @keyword.directive)
   (#lua-match? @keyword.directive "^;+ *extends *$"))
 
-((comment) @keyword.directive @nospell
+((comment) @keyword.directive
   (#lua-match? @keyword.directive "^;+%s*format%-ignore%s*$"))
 
 ((predicate
   name: (identifier) @_name
-  parameters: (parameters
-    .
-    (capture)?
-    .
-    (identifier) @property))
-  (#eq? @_name "set"))
-
-((predicate
-  name: (identifier) @_name
-  parameters: (parameters
-    (string
-      "\"" @string
-      "\"" @string) @string.regexp))
+  parameters:
+    (parameters
+      (string
+        "\"" @string
+        "\"" @string) @string.regexp))
   (#any-of? @_name "match" "not-match" "vim-match" "not-vim-match" "lua-match" "not-lua-match"))
 
 ((predicate
   name: (identifier) @_name
-  parameters: (parameters
-    (string
-      "\"" @string
-      "\"" @string) @string.regexp
-    .
-    (string) .))
+  parameters:
+    (parameters
+      (string
+        "\"" @string
+        "\"" @string) @string.regexp
+      .
+      (string) .))
   (#any-of? @_name "gsub" "not-gsub"))

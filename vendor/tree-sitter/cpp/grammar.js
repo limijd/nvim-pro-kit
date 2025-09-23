@@ -96,7 +96,6 @@ module.exports = grammar(C, {
     [$.expression_statement, $._for_statement_body],
     [$.init_statement, $._for_statement_body],
     [$.field_expression, $.template_method, $.template_type],
-    [$.field_expression, $.template_method],
     [$.qualified_field_identifier, $.template_method, $.template_type],
   ],
 
@@ -147,11 +146,7 @@ module.exports = grammar(C, {
     // Types
 
     placeholder_type_specifier: $ => prec(1, seq(
-      field('constraint', optional(choice(
-        alias($.qualified_type_identifier, $.qualified_identifier),
-        $.template_type,
-        $._type_identifier,
-      ))),
+      field('constraint', optional($.type_specifier)),
       choice($.auto, alias($.decltype_auto, $.decltype)),
     )),
 
@@ -257,7 +252,6 @@ module.exports = grammar(C, {
         seq(
           // C uses _declaration_declarator here for some nice macro parsing in function declarators,
           // but this causes a world of pain for C++ so we'll just stick to the normal _declarator here.
-          optional($.ms_call_modifier),
           $._declarator,
           optional($.gnu_asm_expression),
         ),
@@ -399,13 +393,12 @@ module.exports = grammar(C, {
       ),
     ),
 
-    template_instantiation: $ => prec(1, seq(
-      optional('extern'),
+    template_instantiation: $ => seq(
       'template',
       optional($._declaration_specifiers),
       field('declarator', $._declarator),
       ';',
-    )),
+    ),
 
     template_parameter_list: $ => seq(
       '<',
@@ -453,17 +446,11 @@ module.exports = grammar(C, {
       '(',
       commaSep(choice(
         $.parameter_declaration,
-        $.explicit_object_parameter_declaration,
         $.optional_parameter_declaration,
         $.variadic_parameter_declaration,
         '...',
       )),
       ')',
-    ),
-
-    explicit_object_parameter_declaration: $ => seq(
-      $.this,
-      $.parameter_declaration,
     ),
 
     optional_parameter_declaration: $ => seq(
@@ -1084,7 +1071,6 @@ module.exports = grammar(C, {
         $.destructor_name,
         $.template_method,
         alias($.dependent_field_identifier, $.dependent_name),
-        $.operator_name,
       )),
     ),
 
@@ -1155,19 +1141,12 @@ module.exports = grammar(C, {
       field('requirements', $.requirement_seq),
     ),
 
-    lambda_specifier: $ => choice(
-      'static',
-      'constexpr',
-      'consteval',
-      'mutable',
-    ),
-
     lambda_declarator: $ => choice(
       // main declarator form, includes parameter list
       seq(
         repeat($.attribute_declaration),
         field('parameters', $.parameter_list),
-        repeat($.lambda_specifier),
+        optional($.type_qualifier),
         optional($._function_exception_specification),
         repeat($.attribute_declaration),
         optional($.trailing_return_type),
@@ -1188,7 +1167,7 @@ module.exports = grammar(C, {
       ),
       seq(
         repeat($.attribute_declaration),
-        repeat1($.lambda_specifier),
+        $.type_qualifier,
         optional($._function_exception_specification),
         repeat($.attribute_declaration),
         optional($.trailing_return_type),

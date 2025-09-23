@@ -4,26 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tree-sitter-matlab"
-description = "MATLAB tree-sitter parser"
-version = "1.2.0"
+description = "Matlab grammar for tree-sitter"
+version = "1.0.4"
 keywords = ["incremental", "parsing", "tree-sitter", "matlab"]
 classifiers = [
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
   "Topic :: Software Development :: Compilers",
   "Topic :: Text Processing :: Linguistic",
-  "Typing :: Typed",
+  "Typing :: Typed"
 ]
-authors = [{ name = "Álan Crístoffer e Sousa" }]
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 license.text = "MIT"
 readme = "README.md"
 
 [project.urls]
-Homepage = "https://github.com/acristoffers/tree-sitter-matlab"
+Homepage = "https://github.com/tree-sitter/tree-sitter-matlab"
 
 [project.optional-dependencies]
-core = ["tree-sitter~=0.24"]
+core = ["tree-sitter~=0.21"]
 
 [tool.cibuildwheel]
-build = "cp310-*"
+skip = "cp36-* cp37*"
 build-frontend = "build"

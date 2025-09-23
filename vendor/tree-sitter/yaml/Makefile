@@ -4,7 +4,7 @@ endif
 
 LANGUAGE_NAME := tree-sitter-yaml
 HOMEPAGE_URL := https://github.com/tree-sitter-grammars/tree-sitter-yaml
-VERSION := 0.7.1
+VERSION := 0.7.0
 
 # repository
 SRC_DIR := src
@@ -20,18 +20,12 @@ PCLIBDIR ?= $(LIBDIR)/pkgconfig
 
 # source/object files
 PARSER := $(SRC_DIR)/parser.c
-EXTRAS := $(SRC_DIR)/scanner.c
+EXTRAS := $(filter-out $(PARSER),$(wildcard $(SRC_DIR)/*.c))
 OBJS := $(patsubst %.c,%.o,$(PARSER) $(EXTRAS))
-
-# schema
-YAML_SCHEMA := core
-ifeq ($(filter $(YAML_SCHEMA),core json legacy),)
-$(error YAML_SCHEMA must be one of core/json/legacy)
-endif
 
 # flags
 ARFLAGS ?= rcs
-override CFLAGS += -I$(SRC_DIR) -std=c11 -fPIC -DYAML_SCHEMA=$(YAML_SCHEMA)
+override CFLAGS += -I$(SRC_DIR) -std=c11 -fPIC
 
 # ABI versioning
 SONAME_MAJOR = $(shell sed -n 's/\#define LANGUAGE_VERSION //p' $(PARSER))
@@ -77,7 +71,7 @@ $(PARSER): $(SRC_DIR)/grammar.json
 
 install: all
 	install -d '$(DESTDIR)$(DATADIR)'/tree-sitter/queries/yaml '$(DESTDIR)$(INCLUDEDIR)'/tree_sitter '$(DESTDIR)$(PCLIBDIR)' '$(DESTDIR)$(LIBDIR)'
-	install -m644 bindings/c/tree_sitter/$(LANGUAGE_NAME).h '$(DESTDIR)$(INCLUDEDIR)'/tree_sitter/$(LANGUAGE_NAME).h
+	install -m644 bindings/c/$(LANGUAGE_NAME).h '$(DESTDIR)$(INCLUDEDIR)'/tree_sitter/$(LANGUAGE_NAME).h
 	install -m644 $(LANGUAGE_NAME).pc '$(DESTDIR)$(PCLIBDIR)'/$(LANGUAGE_NAME).pc
 	install -m644 lib$(LANGUAGE_NAME).a '$(DESTDIR)$(LIBDIR)'/lib$(LANGUAGE_NAME).a
 	install -m755 lib$(LANGUAGE_NAME).$(SOEXT) '$(DESTDIR)$(LIBDIR)'/lib$(LANGUAGE_NAME).$(SOEXTVER)

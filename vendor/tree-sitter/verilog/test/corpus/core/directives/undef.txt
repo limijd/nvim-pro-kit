@@ -1,0 +1,11 @@
+============================================
+core/directives/undef
+============================================
+
+`undef Dff
+
+----
+
+(source_file
+  (undefine_compiler_directive
+    (simple_identifier)))

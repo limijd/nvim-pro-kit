@@ -1,0 +1,12 @@
+============================================
+core/classes/simple_no_args
+============================================
+
+class foo;
+endclass
+
+----
+
+(source_file
+  (class_declaration
+    name: (simple_identifier)))

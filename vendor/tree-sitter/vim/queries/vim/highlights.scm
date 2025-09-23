@@ -42,8 +42,9 @@
   function: (identifier) @function.call)
 
 (call_expression
-  function: (scoped_identifier
-    (identifier) @function.call))
+  function:
+    (scoped_identifier
+      (identifier) @function.call))
 
 (parameters
   (identifier) @variable.parameter)
@@ -126,7 +127,6 @@
   "view"
   "eval"
   "sign"
-  "substitute"
 ] @keyword
 
 (map_statement
@@ -209,7 +209,7 @@
 
 (command_attribute
   val: (behavior
-    _ @constant))
+         _ @constant))
 
 ; Edit command
 (plus_plus_opt
@@ -251,9 +251,6 @@
   (body) @string)
 
 (heredoc
-  (parameter) @keyword)
-
-(script
   (parameter) @keyword)
 
 [
@@ -311,9 +308,6 @@
 
 (binary_operation
   "." @operator)
-
-(lua_statement
-  "=" @keyword)
 
 ; Punctuation
 [

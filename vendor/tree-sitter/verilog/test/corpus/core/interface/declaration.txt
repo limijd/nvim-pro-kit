@@ -1,0 +1,13 @@
+============================================
+core/interface/declaration
+============================================
+
+interface foo;
+endinterface
+
+----
+
+(source_file
+  (interface_declaration
+    (interface_ansi_header
+      name: (simple_identifier))))

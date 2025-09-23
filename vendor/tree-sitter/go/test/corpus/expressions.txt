@@ -27,27 +27,26 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (expression_statement
-          (call_expression
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
             (identifier)
-            (argument_list
-              (identifier)
-              (variadic_argument
-                (identifier)))))
-        (expression_statement
-          (call_expression
+            (variadic_argument
+              (identifier)))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
             (identifier)
-            (argument_list
-              (identifier)
-              (identifier))))
-        (expression_statement
-          (call_expression
+            (identifier))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
             (identifier)
-            (argument_list
-              (identifier)
-              (variadic_argument
-                (identifier)))))))))
+            (variadic_argument
+              (identifier))))))))
 
 ================================================================================
 Nested call expressions
@@ -68,18 +67,17 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (expression_statement
-          (call_expression
-            (identifier)
-            (argument_list
-              (call_expression
-                (identifier)
-                (argument_list
-                  (call_expression
-                    (identifier)
-                    (argument_list
-                      (identifier))))))))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (call_expression
+                  (identifier)
+                  (argument_list
+                    (identifier)))))))))))
 
 ================================================================================
 Generic call expressions
@@ -102,41 +100,40 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (expression_statement
-          (type_conversion_expression
-            (generic_type
-              (type_identifier)
-              (type_arguments
-                (type_elem
-                  (type_identifier))))
-            (identifier)))
-        (expression_statement
-          (type_conversion_expression
-            (generic_type
-              (type_identifier)
-              (type_arguments
-                (type_elem
-                  (type_identifier))
-                (type_elem
-                  (type_identifier))))
-            (identifier)))
-        (expression_statement
-          (type_conversion_expression
-            (generic_type
-              (type_identifier)
-              (type_arguments
-                (type_elem
-                  (generic_type
-                    (type_identifier)
-                    (type_arguments
-                      (type_elem
-                        (type_identifier)))))
-                (type_elem
-                  (type_identifier))))
-            (index_expression
-              (identifier)
-              (identifier))))))))
+      (expression_statement
+        (type_conversion_expression
+          (generic_type
+            (type_identifier)
+            (type_arguments
+              (type_elem
+                (type_identifier))))
+          (identifier)))
+      (expression_statement
+        (type_conversion_expression
+          (generic_type
+            (type_identifier)
+            (type_arguments
+              (type_elem
+                (type_identifier))
+              (type_elem
+                (type_identifier))))
+          (identifier)))
+      (expression_statement
+        (type_conversion_expression
+          (generic_type
+            (type_identifier)
+            (type_arguments
+              (type_elem
+                (generic_type
+                  (type_identifier)
+                  (type_arguments
+                    (type_elem
+                      (type_identifier)))))
+              (type_elem
+                (type_identifier))))
+          (index_expression
+            (identifier)
+            (identifier)))))))
 
 ================================================================================
 Calls to 'make' and 'new'
@@ -167,42 +164,41 @@ func fake_new(new func() int) int {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (expression_statement
-          (call_expression
-            (identifier)
-            (argument_list
-              (channel_type
-                (type_identifier)))))
-        (comment)
-        (expression_statement
-          (call_expression
-            (identifier)
-            (argument_list
-              (channel_type
-                (type_identifier))
-              (parenthesized_expression
-                (binary_expression
-                  (identifier)
-                  (identifier)))
-              (selector_expression
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (channel_type
+              (type_identifier)))))
+      (comment)
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (channel_type
+              (type_identifier))
+            (parenthesized_expression
+              (binary_expression
                 (identifier)
-                (field_identifier)))))
-        (expression_statement
-          (call_expression
-            (identifier)
-            (argument_list
-              (channel_type
-                (type_identifier))
-              (int_literal)
-              (int_literal))))
-        (expression_statement
-          (call_expression
-            (identifier)
-            (argument_list
-              (map_type
-                (type_identifier)
-                (type_identifier))))))))
+                (identifier)))
+            (selector_expression
+              (identifier)
+              (field_identifier)))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (channel_type
+              (type_identifier))
+            (int_literal)
+            (int_literal))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (map_type
+              (type_identifier)
+              (type_identifier)))))))
   (function_declaration
     (identifier)
     (parameter_list
@@ -213,12 +209,11 @@ func fake_new(new func() int) int {
           (type_identifier))))
     (type_identifier)
     (block
-      (statement_list
-        (return_statement
-          (expression_list
-            (call_expression
-              (identifier)
-              (argument_list))))))))
+      (return_statement
+        (expression_list
+          (call_expression
+            (identifier)
+            (argument_list)))))))
 
 ================================================================================
 Selector expressions
@@ -239,15 +234,14 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (expression_statement
-          (call_expression
+      (expression_statement
+        (call_expression
+          (selector_expression
             (selector_expression
-              (selector_expression
-                (identifier)
-                (field_identifier))
+              (identifier)
               (field_identifier))
-            (argument_list)))))))
+            (field_identifier))
+          (argument_list))))))
 
 ================================================================================
 Indexing expressions
@@ -273,52 +267,51 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (index_expression
-              (identifier)
-              (int_literal))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (slice_expression
-              (identifier))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (slice_expression
-              (identifier)
-              (int_literal))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (slice_expression
-              (identifier)
-              (int_literal)
-              (int_literal))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (slice_expression
-              (identifier)
-              (int_literal)
-              (int_literal))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (slice_expression
-              (identifier)
-              (int_literal)
-              (int_literal)
-              (int_literal))))))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (index_expression
+            (identifier)
+            (int_literal))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (slice_expression
+            (identifier))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (slice_expression
+            (identifier)
+            (int_literal))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (slice_expression
+            (identifier)
+            (int_literal)
+            (int_literal))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (slice_expression
+            (identifier)
+            (int_literal)
+            (int_literal))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (slice_expression
+            (identifier)
+            (int_literal)
+            (int_literal)
+            (int_literal)))))))
 
 ================================================================================
 Type assertion expressions
@@ -339,16 +332,15 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (type_assertion_expression
-              (identifier)
-              (qualified_type
-                (package_identifier)
-                (type_identifier)))))))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (type_assertion_expression
+            (identifier)
+            (qualified_type
+              (package_identifier)
+              (type_identifier))))))))
 
 ================================================================================
 Type conversion expressions
@@ -377,77 +369,76 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (type_conversion_expression
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (type_conversion_expression
+            (slice_type
+              (qualified_type
+                (package_identifier)
+                (type_identifier)))
+            (selector_expression
+              (identifier)
+              (field_identifier)))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (type_conversion_expression
+            (parenthesized_type
               (slice_type
                 (qualified_type
                   (package_identifier)
-                  (type_identifier)))
-              (selector_expression
-                (identifier)
-                (field_identifier)))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (type_conversion_expression
-              (parenthesized_type
-                (slice_type
-                  (qualified_type
-                    (package_identifier)
-                    (type_identifier))))
-              (selector_expression
-                (identifier)
-                (field_identifier)))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
+                  (type_identifier))))
+            (selector_expression
+              (identifier)
+              (field_identifier)))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (type_conversion_expression
+            (channel_type
+              (type_identifier))
+            (identifier))))
+      (comment)
+      (expression_statement
+        (unary_expression
+          (parenthesized_expression
             (type_conversion_expression
               (channel_type
                 (type_identifier))
-              (identifier))))
-        (comment)
-        (expression_statement
-          (unary_expression
-            (parenthesized_expression
-              (type_conversion_expression
-                (channel_type
-                  (type_identifier))
-                (identifier)))))
-        (comment)
-        (comment)
-        (expression_statement
-          (call_expression
+              (identifier)))))
+      (comment)
+      (comment)
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (identifier))))
+      (expression_statement
+        (call_expression
+          (parenthesized_expression
+            (unary_expression
+              (identifier)))
+          (argument_list
+            (identifier))))
+      (expression_statement
+        (call_expression
+          (selector_expression
             (identifier)
-            (argument_list
-              (identifier))))
-        (expression_statement
-          (call_expression
-            (parenthesized_expression
-              (unary_expression
-                (identifier)))
-            (argument_list
-              (identifier))))
-        (expression_statement
-          (call_expression
+            (field_identifier))
+          (argument_list
+            (identifier))))
+      (expression_statement
+        (call_expression
+          (parenthesized_expression
             (selector_expression
               (identifier)
-              (field_identifier))
-            (argument_list
-              (identifier))))
-        (expression_statement
-          (call_expression
-            (parenthesized_expression
-              (selector_expression
-                (identifier)
-                (field_identifier)))
-            (argument_list
-              (identifier))))))))
+              (field_identifier)))
+          (argument_list
+            (identifier)))))))
 
 ================================================================================
 Unary expressions
@@ -469,19 +460,18 @@ func main() {
     (identifier)
     (parameter_list)
     (block
-      (statement_list
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (unary_expression
             (unary_expression
-              (unary_expression
-                (identifier)))))
-        (assignment_statement
-          (expression_list
-            (identifier))
-          (expression_list
-            (unary_expression
-              (call_expression
-                (identifier)
-                (argument_list)))))))))
+              (identifier)))))
+      (assignment_statement
+        (expression_list
+          (identifier))
+        (expression_list
+          (unary_expression
+            (call_expression
+              (identifier)
+              (argument_list))))))))

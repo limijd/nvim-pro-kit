@@ -1,5 +1,4 @@
 {
-  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/grammar.schema.json",
   "name": "comment",
   "rules": {
     "source": {
@@ -103,7 +102,7 @@
     },
     "uri": {
       "type": "PATTERN",
-      "value": "https?:\\/\\/([^\\s\\.,:;!\\?\\\\'\"`\\}\\]\\)>]|[\\.,:;!\\?\\\\'\"`\\}\\]\\)>][^\\s\\.,:;!\\?\\\\'\"`\\}\\]\\)>])+"
+      "value": "https?:\\/\\/([^\\s\\.,:;!\\?\\\\'\"\\}\\]\\)>]|[\\.,:;!\\?\\\\'\"\\}\\]\\)>][a-zA-Z0-9])+"
     },
     "_text": {
       "type": "CHOICE",
@@ -114,7 +113,7 @@
         },
         {
           "type": "PATTERN",
-          "value": "[^\\s/'\"`<\\(\\[\\{\\.,:;!\\?\\\\\\}\\]\\)>-]+"
+          "value": "[^\\s/'\"<\\(\\[\\{\\.,:;!\\?\\\\\\}\\]\\)>-]+"
         }
       ]
     },
@@ -132,10 +131,6 @@
         {
           "type": "STRING",
           "value": "\""
-        },
-        {
-          "type": "STRING",
-          "value": "`"
         },
         {
           "type": "STRING",
@@ -244,10 +239,6 @@
         },
         {
           "type": "STRING",
-          "value": "`"
-        },
-        {
-          "type": "STRING",
           "value": "}"
         },
         {
@@ -284,6 +275,5 @@
     }
   ],
   "inline": [],
-  "supertypes": [],
-  "reserved": {}
+  "supertypes": []
 }

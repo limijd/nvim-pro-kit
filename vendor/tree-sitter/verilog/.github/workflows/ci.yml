@@ -16,8 +16,6 @@ jobs:
     steps:
       - name: Clone tree-sitter-systemverilog
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Setup tree-sitter
         uses: tree-sitter/setup-action@v1
@@ -26,11 +24,7 @@ jobs:
         run: |
           tree-sitter generate
 
-      - name: Run parse tests
+      - name: Run tests
         run: |
           tree-sitter test
-
-      - name: Run highlight tests
-        run: |
-          tree-sitter highlight --paths test/highlight_paths_file.txt
 

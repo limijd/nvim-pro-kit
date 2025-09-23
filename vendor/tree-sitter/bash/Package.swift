@@ -4,14 +4,10 @@ import PackageDescription
 let package = Package(
     name: "TreeSitterBash",
     products: [
-        .library(name: "TreeSitterBash", targets: ["TreeSitterBash"])
+        .library(name: "TreeSitterBash", targets: ["TreeSitterBash"]),
     ],
     dependencies: [
-        .package(
-            name: "SwiftTreeSitter",
-            url: "https://github.com/tree-sitter/swift-tree-sitter",
-            from: "0.25.0"
-        )
+        .package(url: "https://github.com/ChimeHQ/SwiftTreeSitter", from: "0.8.0"),
     ],
     targets: [
         .target(
@@ -35,7 +31,7 @@ let package = Package(
                 "TreeSitterBash",
             ],
             path: "bindings/swift/TreeSitterBashTests"
-        ),
+        )
     ],
     cLanguageStandard: .c11
 )

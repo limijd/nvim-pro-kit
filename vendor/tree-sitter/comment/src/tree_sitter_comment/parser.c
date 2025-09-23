@@ -13,7 +13,7 @@
 /// - TODO(stsewd):
 /// - TODO(stsewd): text
 /// - TODO (stsewd): text
-static bool parse_tagname(TSLexer* lexer, const bool* valid_symbols)
+bool parse_tagname(TSLexer* lexer, const bool* valid_symbols)
 {
   if (!is_upper(lexer->lookahead) || !valid_symbols[T_TAGNAME]) {
     return false;
@@ -81,7 +81,7 @@ static bool parse_tagname(TSLexer* lexer, const bool* valid_symbols)
   return true;
 }
 
-static bool parse(TSLexer* lexer, const bool* valid_symbols)
+bool parse(TSLexer* lexer, const bool* valid_symbols)
 {
   // If all valid symbols are true, tree-sitter is in correction mode.
   // We don't want to parse anything in that case.

@@ -41,6 +41,3 @@ indent_size = 8
 
 [parser.c]
 indent_size = 2
-
-[{alloc,array,parser}.h]
-indent_size = 2

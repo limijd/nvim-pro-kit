@@ -1,0 +1,13 @@
+============================================
+core/program/declaration
+============================================
+
+program foo;
+endprogram
+
+----
+
+(source_file
+  (program_declaration
+    (program_ansi_header
+      name: (simple_identifier))))

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 project(tree-sitter-markdown
-        VERSION "0.5.1"
+        VERSION "0.4.0"
         DESCRIPTION "Markdown grammar for tree-sitter"
         HOMEPAGE_URL "https://github.com/tree-sitter-grammars/tree-sitter-markdown"
         LANGUAGES C)
@@ -55,7 +55,7 @@ macro(add_parser name)
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/bindings/c/tree-sitter-${name}.h"
             DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/tree_sitter")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/tree-sitter-${name}.pc"
-            DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig")
     install(TARGETS tree-sitter-${name}
             LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 endmacro()
