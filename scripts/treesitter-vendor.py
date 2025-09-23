@@ -190,44 +190,6 @@ def git_clone(url: str, dest: Path, branch: str | None, revision: str | None) ->
             ) from exc
 
 
-def copy_runtime_headers(runtime_dir: Path, destination: Path) -> None:
-    if not runtime_dir.is_dir():
-        raise SystemExit(
-            f"error: vendored Tree-sitter runtime headers missing at {runtime_dir}"
-        )
-
-    target = destination / "tree_sitter"
-    target.parent.mkdir(parents=True, exist_ok=True)
-
-    log(f"[vendor] Mirroring runtime headers into {destination}")
-    if not target.exists():
-        try:
-            shutil.copytree(runtime_dir, target)
-        except OSError as exc:
-            raise SystemExit(
-                "error: failed to copy Tree-sitter runtime headers into "
-                f"{target}: {exc}"
-            ) from exc
-        return
-
-    for source in runtime_dir.rglob("*"):
-        relative = source.relative_to(runtime_dir)
-        destination_path = target / relative
-        if source.is_dir():
-            destination_path.mkdir(parents=True, exist_ok=True)
-            continue
-        if destination_path.exists():
-            continue
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            shutil.copy2(source, destination_path)
-        except OSError as exc:
-            raise SystemExit(
-                "error: failed to copy Tree-sitter runtime header "
-                f"{relative} into {target}: {exc}"
-            ) from exc
-
-
 def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
     runtime_dir = output_dir / "tree_sitter"
     metadata_path = output_dir / "runtime.json"
@@ -309,7 +271,6 @@ def copy_repo(
     info: dict[str, object],
     repo_path: Path,
     dest_root: Path,
-    runtime_dir: Path | None,
 ) -> None:
     files = info.get("files")
     if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
@@ -354,12 +315,8 @@ def copy_repo(
             f"error: failed to copy repository for {lang} into {dest_lang_dir}: {exc}"
         ) from exc
 
-    base_dir = dest_lang_dir / location_path if location_path else dest_lang_dir
-
-    if runtime_dir is not None:
-        src_dir = base_dir / "src"
-        if src_dir.is_dir():
-            copy_runtime_headers(runtime_dir, src_dir)
+    # Runtime headers bundled with parser repositories are left untouched so
+    # that their upstream snapshots remain intact.
 
 
 def validate_repo(
@@ -367,7 +324,6 @@ def validate_repo(
     info: dict[str, object],
     dest_lang_dir: Path,
     output_dir: Path,
-    runtime_dir: Path | None,
 ) -> None:
     if not dest_lang_dir.is_dir():
         raise SystemExit(
@@ -393,18 +349,6 @@ def validate_repo(
             except ValueError:
                 missing.append(str(file_path))
 
-    if runtime_dir is not None:
-        src_dir = base_dir / "src"
-        if src_dir.is_dir():
-            runtime_base = src_dir / "tree_sitter"
-            for header in RUNTIME_REQUIRED_HEADERS:
-                header_path = runtime_base / header
-                if not header_path.is_file():
-                    try:
-                        missing.append(str(header_path.relative_to(output_dir)))
-                    except ValueError:
-                        missing.append(str(header_path))
-
     if missing:
         raise SystemExit(
             "error: vendored parser sources missing required files for "
@@ -416,7 +360,6 @@ def vendor_parsers(
     languages: Sequence[str],
     install_info: dict[str, dict[str, object]],
     output_dir: Path,
-    runtime_dir: Path | None,
     *,
     check: bool,
 ) -> dict[str, dict[str, object]]:
@@ -458,7 +401,7 @@ def vendor_parsers(
                 total,
                 f"Verifying tree-sitter {lang} parser snapshot...",
             )
-            validate_repo(lang, info, dest_lang_dir, output_dir, runtime_dir)
+            validate_repo(lang, info, dest_lang_dir, output_dir)
             if lang in existing_metadata:
                 metadata[lang] = existing_metadata[lang]
             else:
@@ -497,8 +440,8 @@ def vendor_parsers(
                 ) from exc
             resolved_revision = result.strip()
 
-            copy_repo(lang, info, repo_dest, output_dir, runtime_dir)
-            validate_repo(lang, info, dest_lang_dir, output_dir, runtime_dir)
+            copy_repo(lang, info, repo_dest, output_dir)
+            validate_repo(lang, info, dest_lang_dir, output_dir)
             log(f"[vendor] {lang}: snapshot captured at {resolved_revision}")
 
         metadata[lang] = {
@@ -589,12 +532,11 @@ def main(argv: Sequence[str]) -> None:
     install_info = gather_install_info(base_cmd, env)
 
     output_dir = root / args.output
-    runtime_dir = vendor_runtime(output_dir, check=args.check)
+    vendor_runtime(output_dir, check=args.check)
     metadata = vendor_parsers(
         manifest_langs,
         install_info,
         output_dir,
-        runtime_dir,
         check=args.check,
     )
 
