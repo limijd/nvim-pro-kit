@@ -97,13 +97,6 @@ def validate_layout(nvim_root: Path, vendor_root: Path) -> None:
         )
 
 
-def link_tree(source: Path, target: Path) -> None:
-    target.mkdir(parents=True, exist_ok=True)
-    for entry in source.iterdir():
-        destination = target / entry.name
-        destination.symlink_to(entry, target_is_directory=entry.is_dir())
-
-
 def copy_tree(source: Path, target: Path) -> None:
     shutil.copytree(source, target, symlinks=True)
 
@@ -119,22 +112,24 @@ def install(copy_mode: bool, force: bool, target: Path | None) -> None:
     default_target = config_home / "nvim"
     target = (target or default_target).expanduser()
     target = target.resolve(strict=False)
-    vendor_target = target / "vendor"
-
     backup_path(target, label="Neovim config", force=force)
-    backup_path(vendor_target, label="vendored plugins", force=force)
 
     target.parent.mkdir(parents=True, exist_ok=True)
 
     if copy_mode:
+        vendor_target = target / "vendor"
+        backup_path(vendor_target, label="vendored plugins", force=force)
+
         copy_tree(nvim_root, target)
         copy_tree(vendor_root, vendor_target)
-    else:
-        link_tree(nvim_root, target)
-        vendor_target.symlink_to(vendor_root, target_is_directory=True)
 
-    print(f"Neovim configuration installed to {target}")
-    print(f"Vendored plugins installed to {vendor_target}")
+        print(f"Neovim configuration copied to {target}")
+        print(f"Vendored plugins copied to {vendor_target}")
+    else:
+        target.symlink_to(nvim_root, target_is_directory=True)
+
+        print(f"Neovim configuration linked at {target} -> {nvim_root}")
+        print("Vendored plugins will be loaded from the repository's vendor directory")
     print()
     print("You can now start Neovim without an internet connection using: nvim")
     print(

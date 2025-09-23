@@ -38,7 +38,7 @@ Use the Python bootstrap installer to set up the configuration without touching 
 python3 bootstrap/install.py
 ```
 
-The installer links (or copies, with `--copy`) both the `nvim/` configuration and the vendored plugins directory so plugin manager code such as `lazy.nvim` is always available. Pass `--force` to overwrite an existing config or `--target DIR` to install somewhere else.
+By default the installer creates a symbolic link from `<repo>/nvim` to your Neovim config directory (typically `~/.config/nvim`), so the repository layout remains untouched. Pass `--copy` to copy the files instead, `--force` to overwrite an existing config, or `--target DIR` to install somewhere else.
 
 After linking you can start Neovim immediately, even on an offline machine.
 
