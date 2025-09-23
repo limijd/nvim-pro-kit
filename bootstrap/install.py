@@ -1,101 +1,157 @@
 #!/usr/bin/env python3
-"""Install the Neovim configuration without requiring network access."""
+"""Bootstrap installer for nvim-pro-kit.
+
+This script links or copies the repository's Neovim configuration into the
+user's config directory while ensuring vendored plugins remain available.
+"""
 from __future__ import annotations
 
 import argparse
-import datetime as _dt
 import os
 import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Iterable
 
 
-def parse_args(argv: list[str]) -> argparse.Namespace:
+class InstallError(RuntimeError):
+    """Raised when the installation cannot be completed."""
+
+
+def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="bootstrap/install.py",
         description=(
-            "Install this Neovim configuration into your system without requiring "
-            "network access. By default the script creates a symbolic link at "
-            "$XDG_CONFIG_HOME/nvim (or ~/.config/nvim) pointing to the repository."
-        ),
+            "Install the vendored nvim-pro-kit configuration without requiring "
+            "network access. By default the configuration is linked into "
+            "$XDG_CONFIG_HOME/nvim (or ~/.config/nvim)."
+        )
     )
     parser.add_argument(
         "--copy",
-        dest="mode",
-        action="store_const",
-        const="copy",
-        default="link",
-        help="Copy files instead of creating a symlink",
+        action="store_true",
+        help="copy files instead of creating symbolic links",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Overwrite the target directory instead of creating a backup",
+        help="overwrite existing targets instead of creating timestamped backups",
     )
     parser.add_argument(
         "--target",
-        metavar="DIR",
-        help="Install to DIR instead of the default",
+        type=Path,
+        help="install into the specified directory instead of the default",
     )
     return parser.parse_args(argv)
 
 
+def repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def path_exists(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
 def remove_path(path: Path) -> None:
-    try:
-        if path.is_symlink() or path.is_file():
-            path.unlink()
-        elif path.is_dir():
-            shutil.rmtree(path)
-        else:
-            path.unlink(missing_ok=True)  # type: ignore[attr-defined]
-    except FileNotFoundError:
+    if not path_exists(path):
+        return
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def backup_path(path: Path, *, label: str, force: bool) -> None:
+    if not path_exists(path):
+        return
+    if force:
+        remove_path(path)
         return
 
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    backup = path.with_name(f"{path.name}.backup.{timestamp}")
+    counter = 1
+    while path_exists(backup):
+        backup = path.with_name(f"{path.name}.backup.{timestamp}.{counter}")
+        counter += 1
 
-def main(argv: list[str]) -> int:
-    args = parse_args(argv)
+    print(f"Existing {label} detected. Moving it to {backup}")
+    path.rename(backup)
 
-    repo_root = Path(__file__).resolve().parent.parent
-    nvim_root = repo_root / "nvim"
-    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    target = Path(args.target) if args.target else config_home / "nvim"
 
-    lazy_vendor = repo_root / "vendor" / "plugins" / "lazy.nvim"
-    if not lazy_vendor.is_dir():
-        print(
-            "lazy.nvim vendor directory is missing; installation cannot continue.",
-            file=sys.stderr,
-        )
-        return 1
-
+def validate_layout(nvim_root: Path, vendor_root: Path) -> None:
     if not nvim_root.is_dir():
-        print(
-            "Repository is missing the nvim/ directory expected to contain init.lua",
-            file=sys.stderr,
+        raise InstallError(
+            "Repository is missing the nvim/ directory expected to contain init.lua."
         )
-        return 1
 
-    if target.exists() or target.is_symlink():
-        if args.force:
-            remove_path(target)
-        else:
-            timestamp = _dt.datetime.now().strftime("%Y%m%d%H%M%S")
-            backup = target.with_name(f"{target.name}.backup.{timestamp}")
-            print(f"Existing Neovim config detected. Moving it to {backup}")
-            target.rename(backup)
+    plugins_root = vendor_root / "plugins"
+    if not plugins_root.is_dir():
+        raise InstallError("Repository is missing the vendor/ directory containing plugins.")
+
+    lazy_dir = plugins_root / "lazy.nvim"
+    if not lazy_dir.is_dir():
+        raise InstallError(
+            "lazy.nvim vendor directory is missing; installation cannot continue."
+        )
+
+
+def link_tree(source: Path, target: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    for entry in source.iterdir():
+        destination = target / entry.name
+        destination.symlink_to(entry, target_is_directory=entry.is_dir())
+
+
+def copy_tree(source: Path, target: Path) -> None:
+    shutil.copytree(source, target, symlinks=True)
+
+
+def install(copy_mode: bool, force: bool, target: Path | None) -> None:
+    root = repo_root()
+    nvim_root = root / "nvim"
+    vendor_root = root / "vendor"
+
+    validate_layout(nvim_root, vendor_root)
+
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    default_target = config_home / "nvim"
+    target = (target or default_target).expanduser()
+    target = target.resolve(strict=False)
+    vendor_target = target / "vendor"
+
+    backup_path(target, label="Neovim config", force=force)
+    backup_path(vendor_target, label="vendored plugins", force=force)
 
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    if args.mode == "link":
-        target.symlink_to(nvim_root)
+    if copy_mode:
+        copy_tree(nvim_root, target)
+        copy_tree(vendor_root, vendor_target)
     else:
-        shutil.copytree(nvim_root, target, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+        link_tree(nvim_root, target)
+        vendor_target.symlink_to(vendor_root, target_is_directory=True)
 
     print(f"Neovim configuration installed to {target}")
+    print(f"Vendored plugins installed to {vendor_target}")
+    print()
     print("You can now start Neovim without an internet connection using: nvim")
+    print(
+        "If you move this installation, set NVIM_PRO_KIT_ROOT to the repository "
+        "path so helper scripts can locate the vendor directory."
+    )
 
-    return 0
+
+def main(argv: Iterable[str]) -> int:
+    try:
+        args = parse_args(argv)
+        install(args.copy, args.force, args.target)
+        return 0
+    except InstallError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    sys.exit(main(sys.argv[1:]))

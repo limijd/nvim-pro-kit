@@ -38,7 +38,7 @@ Use the Python bootstrap installer to set up the configuration without touching 
 python3 bootstrap/install.py
 ```
 
-It mirrors the previous shell script by creating a symbolic link at `$XDG_CONFIG_HOME/nvim` (or `~/.config/nvim`) pointing to the repo's `nvim/` directory. Pass `--copy` if you prefer a physical copy, `--force` to overwrite an existing config, or `--target DIR` to install somewhere else. You can still run `bootstrap/install.sh` if you need a pure POSIX shell workflow.
+The installer links (or copies, with `--copy`) both the `nvim/` configuration and the vendored plugins directory so plugin manager code such as `lazy.nvim` is always available. Pass `--force` to overwrite an existing config or `--target DIR` to install somewhere else.
 
 After linking you can start Neovim immediately, even on an offline machine.
 
