@@ -206,7 +206,13 @@ def git_clone(url: str, dest: Path, branch: str | None, revision: str | None) ->
 
     if revision:
         try:
-            checkout_cmd = ["git", "checkout", revision]
+            checkout_cmd = [
+                "git",
+                "-c",
+                "advice.detachedHead=false",
+                "checkout",
+                revision,
+            ]
             log(f"[vendor] Running: (cwd={dest}) {format_command(checkout_cmd)}")
             subprocess.run(checkout_cmd, cwd=dest, check=True)
         except subprocess.CalledProcessError as exc:
