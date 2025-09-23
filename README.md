@@ -145,6 +145,8 @@ The script compiles each parser with your platform C compiler (respects `$CC`) a
 
 Run `scripts/treesitter-vendor.py` whenever the manifest changes or you need to refresh the vendored Tree-sitter sources. The script asks Neovim (headlessly) for each parser’s `install_info`, clones the upstream repositories, copies the declared source files into `vendor/tree-sitter/<lang>/`, records metadata in `vendor/tree-sitter/metadata.json`, and stages the updated directory so it is ready to commit. It also vendors the Tree-sitter runtime headers required by the compiler.
 
+`scripts/treesitter-vendor.py` always pins repositories to the revisions listed in `vendor/plugins/nvim-treesitter/lockfile.json` so that the vendored sources line up with the parser versions bundled with `nvim-treesitter`. Update that lockfile (by refreshing the vendored `nvim-treesitter` plugin) before re-running the script to ensure reproducible snapshots.
+
 The TypeScript grammar, for example, provides a makefile that bakes in extra linker flags. The vendor script honours that entry point automatically, and you can invoke it manually when debugging a build:
 
 ```

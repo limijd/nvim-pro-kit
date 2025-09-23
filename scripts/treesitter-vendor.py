@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Iterable, MutableMapping, Sequence
+from typing import Iterable, Mapping, MutableMapping, Sequence
 
 
 def log(message: str) -> None:
@@ -92,6 +92,31 @@ def load_manifest(path: Path) -> list[str]:
         if stripped:
             languages.append(stripped)
     return languages
+
+
+def load_lockfile(path: Path) -> dict[str, str]:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SystemExit(f"error: failed to read lockfile at {path}: {exc}") from exc
+
+    try:
+        decoded = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"error: failed to decode lockfile at {path}: {exc}") from exc
+
+    if not isinstance(decoded, dict):
+        raise SystemExit("error: unexpected format in nvim-treesitter lockfile")
+
+    revisions: dict[str, str] = {}
+    for lang, info in decoded.items():
+        if not isinstance(info, dict):
+            continue
+        revision = info.get("revision")
+        if isinstance(revision, str) and revision:
+            revisions[lang] = revision
+
+    return revisions
 
 
 def build_nvim_command(nvim_bin: str) -> list[str]:
@@ -359,6 +384,7 @@ def validate_repo(
 def vendor_parsers(
     languages: Sequence[str],
     install_info: dict[str, dict[str, object]],
+    lockfile_revisions: Mapping[str, str],
     output_dir: Path,
     *,
     check: bool,
@@ -392,6 +418,8 @@ def vendor_parsers(
         revision = (
             info.get("revision") if isinstance(info.get("revision"), str) else None
         )
+        lockfile_revision = lockfile_revisions.get(lang)
+        revision_to_use = lockfile_revision or revision
 
         dest_lang_dir = output_dir / lang
         if check:
@@ -402,13 +430,34 @@ def vendor_parsers(
                 f"Verifying tree-sitter {lang} parser snapshot...",
             )
             validate_repo(lang, info, dest_lang_dir, output_dir)
-            if lang in existing_metadata:
-                metadata[lang] = existing_metadata[lang]
+            existing = existing_metadata.get(lang)
+            if existing:
+                expected_revision = revision_to_use or existing.get("revision")
+                recorded_revision = existing.get("revision")
+                if (
+                    expected_revision
+                    and recorded_revision
+                    and expected_revision != recorded_revision
+                ):
+                    raise SystemExit(
+                        "error: vendored parser revision for {lang} does not match "
+                        "lockfile (expected {expected}, found {found})".format(
+                            lang=lang,
+                            expected=expected_revision,
+                            found=recorded_revision,
+                        )
+                    )
+                metadata[lang] = existing
             else:
+                if lockfile_revision and revision != lockfile_revision:
+                    log(
+                        f"[vendor] {lang}: lockfile revision {lockfile_revision} "
+                        "differs from install_info revision; using lockfile"
+                    )
                 metadata[lang] = {
                     "url": url,
                     "branch": branch,
-                    "revision": revision,
+                    "revision": revision_to_use,
                     "files": info.get("files", []),
                     "location": info.get("location"),
                     "generate_requires_npm": info.get("generate_requires_npm"),
@@ -427,9 +476,16 @@ def vendor_parsers(
             f"Pulling tree-sitter {lang} parser sources...",
         )
         log(f"[vendor] {lang}: fetching sources from {url}")
+        if lockfile_revision:
+            log(
+                f"[vendor] {lang}: pinning to nvim-treesitter lockfile revision "
+                f"{lockfile_revision}"
+            )
+        elif revision:
+            log(f"[vendor] {lang}: using revision {revision} from install_info")
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_dest = Path(tmpdir) / "repo"
-            git_clone(url, repo_dest, branch, revision)
+            git_clone(url, repo_dest, branch, revision_to_use)
             rev_cmd = ["git", "rev-parse", "HEAD"]
             log(f"[vendor] {lang}: determining revision with {format_command(rev_cmd)}")
             try:
@@ -447,7 +503,7 @@ def vendor_parsers(
         metadata[lang] = {
             "url": url,
             "branch": branch,
-            "revision": revision or resolved_revision,
+            "revision": revision_to_use or resolved_revision,
             "files": info.get("files", []),
             "location": info.get("location"),
             "generate_requires_npm": info.get("generate_requires_npm"),
@@ -525,6 +581,19 @@ def main(argv: Sequence[str]) -> None:
         f"[vendor] Loaded manifest from {manifest_path} ({len(manifest_langs)} languages)"
     )
 
+    lockfile_path = (
+        root
+        / "vendor"
+        / "plugins"
+        / "nvim-treesitter"
+        / "lockfile.json"
+    )
+    lockfile_revisions = load_lockfile(lockfile_path)
+    log(
+        f"[vendor] Loaded nvim-treesitter lockfile from {lockfile_path} "
+        f"({len(lockfile_revisions)} revisions)"
+    )
+
     base_cmd = build_nvim_command(args.nvim)
     env = os.environ.copy()
     env["TREESITTER_SYNC_ROOT"] = str(root)
@@ -536,6 +605,7 @@ def main(argv: Sequence[str]) -> None:
     metadata = vendor_parsers(
         manifest_langs,
         install_info,
+        lockfile_revisions,
         output_dir,
         check=args.check,
     )
