@@ -1,7 +1,10 @@
+local util = require("config.util")
+
 return {
-  "nvim-tree/nvim-tree.lua",
+  name = "nvim-tree.lua",
+  dir = util.vendor("nvim-tree.lua"),
   dependencies = {
-    "nvim-tree/nvim-web-devicons",
+    "nvim-web-devicons",
   },
   cmd = {
     "NvimTreeToggle",
