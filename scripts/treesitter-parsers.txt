@@ -4,7 +4,6 @@
 
 asm
 bash
-bison
 c
 cmake
 comment
@@ -28,7 +27,6 @@ javascript
 json
 jsonc
 lua
-latex
 make
 markdown
 markdown_inline
