@@ -113,14 +113,6 @@
   },
   {
     "category": "ui",
-    "description": "Feature-rich file explorer tree written in Lua for Neovim.",
-    "depends": ["nvim-web-devicons"],
-    "url": "https://github.com/nvim-tree/nvim-tree.lua",
-    "name": "nvim-tree.lua",
-    "ref": "master"
-  },
-  {
-    "category": "ui",
     "description": "Filetype icons for Neovim statuslines and file explorers.",
     "depends": [],
     "url": "https://github.com/nvim-tree/nvim-web-devicons",
