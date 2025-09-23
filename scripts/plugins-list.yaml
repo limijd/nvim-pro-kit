@@ -105,6 +105,14 @@
   },
   {
     "category": "ui",
+    "description": "Extensible buffer line for Neovim with tabs, diagnostics, and icons.",
+    "depends": ["nvim-web-devicons"],
+    "url": "https://github.com/akinsho/bufferline.nvim",
+    "name": "bufferline.nvim",
+    "ref": "main"
+  },
+  {
+    "category": "ui",
     "description": "Feature-rich file explorer tree written in Lua for Neovim.",
     "depends": ["nvim-web-devicons"],
     "url": "https://github.com/nvim-tree/nvim-tree.lua",
