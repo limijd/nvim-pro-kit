@@ -23,6 +23,7 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
   - [Tips](#tips)
 - [🛠️ Offline readiness](#️-offline-readiness)
 - [🎬 Demo: Fresh CentOS 7 Deployment](#-demo-fresh-centos-7-deployment)
+- [🗒️ Release Notes](#-release-notes)
 
 ## ✨ Highlights
 
@@ -274,13 +275,13 @@ The following walkthrough shows how to bring up `nvim-pro-kit` on a clean CentOS
 
 2. **Obtain the repository snapshot**
    * Copy the repository bundle (for example via USB drive) to the target machine. If you have network access, a direct clone works too:
-     ```bash
-     git clone https://github.com/your-org/nvim-pro-kit.git
-     ```
-   * Change into the project directory:
-     ```bash
-     cd nvim-pro-kit
-     ```
+    ```bash
+    git clone https://github.com/your-org/nvim-pro-kit.git
+    ```
+  * Change into the project directory:
+    ```bash
+    cd nvim-pro-kit
+    ```
 
 3. **Sync vendored assets**
    * Ensure the vendored plugin snapshot matches `scripts/plugins-list.yaml`:
@@ -311,3 +312,7 @@ The following walkthrough shows how to bring up `nvim-pro-kit` on a clean CentOS
    * Verify plugin status with `:Lazy` inside Neovim.
 
 You now have a fully configured Neovim setup ready for professional use on a fresh CentOS 7 machine.
+
+## 🗒️ Release Notes
+
+The project follows semantic versioning starting with **v1.0.0 (2025-09-23)**, which delivers the fully vendored plugin suite, offline bootstrap installer, and manifest-driven maintenance scripts described above. See [`CHANGELOG.md`](./CHANGELOG.md) for the complete history and upgrade guidance.
