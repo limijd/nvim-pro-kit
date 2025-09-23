@@ -8,7 +8,6 @@ return {
     "cmp-nvim-lsp",
   },
   config = function()
-    local lspconfig = require("lspconfig")
     local capabilities = vim.lsp.protocol.make_client_capabilities()
 
     local has_cmp, cmp_lsp = pcall(require, "cmp_nvim_lsp")
@@ -52,37 +51,21 @@ return {
         },
       },
       pyright = {},
-      tsserver = {},
+      ts_ls = {},
     }
 
-    local function is_server_available(name, config)
-      local server_cfg = lspconfig[name]
-      if not server_cfg then
-        return false
-      end
-
-      local cmd = config.cmd or server_cfg.document_config.default_config.cmd
-      if type(cmd) == "table" then
-        cmd = cmd[1]
-      end
-
-      if not cmd then
-        return true
-      end
-
-      return vim.fn.executable(cmd) == 1
-    end
-
     for server, config in pairs(servers) do
-      if is_server_available(server, config) then
-        config = vim.tbl_deep_extend("force", {
-          on_attach = on_attach,
-          capabilities = capabilities,
-        }, config)
-        lspconfig[server].setup(config)
-      else
+      config = vim.tbl_deep_extend("force", {
+        on_attach = on_attach,
+        capabilities = capabilities,
+      }, config)
+
+      vim.lsp.config(server, config)
+
+      local ok, err = pcall(vim.lsp.enable, server)
+      if not ok then
         vim.schedule(function()
-          vim.notify(string.format("LSP server '%s' is not installed; skipping setup", server), vim.log.levels.WARN)
+          vim.notify(string.format("Failed to enable LSP server '%s': %s", server, err), vim.log.levels.WARN)
         end)
       end
     end
