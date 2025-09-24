@@ -1,0 +1,39 @@
+local util = require("config.util")
+
+return {
+  name = "nvim-dap-ui",
+  dir = util.vendor("nvim-dap-ui"),
+  dependencies = {
+    "nvim-dap",
+    "nvim-nio",
+    "nvim-web-devicons",
+  },
+  event = "VeryLazy",
+  config = function()
+    local dap = require("dap")
+    local dapui = require("dapui")
+
+    dapui.setup({})
+
+    dap.listeners.after.event_initialized["dapui_config"] = function()
+      dapui.open({})
+    end
+    dap.listeners.before.event_terminated["dapui_config"] = function()
+      dapui.close({})
+    end
+    dap.listeners.before.event_exited["dapui_config"] = function()
+      dapui.close({})
+    end
+
+    local map = vim.keymap.set
+    local opts = { silent = true }
+
+    map("n", "<leader>du", dapui.toggle, vim.tbl_extend("force", opts, { desc = "DAP Toggle UI" }))
+    map("n", "<leader>de", function()
+      dapui.eval()
+    end, vim.tbl_extend("force", opts, { desc = "DAP Evaluate expression" }))
+    map("v", "<leader>de", function()
+      dapui.eval(nil, { enter = true })
+    end, vim.tbl_extend("force", opts, { desc = "DAP Evaluate selection" }))
+  end,
+}
