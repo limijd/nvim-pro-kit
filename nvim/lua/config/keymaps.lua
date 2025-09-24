@@ -3,12 +3,7 @@ local default_opts = { noremap = true, silent = true }
 
 map({ "n", "v" }, "<Space>", "<Nop>", default_opts)
 
-map(
-  "t",
-  "<Esc><Esc>",
-  [[<C-\><C-n>]],
-  vim.tbl_extend("force", default_opts, { desc = "Leave terminal mode" })
-)
+vim.keymap.set('t', [[\tt]], [[<C-\><C-n><cmd>ToggleTerm<CR>]], { noremap = true, silent = true, desc = "Toggle terminal" })
 
 map("n", "<leader>w", "<cmd>w<cr>", vim.tbl_extend("force", default_opts, { desc = "Save file" }))
 map("n", "<leader>q", "<cmd>qa<cr>", vim.tbl_extend("force", default_opts, { desc = "Quit Neovim" }))
