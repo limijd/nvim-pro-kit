@@ -19,7 +19,8 @@ return {
         vimgrep_arguments = tools.ripgrep_arguments(),
         prompt_prefix = "  ",
         selection_caret = "  ",
-        path_display = { "smart" },
+        -- path_display = { "smart" },
+        path_display = { "relative" },
         mappings = {
           i = {
             ["<C-n>"] = actions.cycle_history_next,
