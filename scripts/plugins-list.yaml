@@ -125,7 +125,7 @@
     "depends": ["nvim-dap", "nvim-treesitter"],
     "url": "https://github.com/theHamsta/nvim-dap-virtual-text",
     "name": "nvim-dap-virtual-text",
-    "ref": "main"
+    "ref": "master"
   },
   {
     "category": "terminal",
