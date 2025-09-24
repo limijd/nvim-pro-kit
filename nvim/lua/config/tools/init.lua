@@ -177,6 +177,18 @@ function M.ensure_on_path(tool)
   return M.binary(tool)
 end
 
+function M.paths()
+  local names = vim.tbl_keys(resolvers)
+  table.sort(names)
+
+  local result = {}
+  for _, name in ipairs(names) do
+    result[name] = resolvers[name]()
+  end
+
+  return result
+end
+
 function M.lsp_cmd(server)
   local binary = M.binary(server)
   if not binary then
