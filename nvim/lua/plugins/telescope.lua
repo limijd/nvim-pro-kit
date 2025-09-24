@@ -51,7 +51,8 @@ return {
     local map = vim.keymap.set
     local opts = { noremap = true, silent = true }
 
-    map("n", "<leader>ff", builtin.find_files, vim.tbl_extend("force", opts, { desc = "Find files" }))
+    map("n", "<leader>ff", builtin.git_files, vim.tbl_extend("force", opts, { desc = "Find Git files" }))
+    map("n", "<leader>fn", builtin.find_files, vim.tbl_extend("force", opts, { desc = "Find files" }))
     map("n", "<leader>fg", builtin.live_grep, vim.tbl_extend("force", opts, { desc = "Live grep" }))
     map("n", "<leader>fb", builtin.buffers, vim.tbl_extend("force", opts, { desc = "List buffers" }))
     map("n", "<leader>fh", builtin.help_tags, vim.tbl_extend("force", opts, { desc = "Search help tags" }))
