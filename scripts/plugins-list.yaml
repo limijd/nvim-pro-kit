@@ -96,6 +96,38 @@
     "ref": "master"
   },
   {
+    "category": "debug",
+    "description": "Debug Adapter Protocol client implementation for Neovim.",
+    "depends": [],
+    "url": "https://github.com/mfussenegger/nvim-dap",
+    "name": "nvim-dap",
+    "ref": "master"
+  },
+  {
+    "category": "debug",
+    "description": "A UI for nvim-dap providing layouts, elements, and controls.",
+    "depends": ["nvim-dap", "nvim-nio", "nvim-web-devicons"],
+    "url": "https://github.com/rcarriga/nvim-dap-ui",
+    "name": "nvim-dap-ui",
+    "ref": "master"
+  },
+  {
+    "category": "debug",
+    "description": "Async IO primitives used by Neovim debug tooling and adapters.",
+    "depends": [],
+    "url": "https://github.com/nvim-neotest/nvim-nio",
+    "name": "nvim-nio",
+    "ref": "main"
+  },
+  {
+    "category": "debug",
+    "description": "Virtual text integration showing nvim-dap variable values inline.",
+    "depends": ["nvim-dap", "nvim-treesitter"],
+    "url": "https://github.com/theHamsta/nvim-dap-virtual-text",
+    "name": "nvim-dap-virtual-text",
+    "ref": "main"
+  },
+  {
     "category": "terminal",
     "description": "Toggleable floating terminal window for Neovim.",
     "depends": [],
