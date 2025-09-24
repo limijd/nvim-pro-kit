@@ -1,4 +1,5 @@
 local util = require("config.util")
+local tools = require("config.tools")
 
 return {
   name = "lazygit.nvim",
@@ -10,6 +11,9 @@ return {
     "LazyGitFilter",
     "LazyGitFilterCurrentFile",
   },
+  init = function()
+    tools.lazygit()
+  end,
   dependencies = {
     "plenary.nvim",
   },

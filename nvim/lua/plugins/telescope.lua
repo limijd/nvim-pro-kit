@@ -1,4 +1,5 @@
 local util = require("config.util")
+local tools = require("config.tools")
 
 return {
   name = "telescope.nvim",
@@ -15,6 +16,7 @@ return {
 
     telescope.setup({
       defaults = {
+        vimgrep_arguments = tools.ripgrep_arguments(),
         prompt_prefix = "  ",
         selection_caret = "  ",
         path_display = { "smart" },

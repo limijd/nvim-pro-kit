@@ -1,4 +1,5 @@
 local util = require("config.util")
+local tools = require("config.tools")
 
 return {
   name = "diffview.nvim",
@@ -16,7 +17,12 @@ return {
   config = function()
     local diffview = require("diffview")
 
+    local git_cmd = { tools.git() or "git" }
+    local hg = tools.hg()
+
     diffview.setup({
+      git_cmd = git_cmd,
+      hg_cmd = hg and { hg } or nil,
       enhanced_diff_hl = true,
       view = {
         default = {

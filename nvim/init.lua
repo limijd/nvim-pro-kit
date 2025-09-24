@@ -6,6 +6,9 @@ vim.g.maplocalleader = "\\"
 require("config.options")
 require("config.keymaps")
 
+-- Discover external tool locations before loading plugins
+require("config.tools").setup()
+
 -- Bootstrap lazy.nvim from the vendored plugins directory and load plugins
 require("config.lazy")
 
