@@ -40,13 +40,8 @@ api.nvim_create_autocmd("FileType", {
     local origin_win = api.nvim_get_current_win()
     local alt_buf = fn.bufnr("#")
 
-    if alt_buf > 0 and alt_buf ~= buf then
-      local alt_win = fn.bufwinid(alt_buf)
-      if alt_win ~= -1 and alt_win ~= 0 then
-        api.nvim_set_current_win(alt_win)
-      else
-        vim.cmd(string.format("keepalt buffer %d", alt_buf))
-      end
+    if alt_buf > 0 and alt_buf ~= buf and api.nvim_buf_is_valid(alt_buf) then
+      pcall(api.nvim_win_set_buf, origin_win, alt_buf)
     else
       local scratch = api.nvim_create_buf(false, true)
       api.nvim_buf_set_option(scratch, "bufhidden", "wipe")
