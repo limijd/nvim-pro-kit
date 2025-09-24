@@ -10,9 +10,11 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
-from typing import Iterable, Sequence
+from contextlib import contextmanager
+from typing import Iterable, Iterator, Sequence
 
 
 class BuildError(RuntimeError):
@@ -113,21 +115,69 @@ def has_cpp_sources(files: Iterable[str]) -> bool:
     return any(Path(file).suffix in {".cc", ".cpp", ".cxx"} for file in files)
 
 
-def ensure_parser_base(lang: str, info: dict[str, object], vendor_root: Path) -> Path:
-    repo_dir = vendor_root / lang
-    if not repo_dir.is_dir():
+def parser_archive_path(vendor_root: Path, lang: str) -> Path:
+    archive_path = vendor_root / f"{lang}.tar.bz2"
+    if not archive_path.is_file():
         raise SystemExit(
-            f"error: vendored repository for {lang} is missing at {repo_dir}"
+            f"error: vendored archive for {lang} is missing at {archive_path}"
         )
+    return archive_path
 
-    location = info.get("location")
-    location_path = Path(location) if isinstance(location, str) and location else None
-    base_dir = repo_dir / location_path if location_path else repo_dir
-    if not base_dir.is_dir():
-        raise SystemExit(
-            f"error: expected parser location for {lang} is missing at {base_dir}"
-        )
-    return base_dir
+
+def tar_safe_extract(tar: tarfile.TarFile, destination: Path) -> None:
+    destination = destination.resolve()
+
+    def is_within_directory(base: Path, target: Path) -> bool:
+        try:
+            target.relative_to(base)
+        except ValueError:
+            return False
+        return True
+
+    for member in tar.getmembers():
+        member_path = destination / member.name
+        if not is_within_directory(destination, member_path.resolve()):
+            raise SystemExit(
+                "error: attempted path traversal while extracting Tree-sitter archive"
+            )
+    tar.extractall(destination)
+
+
+@contextmanager
+def parser_sources(
+    lang: str, info: dict[str, object], vendor_root: Path
+) -> Iterator[Path]:
+    archive_path = parser_archive_path(vendor_root, lang)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        extract_root = Path(tmpdir)
+        try:
+            with tarfile.open(archive_path, mode="r:bz2") as tar:
+                tar_safe_extract(tar, extract_root)
+        except (tarfile.TarError, OSError) as exc:
+            raise SystemExit(
+                f"error: failed to extract vendored archive for {lang}: {exc}"
+            ) from exc
+
+        candidate = extract_root / lang
+        if not candidate.is_dir():
+            subdirs = [path for path in extract_root.iterdir() if path.is_dir()]
+            if len(subdirs) == 1:
+                candidate = subdirs[0]
+            else:
+                raise SystemExit(
+                    "error: extracted archive for {lang} does not contain a unique root"
+                    .format(lang=lang)
+                )
+
+        location = info.get("location")
+        location_path = Path(location) if isinstance(location, str) and location else None
+        base_dir = candidate / location_path if location_path else candidate
+        if not base_dir.is_dir():
+            raise SystemExit(
+                f"error: expected parser location for {lang} is missing at {base_dir}"
+            )
+
+        yield base_dir
 
 
 def compile_parser(
@@ -141,53 +191,58 @@ def compile_parser(
     if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
         raise BuildError(f"parser {lang} does not list source files to compile")
 
-    base_dir = ensure_parser_base(lang, info, vendor_root)
-    missing: list[str] = []
-    for rel in files:
-        if not (base_dir / rel).is_file():
-            missing.append(rel)
-    if missing:
-        raise BuildError(
-            f"parser {lang} is missing required source files: {' '.join(missing)}"
-        )
-
     compiler = os.environ.get("CC", "cc")
     uses_cpp = has_cpp_sources(files)
-    with tempfile.TemporaryDirectory() as build_dir:
-        tmp_output = Path(build_dir) / output_path.name
-        args: list[str] = [compiler]
-        args.extend(["-I", "./src"])
-        args.extend(["-I", str(runtime_include)])
-        args.append("-Os")
-        if os.name != "nt":
-            args.append("-fPIC")
 
-        cxx_standard = str(info.get("cxx_standard")) if info.get("cxx_standard") else None
-        if uses_cpp:
-            args.append(f"-std={cxx_standard}" if cxx_standard else "-std=c++14")
-        else:
-            args.append("-std=c11")
+    with parser_sources(lang, info, vendor_root) as base_dir:
+        missing: list[str] = []
+        for rel in files:
+            if not (base_dir / rel).is_file():
+                missing.append(rel)
+        if missing:
+            raise BuildError(
+                f"parser {lang} is missing required source files: {' '.join(missing)}"
+            )
 
-        if sys.platform == "darwin":
-            args.append("-bundle")
-        else:
-            args.append("-shared")
+        with tempfile.TemporaryDirectory() as build_dir:
+            tmp_output = Path(build_dir) / output_path.name
+            args: list[str] = [compiler]
+            args.extend(["-I", "./src"])
+            args.extend(["-I", str(runtime_include)])
+            args.append("-Os")
+            if os.name != "nt":
+                args.append("-fPIC")
 
-        args.extend(["-o", str(tmp_output)])
-        args.extend(str(Path(rel)) for rel in files)
-        if uses_cpp:
-            args.append("-lstdc++")
+            cxx_standard = (
+                str(info.get("cxx_standard")) if info.get("cxx_standard") else None
+            )
+            if uses_cpp:
+                args.append(f"-std={cxx_standard}" if cxx_standard else "-std=c++14")
+            else:
+                args.append("-std=c11")
 
-        log(f"[sync] {lang}: running (cwd={base_dir}) {format_command(args)}")
-        try:
-            subprocess.run(args, cwd=base_dir, check=True)
-        except FileNotFoundError as exc:
-            raise BuildError(f"compiler {compiler!r} required to build {lang} not found") from exc
-        except subprocess.CalledProcessError as exc:
-            raise BuildError(f"failed to compile parser for {lang}") from exc
+            if sys.platform == "darwin":
+                args.append("-bundle")
+            else:
+                args.append("-shared")
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(tmp_output, output_path)
+            args.extend(["-o", str(tmp_output)])
+            args.extend(str(Path(rel)) for rel in files)
+            if uses_cpp:
+                args.append("-lstdc++")
+
+            log(f"[sync] {lang}: running (cwd={base_dir}) {format_command(args)}")
+            try:
+                subprocess.run(args, cwd=base_dir, check=True)
+            except FileNotFoundError as exc:
+                raise BuildError(
+                    f"compiler {compiler!r} required to build {lang} not found"
+                ) from exc
+            except subprocess.CalledProcessError as exc:
+                raise BuildError(f"failed to compile parser for {lang}") from exc
+
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(tmp_output, output_path)
 
 
 def list_parsers(parser_dir: Path, extension: str) -> set[str]:

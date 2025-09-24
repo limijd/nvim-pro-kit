@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 from typing import Iterable, Mapping, MutableMapping, Sequence
@@ -297,94 +298,110 @@ def vendor_runtime(output_dir: Path, *, check: bool) -> Path:
     return runtime_dir
 
 
-def copy_repo(
+def parser_archive_path(output_dir: Path, lang: str) -> Path:
+    return output_dir / f"{lang}.tar.bz2"
+
+
+def tar_safe_extract(tar: tarfile.TarFile, destination: Path) -> None:
+    destination = destination.resolve()
+
+    def is_within_directory(base: Path, target: Path) -> bool:
+        try:
+            target.relative_to(base)
+        except ValueError:
+            return False
+        return True
+
+    for member in tar.getmembers():
+        member_path = destination / member.name
+        if not is_within_directory(destination, member_path.resolve()):
+            raise SystemExit(
+                "error: attempted path traversal while validating Tree-sitter archive"
+            )
+    tar.extractall(destination)
+
+
+def tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
+    parts = Path(info.name).parts
+    if ".git" in parts:
+        return None
+    info.uid = info.gid = 0
+    info.uname = info.gname = ""
+    return info
+
+
+def pack_repo(lang: str, repo_path: Path, dest_root: Path) -> Path:
+    archive_path = parser_archive_path(dest_root, lang)
+    tmp_path = archive_path.with_name(archive_path.name + ".tmp")
+    log(f"[vendor] {lang}: creating archive at {archive_path}")
+    try:
+        with tarfile.open(tmp_path, mode="w:bz2") as tar:
+            tar.add(repo_path, arcname=lang, filter=tar_filter)
+    except (tarfile.TarError, OSError) as exc:
+        raise SystemExit(
+            f"error: failed to create archive for {lang}: {exc}"
+        ) from exc
+    tmp_path.replace(archive_path)
+    return archive_path
+
+
+def validate_archive(
     lang: str,
     info: dict[str, object],
-    repo_path: Path,
-    dest_root: Path,
+    archive_path: Path,
 ) -> None:
+    if not archive_path.is_file():
+        raise SystemExit(
+            f"error: vendored parser archive missing for {lang} at {archive_path}"
+        )
+
+    if not isinstance(info, dict):
+        raise SystemExit(f"error: invalid install info for {lang}")
+
     files = info.get("files")
     if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
         raise SystemExit(f"error: install info for {lang} does not list source files")
 
-    location = info.get("location")
-    location_path = Path(location) if isinstance(location, str) and location else None
+    with tempfile.TemporaryDirectory() as tmpdir:
+        extract_root = Path(tmpdir)
+        try:
+            with tarfile.open(archive_path, mode="r:bz2") as tar:
+                tar_safe_extract(tar, extract_root)
+        except (tarfile.TarError, OSError) as exc:
+            raise SystemExit(
+                f"error: failed to inspect archive for {lang}: {exc}"
+            ) from exc
 
-    source_base = repo_path / location_path if location_path else repo_path
-    if not source_base.is_dir():
-        raise SystemExit(
-            "error: expected directory for parser {lang} at {base} is missing".format(
-                lang=lang, base=source_base
+        candidate = extract_root / lang
+        if not candidate.is_dir():
+            subdirs = [path for path in extract_root.iterdir() if path.is_dir()]
+            if len(subdirs) == 1:
+                candidate = subdirs[0]
+            else:
+                raise SystemExit(
+                    "error: archive for {lang} does not contain a unique root directory"
+                    .format(lang=lang)
+                )
+
+        location = info.get("location")
+        location_path = Path(location) if isinstance(location, str) and location else None
+        base_dir = candidate / location_path if location_path else candidate
+        if not base_dir.is_dir():
+            raise SystemExit(
+                f"error: archive for {lang} missing expected location directory at {base_dir}"
             )
-        )
 
-    missing = []
-    for rel in files:
-        rel_path = Path(rel)
-        source = source_base / rel_path
-        if not source.is_file():
-            missing.append(rel_path.as_posix())
-    if missing:
-        joined = ", ".join(missing)
-        raise SystemExit(
-            f"error: repository for {lang} missing expected files: {joined}"
-        )
+        missing: list[str] = []
+        for rel in files:
+            rel_path = Path(rel)
+            if not (base_dir / rel_path).is_file():
+                missing.append(rel_path.as_posix())
 
-    dest_lang_dir = dest_root / lang
-    if dest_lang_dir.exists():
-        log(f"[vendor] {lang}: removing previous snapshot at {dest_lang_dir}")
-        shutil.rmtree(dest_lang_dir)
-    log(f"[vendor] {lang}: copying sources into {dest_lang_dir}")
-    try:
-        shutil.copytree(
-            repo_path,
-            dest_lang_dir,
-            ignore=shutil.ignore_patterns(".git"),
-        )
-    except OSError as exc:
-        raise SystemExit(
-            f"error: failed to copy repository for {lang} into {dest_lang_dir}: {exc}"
-        ) from exc
-
-    # Runtime headers bundled with parser repositories are left untouched so
-    # that their upstream snapshots remain intact.
-
-
-def validate_repo(
-    lang: str,
-    info: dict[str, object],
-    dest_lang_dir: Path,
-    output_dir: Path,
-) -> None:
-    if not dest_lang_dir.is_dir():
-        raise SystemExit(
-            f"error: vendored parser directory missing for {lang} at {dest_lang_dir}"
-        )
-
-    location = info.get("location")
-    location_path = Path(location) if isinstance(location, str) and location else None
-    base_dir = dest_lang_dir / location_path if location_path else dest_lang_dir
-    if not base_dir.is_dir():
-        raise SystemExit(
-            f"error: vendored parser for {lang} missing expected location directory"
-        )
-
-    files = info.get("files") or []
-    missing: list[str] = []
-    for rel in files:
-        rel_path = Path(rel)
-        file_path = base_dir / rel_path
-        if not file_path.is_file():
-            try:
-                missing.append(str(file_path.relative_to(output_dir)))
-            except ValueError:
-                missing.append(str(file_path))
-
-    if missing:
-        raise SystemExit(
-            "error: vendored parser sources missing required files for "
-            f"{lang}: {' '.join(sorted(set(missing)))}"
-        )
+        if missing:
+            raise SystemExit(
+                "error: vendored parser sources missing required files for "
+                f"{lang}: {' '.join(sorted(set(missing)))}"
+            )
 
 
 def vendor_parsers(
@@ -427,7 +444,7 @@ def vendor_parsers(
         lockfile_revision = lockfile_revisions.get(lang)
         revision_to_use = lockfile_revision or revision
 
-        dest_lang_dir = output_dir / lang
+        archive_path = parser_archive_path(output_dir, lang)
         if check:
             progress(
                 "vendor",
@@ -435,7 +452,7 @@ def vendor_parsers(
                 total,
                 f"Verifying tree-sitter {lang} parser snapshot...",
             )
-            validate_repo(lang, info, dest_lang_dir, output_dir)
+            validate_archive(lang, info, archive_path)
             existing = existing_metadata.get(lang)
             if existing:
                 expected_revision = revision_to_use or existing.get("revision")
@@ -502,8 +519,8 @@ def vendor_parsers(
                 ) from exc
             resolved_revision = result.strip()
 
-            copy_repo(lang, info, repo_dest, output_dir)
-            validate_repo(lang, info, dest_lang_dir, output_dir)
+            archive_path = pack_repo(lang, repo_dest, output_dir)
+            validate_archive(lang, info, archive_path)
             log(f"[vendor] {lang}: snapshot captured at {resolved_revision}")
 
         metadata[lang] = {
@@ -534,13 +551,24 @@ def prune_languages(output_dir: Path, languages: Sequence[str]) -> None:
     if not output_dir.is_dir():
         return
 
-    keep = set(languages)
-    keep.add("tree_sitter")
+    keep_archives = {f"{lang}.tar.bz2" for lang in languages}
+    keep_dirs = {"tree_sitter"}
 
     for path in output_dir.iterdir():
-        if path.is_dir() and path.name not in keep:
-            log(f"[vendor] Removing obsolete parser snapshot {path}")
-            shutil.rmtree(path)
+        if path.is_dir():
+            if path.name not in keep_dirs:
+                log(f"[vendor] Removing obsolete parser snapshot {path}")
+                shutil.rmtree(path)
+            continue
+        if path.is_file() and path.suffixes[-2:] == [".tar", ".bz2"]:
+            if path.name not in keep_archives:
+                log(f"[vendor] Removing obsolete parser archive {path}")
+                try:
+                    path.unlink()
+                except OSError as exc:
+                    raise SystemExit(
+                        f"error: failed to remove obsolete archive {path}: {exc}"
+                    ) from exc
 
 
 def stage_paths(root: Path, paths: Sequence[Path]) -> None:
