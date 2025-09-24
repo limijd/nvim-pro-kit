@@ -75,6 +75,12 @@ api.nvim_create_autocmd("FileType", {
         if api.nvim_win_is_valid(win) then
           pcall(api.nvim_win_close, win, true)
         end
+
+        vim.schedule(function()
+          if api.nvim_buf_is_valid(buf) then
+            pcall(api.nvim_buf_delete, buf, { force = true })
+          end
+        end)
       end,
     })
   end,
