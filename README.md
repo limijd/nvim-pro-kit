@@ -46,7 +46,7 @@ After linking you can start Neovim immediately, even on an offline machine.
 ## 🔧 External Tool Configuration
 
 The configuration shells out to a handful of external binaries (Git, debuggers, search utilities, language servers, build tools, …).
-`nvim/lua/config/tools.lua` exposes one helper per binary (`tools.git()`, `tools.lazygit()`, `tools.ripgrep()`, `tools.lua_ls()`, and so on)
+The `config.tools` module (see `nvim/lua/config/tools/`) exposes one helper per binary (`tools.git()`, `tools.lazygit()`, `tools.ripgrep()`, `tools.lua_ls()`, and so on)
 so every plugin reads from the same source of truth.
 
 Each helper follows the same resolution order:
@@ -73,7 +73,7 @@ Set `NVIM_PRO_KIT_<TOOL>` (for example `NVIM_PRO_KIT_GIT`, `NVIM_PRO_KIT_LAZYGIT
 executables without editing the repository.
 
 Set `NVIM_PRO_KIT_COMPILERS` to a path-separated list if you need to override the compiler search order; otherwise the helper prefers
-`cc`/`gcc`/`clang` on Linux and `clang`/`cc` on macOS. Adjust the platform-specific paths inside `tools.lua` if you install binaries in
+`cc`/`gcc`/`clang` on Linux and `clang`/`cc` on macOS. Adjust the platform-specific paths inside `nvim/lua/config/tools/definitions.lua` if you install binaries in
 non-standard locations.
 
 ## 📦 Managing Vendored Plugins
