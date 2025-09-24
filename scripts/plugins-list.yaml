@@ -117,7 +117,7 @@
     "depends": [],
     "url": "https://github.com/nvim-neotest/nvim-nio",
     "name": "nvim-nio",
-    "ref": "main"
+    "ref": "master"
   },
   {
     "category": "debug",
