@@ -186,8 +186,10 @@ function M.paths()
   local missing = {}
   for _, name in ipairs(names) do
     local path = resolvers[name]()
-    result[name] = path
-    if not path then
+    if path then
+      result[name] = path
+    else
+      result[name] = false
       table.insert(missing, name)
     end
   end
