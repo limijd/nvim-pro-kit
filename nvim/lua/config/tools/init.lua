@@ -1,5 +1,6 @@
 local M = {}
 
+local api = vim.api
 local uv = vim.uv or vim.loop
 local dir_separator = package.config:sub(1, 1)
 local path_separator = package.config:sub(3, 3)
@@ -285,6 +286,43 @@ function M.setup()
     resolver()
   end
   M.compilers()
+
+  pcall(api.nvim_create_user_command, "Tools", function()
+    local paths, missing = M.paths()
+    local names = vim.tbl_keys(paths)
+    table.sort(names)
+
+    local padding = 0
+    for _, name in ipairs(names) do
+      padding = math.max(padding, #name)
+    end
+    if padding == 0 then
+      padding = 1
+    end
+
+    local lines = {}
+    for _, name in ipairs(names) do
+      local path = paths[name]
+      if path then
+        table.insert(lines, string.format("%-" .. padding .. "s  %s", name, path))
+      else
+        table.insert(lines, string.format("%-" .. padding .. "s  %s", name, "[missing]"))
+      end
+    end
+
+    local level = (#missing > 0) and vim.log.levels.WARN or vim.log.levels.INFO
+    local message = table.concat(lines, "\n")
+
+    if vim.notify then
+      vim.notify(message, level, { title = "Tools" })
+    else
+      for _, line in ipairs(lines) do
+        api.nvim_echo({ { line, "" } }, false, {})
+      end
+    end
+  end, {
+    desc = "List configured external tools and their resolved paths",
+  })
   return M
 end
 
