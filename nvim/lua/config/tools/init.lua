@@ -160,6 +160,12 @@ local lsp_args = {
   lua_ls = {},
   pyright = { "--stdio" },
   ts_ls = { "--stdio" },
+  clangd = {
+    "--background-index",
+    "--clang-tidy",
+    "--completion-style=detailed",
+    "--function-arg-placeholders",
+  },
 }
 
 function M.binary(tool)
