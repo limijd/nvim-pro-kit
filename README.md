@@ -196,14 +196,16 @@ The script compiles each parser with your platform C compiler (respects `$CC`) a
 
 ### Vendoring parser sources
 
-Run `scripts/treesitter-vendor.py` whenever the manifest changes or you need to refresh the vendored Tree-sitter sources. The script asks Neovim (headlessly) for each parser’s `install_info`, clones the upstream repositories, copies the declared source files into `vendor/tree-sitter/<lang>/`, records metadata in `vendor/tree-sitter/metadata.json`, and stages the updated directory so it is ready to commit. It also vendors the Tree-sitter runtime headers required by the compiler.
+Run `scripts/treesitter-vendor.py` whenever the manifest changes or you need to refresh the vendored Tree-sitter sources. The script asks Neovim (headlessly) for each parser’s `install_info`, clones the upstream repositories, packs the declared source files into `vendor/tree-sitter/<lang>.tar.bz2`, records metadata in `vendor/tree-sitter/metadata.json`, and stages the updated archives so they are ready to commit. It also vendors the Tree-sitter runtime headers required by the compiler.
 
 `scripts/treesitter-vendor.py` always pins repositories to the revisions listed in `vendor/plugins/nvim-treesitter/lockfile.json` so that the vendored sources line up with the parser versions bundled with `nvim-treesitter`. Update that lockfile (by refreshing the vendored `nvim-treesitter` plugin) before re-running the script to ensure reproducible snapshots.
 
 The TypeScript grammar, for example, provides a makefile that bakes in extra linker flags. The vendor script honours that entry point automatically, and you can invoke it manually when debugging a build:
 
 ```
-cd vendor/tree-sitter/typescript/typescript
+tmpdir=$(mktemp -d)
+tar -xjf vendor/tree-sitter/typescript.tar.bz2 -C "$tmpdir"
+cd "$tmpdir"/typescript/typescript
 TS=true make libtree-sitter-typescript.so
 ```
 
@@ -221,7 +223,7 @@ Set `NVIM_BIN` (or pass `--nvim`) if you want to use a specific Neovim binary (f
 
 1. `scripts/treesitter-vendor.py`
    * Clones or updates each grammar.
-   * Copies the declared sources into `vendor/tree-sitter/`.
+   * Compresses the declared sources into `vendor/tree-sitter/*.tar.bz2` archives.
    * Regenerates `metadata.json`.
    * Runs `git add -A vendor/tree-sitter` so the new snapshot is staged.
 2. `scripts/treesitter-sync.py`
