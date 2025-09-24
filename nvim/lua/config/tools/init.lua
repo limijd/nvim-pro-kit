@@ -182,11 +182,16 @@ function M.paths()
   table.sort(names)
 
   local result = {}
+  local missing = {}
   for _, name in ipairs(names) do
-    result[name] = resolvers[name]()
+    local path = resolvers[name]()
+    result[name] = path
+    if not path then
+      table.insert(missing, name)
+    end
   end
 
-  return result
+  return result, missing
 end
 
 function M.lsp_cmd(server)
