@@ -199,6 +199,23 @@ return function(api)
   )
 
   define(
+    "clangd",
+    function()
+      local mason = mason_tool("clangd")
+      return resolve("NVIM_PRO_KIT_CLANGD", {
+        linux_x86_64 = { "/usr/bin/clangd", "/usr/local/bin/clangd", mason },
+        linux_aarch64 = { "/usr/bin/clangd", "/usr/local/bin/clangd", mason },
+        macos_x86_64 = { "/usr/local/opt/llvm/bin/clangd", "/usr/local/bin/clangd", mason },
+        macos_arm64 = { "/opt/homebrew/opt/llvm/bin/clangd", "/opt/homebrew/bin/clangd", mason },
+      }, { mason, "clangd" })
+    end,
+    {
+      description = "Clangd language server providing C and C++ support.",
+      plugins = { "nvim-lspconfig" },
+    }
+  )
+
+  define(
     "hg",
     function()
       return resolve("NVIM_PRO_KIT_HG", {

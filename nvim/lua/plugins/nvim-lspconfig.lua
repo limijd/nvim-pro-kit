@@ -58,6 +58,14 @@ return {
       ts_ls = {
         cmd = tools.lsp_cmd("ts_ls"),
       },
+      clangd = {
+        cmd = tools.lsp_cmd("clangd"),
+        filetypes = { "c", "cpp", "objc", "objcpp", "cuda" },
+        init_options = {
+          clangdFileStatus = true,
+          semanticHighlighting = true,
+        },
+      },
     }
 
     for server, config in pairs(servers) do
