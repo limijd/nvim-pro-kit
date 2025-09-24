@@ -35,6 +35,9 @@ local spec = {
         mode = "buffers",
         themable = true,
         diagnostics = "nvim_lsp",
+        max_name_length = 18,
+        max_prefix_length = 10,
+        tab_size = 14,
         diagnostics_indicator = function(_, _, diagnostics_dict)
           for _, severity in ipairs({ "error", "warning", "info", "hint" }) do
             local count = diagnostics_dict[severity]
