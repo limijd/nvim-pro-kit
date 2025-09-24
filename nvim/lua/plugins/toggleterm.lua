@@ -6,6 +6,7 @@ return {
   cmd = { "ToggleTerm", "TermExec" },
   keys = {
     { "<leader>tt", "<cmd>ToggleTerm<cr>", desc = "Toggle terminal" },
+    { [[\tt]], "<cmd>ToggleTerm<cr>", mode = "n", desc = "Toggle terminal" },
   },
   config = function()
     require("toggleterm").setup({
@@ -20,7 +21,5 @@ return {
         winblend = 3,
       },
     })
-
-    vim.keymap.set("n", "<leader>tt", "<cmd>ToggleTerm<cr>", { desc = "Toggle terminal" })
   end,
 }

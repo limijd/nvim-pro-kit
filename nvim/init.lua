@@ -1,6 +1,6 @@
--- Set <Space> as the leader key before lazy loads plugins
-vim.g.mapleader = " "
-vim.g.maplocalleader = " "
+-- Restore Neovim's default backslash leader before loading plugins
+vim.g.mapleader = "\\"
+vim.g.maplocalleader = "\\"
 
 -- Apply basic options and keymaps
 require("config.options")
