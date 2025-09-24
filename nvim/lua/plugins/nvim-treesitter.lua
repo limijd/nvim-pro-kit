@@ -1,4 +1,5 @@
 local util = require("config.util")
+local tools = require("config.tools")
 local manifest = require("config.treesitter_manifest")
 local vendor = require("config.treesitter_vendor")
 
@@ -9,6 +10,9 @@ return {
   config = function()
     local ensure_installed = manifest.languages()
     vendor.apply(ensure_installed)
+
+    local install = require("nvim-treesitter.install")
+    install.compilers = tools.compilers()
 
     require("nvim-treesitter.configs").setup({
       -- Update scripts/treesitter-parsers.txt and run scripts/treesitter-sync.py

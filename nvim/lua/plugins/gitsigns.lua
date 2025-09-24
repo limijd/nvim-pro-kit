@@ -1,4 +1,5 @@
 local util = require("config.util")
+local tools = require("config.tools")
 
 return {
   name = "gitsigns.nvim",
@@ -8,7 +9,10 @@ return {
     "plenary.nvim",
   },
   config = function()
+    local git_binary = tools.git() or "git"
+
     require("gitsigns").setup({
+      git_cmd = { git_binary },
       signs = {
         add = { text = "▎" },
         change = { text = "▎" },

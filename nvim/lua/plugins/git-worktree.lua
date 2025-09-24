@@ -1,4 +1,5 @@
 local util = require("config.util")
+local tools = require("config.tools")
 
 return {
   name = "git-worktree.nvim",
@@ -7,6 +8,9 @@ return {
     "plenary.nvim",
     "telescope.nvim",
   },
+  init = function()
+    tools.git()
+  end,
   config = function()
     local worktree = require("git-worktree")
 

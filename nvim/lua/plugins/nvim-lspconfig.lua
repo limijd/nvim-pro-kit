@@ -1,4 +1,5 @@
 local util = require("config.util")
+local tools = require("config.tools")
 
 return {
   name = "nvim-lspconfig",
@@ -34,6 +35,7 @@ return {
 
     local servers = {
       lua_ls = {
+        cmd = tools.lsp_cmd("lua_ls"),
         settings = {
           Lua = {
             runtime = {
@@ -50,8 +52,12 @@ return {
           },
         },
       },
-      pyright = {},
-      ts_ls = {},
+      pyright = {
+        cmd = tools.lsp_cmd("pyright"),
+      },
+      ts_ls = {
+        cmd = tools.lsp_cmd("ts_ls"),
+      },
     }
 
     for server, config in pairs(servers) do

@@ -1,10 +1,16 @@
 local util = require("config.util")
+local tools = require("config.tools")
 
 return {
   name = "LuaSnip",
   dir = util.vendor("LuaSnip"),
   version = "*",
-  build = (vim.fn.executable("make") == 1) and "make install_jsregexp" or nil,
+  build = function(plugin)
+    local ok, message = tools.run("make", { "install_jsregexp" }, plugin.dir)
+    if not ok then
+      vim.notify("LuaSnip build failed: " .. (message or "unknown error"), vim.log.levels.WARN)
+    end
+  end,
   config = function()
     local luasnip = require("luasnip")
 

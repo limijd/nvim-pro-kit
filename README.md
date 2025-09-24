@@ -43,6 +43,39 @@ By default the installer creates a symbolic link from `<repo>/nvim` to your Neov
 
 After linking you can start Neovim immediately, even on an offline machine.
 
+## 🔧 External Tool Configuration
+
+The configuration shells out to a handful of external binaries (Git, debuggers, search utilities, language servers, build tools, …).
+`nvim/lua/config/tools.lua` exposes one helper per binary (`tools.git()`, `tools.lazygit()`, `tools.ripgrep()`, `tools.lua_ls()`, and so on)
+so every plugin reads from the same source of truth.
+
+Each helper follows the same resolution order:
+
+1. honour `$NVIM_PRO_KIT_<TOOL>` when it is set (the variable must point at the executable);
+2. probe platform-specific defaults for the current machine (Linux x86_64, Linux aarch64, macOS x86_64, and macOS arm64);
+3. fall back to whatever the system exposes on `$PATH`.
+
+Whenever the helper returns an absolute path its parent directory is prepended to `$PATH` automatically so vendored plugins can spawn
+the tool without additional configuration.
+
+The module currently resolves the following tools:
+
+- `git`, `lazygit`, and `hg`;
+- `ripgrep` (`rg`);
+- `python` (debugpy);
+- `node`, `npm`, and the Tree-sitter CLI;
+- `make` (used to build native Telescope/LuaSnip components);
+- `gdb`;
+- language servers: `lua_ls`, `pyright`, `ts_ls`;
+- compiler candidates for Tree-sitter builds via `tools.compilers()`.
+
+Set `NVIM_PRO_KIT_<TOOL>` (for example `NVIM_PRO_KIT_GIT`, `NVIM_PRO_KIT_LAZYGIT`, `NVIM_PRO_KIT_RIPGREP`, …) to point at custom
+executables without editing the repository.
+
+Set `NVIM_PRO_KIT_COMPILERS` to a path-separated list if you need to override the compiler search order; otherwise the helper prefers
+`cc`/`gcc`/`clang` on Linux and `clang`/`cc` on macOS. Adjust the platform-specific paths inside `tools.lua` if you install binaries in
+non-standard locations.
+
 ## 📦 Managing Vendored Plugins
 
 This repository vendors every Neovim plugin under `vendor/plugins/` using `git subtree`. There are no submodules, runtime downloads, or hidden network calls.
