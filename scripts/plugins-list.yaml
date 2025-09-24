@@ -129,6 +129,14 @@
   },
   {
     "category": "debug",
+    "description": "Python-specific debugpy adapter integration for nvim-dap.",
+    "depends": ["nvim-dap"],
+    "url": "https://github.com/mfussenegger/nvim-dap-python",
+    "name": "nvim-dap-python",
+    "ref": "master"
+  },
+  {
+    "category": "debug",
     "description": "A UI for nvim-dap providing layouts, elements, and controls.",
     "depends": ["nvim-dap", "nvim-nio", "nvim-web-devicons"],
     "url": "https://github.com/rcarriga/nvim-dap-ui",
