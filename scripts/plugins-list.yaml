@@ -88,6 +88,14 @@
     "ref": "master"
   },
   {
+    "category": "debug",
+    "description": "Integration of GDB, LLDB, PDB, and BashDB debugging workflows in Neovim.",
+    "depends": [],
+    "url": "https://github.com/sakhnik/nvim-gdb",
+    "name": "nvim-gdb",
+    "ref": "master"
+  },
+  {
     "category": "terminal",
     "description": "Toggleable floating terminal window for Neovim.",
     "depends": [],
