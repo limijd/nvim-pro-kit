@@ -7,6 +7,7 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
 
 - [✨ Highlights](#-highlights)
 - [🚀 Installation](#-installation)
+- [🧰 Tools](#-tools)
 - [📦 Managing Vendored Plugins](#-managing-vendored-plugins)
   - [Plugin manifest](#plugin-manifest)
   - [Running `vendor_update.py`](#running-vendor_updatepy)
@@ -42,6 +43,22 @@ python3 bootstrap/install.py
 By default the installer creates a symbolic link from `<repo>/nvim` to your Neovim config directory (typically `~/.config/nvim`), so the repository layout remains untouched. Pass `--copy` to copy the files instead, `--force` to overwrite an existing config, or `--target DIR` to install somewhere else.
 
 After linking you can start Neovim immediately, even on an offline machine.
+
+## 🧰 Tools
+
+The `tools/` directory ships portable binaries and fonts required by the configuration so that a fresh machine can bootstrap Neovim without reaching the internet. Each tool is stored under a versioned folder (for example `tools/fzf/0.65.2/`) containing upstream release archives alongside their SHA256 sums. Current snapshots include:
+
+- Neovim AppImages for multiple architectures under `tools/nvim/`;
+- command-line helpers such as `fzf`, `fd`, `ripgrep`, and `delta`;
+- patched Nerd Fonts suitable for terminal glyph rendering.
+
+To use the bundled binaries:
+
+1. Pick the archive that matches your platform (for example `nvim-linux-x86_64.0.11.4.appimage`).
+2. Extract or mark it executable as required by the upstream release.
+3. Point the relevant `NVIM_PRO_KIT_<TOOL>` environment variable at the unpacked binary when you want the runtime to prefer the vendored artifact.
+
+The checksums shipped next to each archive allow you to verify integrity before installing. When updating a tool, drop the new archive and checksum into the appropriate versioned folder, keeping older releases available if multiple environments rely on them.
 
 ## 🔧 External Tool Configuration
 
