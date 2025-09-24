@@ -68,15 +68,21 @@ api.nvim_create_autocmd("FileType", {
       buffer = buf,
       once = true,
       callback = function()
-        if vim.g.netrw_chgwin == target_winnr then
-          vim.g.netrw_chgwin = nil
-        end
-
-        if api.nvim_win_is_valid(win) then
-          pcall(api.nvim_win_close, win, true)
-        end
-
         vim.schedule(function()
+          local current_buf = api.nvim_get_current_buf()
+
+          if api.nvim_buf_is_valid(current_buf) and vim.bo[current_buf].filetype == "netrw" then
+            return
+          end
+
+          if vim.g.netrw_chgwin == target_winnr then
+            vim.g.netrw_chgwin = nil
+          end
+
+          if api.nvim_win_is_valid(win) then
+            pcall(api.nvim_win_close, win, true)
+          end
+
           if api.nvim_buf_is_valid(buf) then
             pcall(api.nvim_buf_delete, buf, { force = true })
           end
