@@ -3,6 +3,13 @@ local default_opts = { noremap = true, silent = true }
 
 map({ "n", "v" }, "<Space>", "<Nop>", default_opts)
 
+map(
+  "t",
+  "<Esc><Esc>",
+  [[<C-\><C-n>]],
+  vim.tbl_extend("force", default_opts, { desc = "Leave terminal mode" })
+)
+
 map("n", "<leader>w", "<cmd>w<cr>", vim.tbl_extend("force", default_opts, { desc = "Save file" }))
 map("n", "<leader>q", "<cmd>qa<cr>", vim.tbl_extend("force", default_opts, { desc = "Quit Neovim" }))
 map("n", "<leader>h", "<cmd>nohlsearch<cr>", vim.tbl_extend("force", default_opts, { desc = "Clear search highlight" }))
