@@ -58,6 +58,8 @@ To use the bundled binaries:
 2. Extract or mark it executable as required by the upstream release.
 3. Point the relevant `NVIM_PRO_KIT_<TOOL>` environment variable at the unpacked binary when you want the runtime to prefer the vendored artifact.
 
+Inside Neovim you can run the `:Tools` command to inspect the resolved paths for each helper and confirm that your environment variables are applied as expected.
+
 The checksums shipped next to each archive allow you to verify integrity before installing. When updating a tool, drop the new archive and checksum into the appropriate versioned folder, keeping older releases available if multiple environments rely on them.
 
 ## 🔧 External Tool Configuration
