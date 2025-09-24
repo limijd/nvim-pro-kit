@@ -1,3 +1,0 @@
-[submodule "examples/fish"]
-	path = examples/fish
-	url = https://github.com/fish-shell/fish-shell.git

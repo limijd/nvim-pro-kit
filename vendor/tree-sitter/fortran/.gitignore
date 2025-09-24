@@ -1,7 +1,0 @@
-Cargo.lock
-node_modules
-build
-dist
-target
-*.egg-info
-*.log
