@@ -34,6 +34,7 @@ return {
         cwd = "${workspaceFolder}",
         stopOnEntry = true,
         stopAtEntry = true,
+        launchCompleteCommand = "None",
 
         args = {},
       }
