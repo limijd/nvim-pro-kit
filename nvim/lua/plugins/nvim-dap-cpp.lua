@@ -87,7 +87,6 @@ return {
         launch.stopAtEntry = nil
         vim.notify("Loaded program into GDB; use :DapContinue to run it", vim.log.levels.INFO)
       end
-
       if #launch.args > 0 then
         vim.notify(string.format("Set program arguments: %s", table.concat(launch.args, " ")), vim.log.levels.INFO)
       end
@@ -95,6 +94,7 @@ return {
       dap.run(launch)
     end, {
       nargs = "*",
+
       bang = true,
       complete = "file",
       desc = "Debug an executable with GDB via nvim-dap",
