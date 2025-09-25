@@ -34,6 +34,7 @@ return {
         cwd = "${workspaceFolder}",
         stopOnEntry = true,
         stopAtEntry = true,
+        launchCompleteCommand = "None",
 
         args = {},
       }
@@ -66,6 +67,7 @@ return {
       if program == "" then
         program = pick_executable()
       else
+        -- Normalize any relative path or shell expansion to an absolute filename
         program = vim.fn.fnamemodify(vim.fn.expand(program), ":p")
       end
 
@@ -76,9 +78,18 @@ return {
       local launch = base_launch_config()
       launch.program = program
       launch.cwd = vim.fn.getcwd()
+      if opts.bang then
+        launch.launchCompleteCommand = "exec-run"
+      else
+        launch.launchCompleteCommand = "None"
+        launch.stopOnEntry = nil
+        launch.stopAtEntry = nil
+        vim.notify("Loaded program into GDB; use :DapContinue to run it", vim.log.levels.INFO)
+      end
       dap.run(launch)
     end, {
       nargs = "?",
+      bang = true,
       complete = "file",
       desc = "Debug an executable with GDB via nvim-dap",
     })
