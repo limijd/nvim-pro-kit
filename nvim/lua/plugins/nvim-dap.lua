@@ -8,10 +8,10 @@ return {
     local dap = require("dap")
 
     dap.repl.commands = vim.tbl_extend("force", dap.repl.commands or {}, {
-      up = function()
+      [".up"] = function()
         dap.up()
       end,
-      down = function()
+      [".down"] = function()
         dap.down()
       end,
     })
