@@ -23,6 +23,8 @@ return {
     map("n", "<F11>", dap.step_into, vim.tbl_extend("force", opts, { desc = "DAP Step Into" }))
     map("n", "<F12>", dap.step_out, vim.tbl_extend("force", opts, { desc = "DAP Step Out" }))
 
+    map("n", "<F4>", dap.toggle_breakpoint, vim.tbl_extend("force", opts, { desc = "DAP Toggle breakpoint" }))
+
     map("n", "<leader>db", dap.toggle_breakpoint, vim.tbl_extend("force", opts, { desc = "DAP Toggle breakpoint" }))
     map("n", "<leader>dB", function()
       dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
