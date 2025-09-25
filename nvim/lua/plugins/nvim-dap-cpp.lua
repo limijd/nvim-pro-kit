@@ -6,7 +6,7 @@ return {
   dir = util.repo_root(),
   virtual = true,
   dependencies = { "nvim-dap" },
-  ft = { "c", "cpp", "rust" },
+  event = "VeryLazy",
 
   config = function()
     local dap = require("dap")
