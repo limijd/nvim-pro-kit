@@ -14,9 +14,9 @@ return {
 
     dap.adapters.gdb = {
       type = "executable",
-      command = "gdb",
-      args = { "-i", "dap"},
-    } 
+      command = gdb,
+      args = { "-i", "dap" },
+    }
 
     dap.configurations.cpp = {
       {
@@ -57,6 +57,27 @@ return {
 
     dap.configurations.c = dap.configurations.cpp
     dap.configurations.rust = dap.configurations.cpp
+
+    vim.api.nvim_create_user_command("DapGdb", function(command_opts)
+      local provided = command_opts.fargs
+      if #provided == 0 then
+        vim.notify("DapGdb requires an executable path", vim.log.levels.ERROR)
+        return
+      end
+
+      local args = vim.deepcopy(provided)
+      local executable = table.remove(args, 1)
+
+      dap.run({
+        name = string.format("GDB: %s", executable),
+        type = "gdb",
+        request = "launch",
+        program = vim.fn.fnamemodify(executable, ":p"),
+        args = args,
+        cwd = vim.fn.getcwd(),
+        stopAtBeginningOfMainSubprogram = true,
+      })
+    end, { nargs = "+", complete = "file" })
 
     end,
 }
