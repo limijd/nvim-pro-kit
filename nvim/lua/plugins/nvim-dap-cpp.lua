@@ -7,6 +7,7 @@ return {
   virtual = true,
   dependencies = { "nvim-dap" },
   ft = { "c", "cpp", "rust" },
+
   config = function()
     local dap = require("dap")
 
@@ -18,61 +19,38 @@ return {
       )
     end
 
+    -- 1) 适配器：直接用 gdb 的 DAP 接口
     dap.adapters.cpp = {
-      type = "executable",
-      command = gdb or "gdb",
-      args = { "--interpreter=dap" },
-      name = "gdb",
+      type = 'executable',
+      command = 'gdb',
+      args = { '--quiet', '--interpreter=dap' }, -- 关键：启用 DAP
+      name = 'gdb'
     }
 
-    local function prompt_program()
-      return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/", "file")
+    -- 2) 针对 C/C++/Rust 的配置
+    local function pick_exe()
+      return vim.fn.input('Path to executable: ', vim.fn.getcwd() .. '/', 'file')
     end
 
-    local function prompt_arguments()
-      local input = vim.fn.input("Program arguments: ")
-      if input == nil or input == "" then
-        return {}
-      end
-      return vim.split(input, "%s+", { trimempty = true })
-    end
-
-    local function clone_configurations(configs)
-      local result = {}
-      for _, cfg in ipairs(configs) do
-        table.insert(result, vim.deepcopy(cfg))
-      end
-      return result
-    end
-
-    local configurations = {
+    dap.configurations.c = {
       {
-        name = "Launch executable",
-        type = "cpp",
-        request = "launch",
-        program = prompt_program,
-        args = prompt_arguments,
-        cwd = "${workspaceFolder}",
-        stopAtEntry = false,
-        setupCommands = {
-          {
-            text = "-enable-pretty-printing",
-            description = "Enable GDB pretty printing",
-            ignoreFailures = true,
-          },
-        },
+        name = '(gdb) Launch',
+        type = 'gdb',
+        request = 'launch',
+        program = pick_exe,          -- 运行时选择 ./a.out 等
+        cwd = '${workspaceFolder}',
+        stopOnEntry = false,
+        args = {},                   -- 需要参数时填 { "--flag", "value" }
       },
       {
-        name = "Attach to process",
-        type = "cpp",
-        request = "attach",
-        pid = require("dap.utils").pick_process,
-        cwd = "${workspaceFolder}",
+        name = '(gdb) Attach to process',
+        type = 'gdb',
+        request = 'attach',
+        processId = require('dap.utils').pick_process,
       },
     }
 
-    dap.configurations.cpp = configurations
-    dap.configurations.c = clone_configurations(configurations)
-    dap.configurations.rust = clone_configurations(configurations)
+    dap.configurations.cpp  = dap.configurations.c
+    dap.configurations.rust = dap.configurations.c
   end,
 }

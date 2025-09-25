@@ -16,48 +16,7 @@ return {
     local map = vim.keymap.set
     local opts = { silent = true }
 
-    local function continue()
-      local session = dap.session()
-      if session then
-        dap.continue()
-        return
-      end
-
-      local ft = vim.bo.filetype
-      local configs = dap.configurations[ft]
-      if configs and #configs > 0 then
-        dap.continue()
-        return
-      end
-
-      local entries = {}
-      for language, language_configs in pairs(dap.configurations) do
-        for _, cfg in ipairs(language_configs) do
-          table.insert(entries, {
-            label = string.format("%s: %s", language, cfg.name or "<unnamed>"),
-            config = vim.deepcopy(cfg),
-          })
-        end
-      end
-
-      if vim.tbl_isempty(entries) then
-        vim.notify("nvim-pro-kit: No debug configurations available.", vim.log.levels.ERROR)
-        return
-      end
-
-      vim.ui.select(entries, {
-        prompt = "Select debug configuration",
-        format_item = function(item)
-          return item.label
-        end,
-      }, function(choice)
-        if choice then
-          dap.run(choice.config)
-        end
-      end)
-    end
-
-    map("n", "<F5>", continue, vim.tbl_extend("force", opts, { desc = "DAP Continue" }))
+    map("n", "<F5>", dap.continue, vim.tbl_extend("force", opts, { desc = "DAP Continue" }))
     map("n", "<F6>", dap.restart, vim.tbl_extend("force", opts, { desc = "DAP Restart" }))
     map("n", "<F7>", dap.terminate, vim.tbl_extend("force", opts, { desc = "DAP Terminate" }))
     map("n", "<F10>", dap.step_over, vim.tbl_extend("force", opts, { desc = "DAP Step Over" }))
