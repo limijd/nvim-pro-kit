@@ -17,7 +17,10 @@ return {
     dap.adapters.gdb = {
       type = "executable",
       command = gdb,
-      args = { "-i", "dap" },
+      args = {
+        "--interpreter=dap",
+        "--eval-command=break main",
+      },
     }
 
     dap.adapters.cpp = dap.adapters.gdb
@@ -43,15 +46,6 @@ return {
     dap.configurations.c = {
       vim.tbl_extend("force", base_launch_config(), { program = pick_executable }),
       {
-        name = '(gdb) Launch',
-        type = "gdb",
-        request = "launch",
-        program = pick_exe,
-        cwd = "${workspaceFolder}",
-        stopOnEntry = true,
-        args = {},
-      },
-      {
         name = '(gdb) Attach to process',
         type = "gdb",
         request = "attach",
@@ -63,10 +57,12 @@ return {
     dap.configurations.rust = dap.configurations.c
 
     pcall(vim.api.nvim_create_user_command, "DapGdb", function(opts)
-      local program = opts.args
-      if program == "" then
+      local argv = vim.deepcopy(opts.fargs)
+      local program
+      if #argv == 0 then
         program = pick_executable()
       else
+        program = table.remove(argv, 1)
         -- Normalize any relative path or shell expansion to an absolute filename
         program = vim.fn.fnamemodify(vim.fn.expand(program), ":p")
       end
@@ -75,8 +71,13 @@ return {
         return
       end
 
+      for index, value in ipairs(argv) do
+        argv[index] = vim.fn.expand(value)
+      end
+
       local launch = base_launch_config()
       launch.program = program
+      launch.args = argv
       launch.cwd = vim.fn.getcwd()
       if opts.bang then
         launch.launchCompleteCommand = "exec-run"
@@ -86,9 +87,14 @@ return {
         launch.stopAtEntry = nil
         vim.notify("Loaded program into GDB; use :DapContinue to run it", vim.log.levels.INFO)
       end
+      if #launch.args > 0 then
+        vim.notify(string.format("Set program arguments: %s", table.concat(launch.args, " ")), vim.log.levels.INFO)
+      end
+
       dap.run(launch)
     end, {
-      nargs = "?",
+      nargs = "*",
+
       bang = true,
       complete = "file",
       desc = "Debug an executable with GDB via nvim-dap",
