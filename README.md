@@ -8,6 +8,7 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
 - [✨ Highlights](#-highlights)
 - [🚀 Installation](#-installation)
 - [🧰 Tools](#-tools)
+- [🐞 Debugging](#-debugging)
 - [📦 Managing Vendored Plugins](#-managing-vendored-plugins)
   - [Plugin manifest](#plugin-manifest)
   - [Running `vendor_update.py`](#running-vendor_updatepy)
@@ -61,6 +62,61 @@ To use the bundled binaries:
 Inside Neovim you can run the `:Tools` command to inspect the resolved paths for each helper and confirm that your environment variables are applied as expected.
 
 The checksums shipped next to each archive allow you to verify integrity before installing. When updating a tool, drop the new archive and checksum into the appropriate versioned folder, keeping older releases available if multiple environments rely on them.
+
+## 🐞 Debugging
+
+`nvim-pro-kit` ships with a full Debug Adapter Protocol (DAP) experience powered by
+[`mfussenegger/nvim-dap`](https://github.com/mfussenegger/nvim-dap),
+[`rcarriga/nvim-dap-ui`](https://github.com/rcarriga/nvim-dap-ui), and the bundled
+Python helpers. The configuration loads on demand so opening Neovim stays fast,
+yet once a debug session starts you get pre-wired UI affordances, tailored
+keymaps, and quality-of-life tweaks.
+
+### Default keymaps
+
+Core debugger control lives on the function keys so you can drive a session with
+one hand:
+
+| Mapping     | Action                  |
+| ----------- | ----------------------- |
+| `<F5>`      | Continue / start debug  |
+| `<F6>`      | Restart the current run |
+| `<F7>`      | Terminate the session   |
+| `<F10>`     | Step over               |
+| `<F11>`     | Step into               |
+| `<F12>`     | Step out                |
+| `<F4>`      | Toggle breakpoint       |
+
+Leader mappings cover the rest of the workflow:
+
+| Mapping          | Action                                   |
+| ---------------- | ---------------------------------------- |
+| `<leader>db`     | Toggle breakpoint                        |
+| `<leader>dB`     | Set a conditional breakpoint             |
+| `<leader>dl`     | Re-run the last configuration            |
+| `<leader>dr`     | Toggle the REPL                          |
+| `<leader>du`     | Toggle the DAP UI layout                 |
+| `<leader>de`     | Evaluate expression under cursor         |
+| `<leader>de` (v) | Evaluate the current visual selection    |
+| `<leader>dn`     | Python: debug nearest test (method)      |
+| `<leader>dN`     | Python: debug current test class         |
+| `<leader>ds` (v) | Python: debug the selected code snippet  |
+
+### Debug UI ergonomics
+
+- DAP UI panels open automatically on session start and close when the adapter
+  exits, so the layout never lingers after a run.
+- Each panel receives a descriptive winbar title (`DAP: Scopes`, `DAP: Console`,
+  …) to help you distinguish split windows at a glance.
+- The floating control panel always shows a `DAP: REPL` shortcut next to the
+  standard buttons.
+- Breakpoints and the current execution point use Nerd Font glyphs that match
+  the diagnostic highlight groups, making it easy to see conditions or rejected
+  breakpoints in the sign column.
+
+Inside the integrated REPL you can also use the custom `.up` and `.down`
+commands to move up or down the stack frame list without reaching for the mouse
+or command palette.
 
 ## 🔧 External Tool Configuration
 
