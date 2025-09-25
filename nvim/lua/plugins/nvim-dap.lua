@@ -7,6 +7,15 @@ return {
   config = function()
     local dap = require("dap")
 
+    dap.repl.commands = vim.tbl_extend("force", dap.repl.commands or {}, {
+      up = function()
+        dap.up()
+      end,
+      down = function()
+        dap.down()
+      end,
+    })
+
     local sign = vim.fn.sign_define
     sign("DapBreakpoint", { text = "", texthl = "DiagnosticSignError", linehl = "", numhl = "" })
     sign("DapBreakpointCondition", { text = "", texthl = "DiagnosticSignWarn", linehl = "", numhl = "" })
