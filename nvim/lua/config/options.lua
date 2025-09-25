@@ -2,7 +2,7 @@ local opt = vim.opt
 
 opt.termguicolors = true
 opt.number = true
-opt.relativenumber = true
+opt.relativenumber = false
 opt.cursorline = true
 opt.expandtab = true
 opt.shiftwidth = 4
