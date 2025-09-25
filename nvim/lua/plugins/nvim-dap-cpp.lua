@@ -47,7 +47,7 @@ return {
         request = "launch",
         program = program,
         cwd = vim.fn.getcwd(),
-        stopOnEntry = false,
+        stopOnEntry = true,
         args = {},
       }
     end
@@ -75,7 +75,7 @@ return {
         request = "launch",
         program = pick_exe,
         cwd = "${workspaceFolder}",
-        stopOnEntry = false,
+        stopOnEntry = true,
         args = {},
       },
       {
