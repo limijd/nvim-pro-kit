@@ -70,7 +70,7 @@ local spec = {
         indicator = {
           style = "underline",
         },
-        numbers = "ordinal",
+        numbers = "buffer_id",
       },
     })
 
