@@ -6,7 +6,7 @@ return {
   dir = util.repo_root(),
   virtual = true,
   dependencies = { "nvim-dap" },
-  cmd = { "Dap_gdb" },
+  cmd = { "DapGdb" },
   event = "VeryLazy",
 
   config = function()
@@ -89,7 +89,7 @@ return {
     dap.configurations.cpp  = dap.configurations.c
     dap.configurations.rust = dap.configurations.c
 
-    pcall(vim.api.nvim_create_user_command, "Dap_gdb", function(opts)
+    pcall(vim.api.nvim_create_user_command, "DapGdb", function(opts)
       if not gdb then
         notify("nvim-pro-kit: GDB is not available (set NVIM_PRO_KIT_GDB or install gdb).")
         return
@@ -97,7 +97,7 @@ return {
 
       local expanded = vim.fn.expand(opts.args)
       if expanded == "" then
-        notify("nvim-pro-kit: Provide a path to an executable, e.g. :dap_gdb ./a.out")
+        notify("nvim-pro-kit: Provide a path to an executable, e.g. :DapGdb ./a.out")
         return
       end
 
