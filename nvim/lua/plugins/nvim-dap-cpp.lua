@@ -19,13 +19,16 @@ return {
       )
     end
 
-    -- 1) 适配器：直接用 gdb 的 DAP 接口
-    dap.adapters.cpp = {
-      type = 'executable',
-      command = 'gdb',
-      args = { '--quiet', '--interpreter=dap' }, -- 关键：启用 DAP
-      name = 'gdb'
+    -- 1) Adapter: wire up the built-in GDB DAP interface
+    local adapter = {
+      type = "executable",
+      command = gdb or "gdb",
+      args = { "--quiet", "--interpreter=dap" },
+      name = "gdb",
     }
+
+    dap.adapters.gdb = adapter
+    dap.adapters.cpp = adapter
 
     -- 2) 针对 C/C++/Rust 的配置
     local function pick_exe()
@@ -35,17 +38,17 @@ return {
     dap.configurations.c = {
       {
         name = '(gdb) Launch',
-        type = 'gdb',
-        request = 'launch',
-        program = pick_exe,          -- 运行时选择 ./a.out 等
-        cwd = '${workspaceFolder}',
+        type = "gdb",
+        request = "launch",
+        program = pick_exe,
+        cwd = "${workspaceFolder}",
         stopOnEntry = false,
-        args = {},                   -- 需要参数时填 { "--flag", "value" }
+        args = {},
       },
       {
         name = '(gdb) Attach to process',
-        type = 'gdb',
-        request = 'attach',
+        type = "gdb",
+        request = "attach",
         processId = require('dap.utils').pick_process,
       },
     }
