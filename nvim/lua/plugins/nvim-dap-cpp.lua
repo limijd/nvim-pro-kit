@@ -34,6 +34,7 @@ return {
         cwd = "${workspaceFolder}",
         stopOnEntry = true,
         stopAtEntry = true,
+
         args = {},
       }
     end
@@ -41,7 +42,16 @@ return {
     dap.configurations.c = {
       vim.tbl_extend("force", base_launch_config(), { program = pick_executable }),
       {
-        name = "(gdb) Attach to process",
+        name = '(gdb) Launch',
+        type = "gdb",
+        request = "launch",
+        program = pick_exe,
+        cwd = "${workspaceFolder}",
+        stopOnEntry = true,
+        args = {},
+      },
+      {
+        name = '(gdb) Attach to process',
         type = "gdb",
         request = "attach",
         processId = require("dap.utils").pick_process,
