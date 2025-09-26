@@ -216,8 +216,16 @@
     "ref": "master"
   },
   {
+    "category": "notes",
+    "description": "Note-taking toolkit for working with Obsidian vaults from Neovim.",
+    "depends": ["plenary.nvim"],
+    "url": "https://github.com/epwalsh/obsidian.nvim",
+    "name": "obsidian.nvim",
+    "ref": "main"
+  },
+  {
     "category": "ultility",
-    "description": "Swiss Army Knife among Neovim Plugins", 
+    "description": "Swiss Army Knife among Neovim Plugins",
     "depends": [],
     "url": "https://github.com/nvim-mini/mini.nvim",
     "name": "mini.nvim",
