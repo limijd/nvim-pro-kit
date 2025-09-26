@@ -45,6 +45,7 @@ return {
       },
       window = {
         delay = 200,
+          config = {width = 50},
       },
     })
   end,
