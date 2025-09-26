@@ -48,6 +48,14 @@
     "ref": "main"
   },
   {
+    "category": "git",
+    "description": "Full-featured Git wrapper enabling Git commands inside Neovim.",
+    "depends": [],
+    "url": "https://github.com/tpope/vim-fugitive",
+    "name": "vim-fugitive",
+    "ref": "master"
+  },
+  {
     "category": "library",
     "description": "Utility Lua functions used by many Neovim plugins.",
     "depends": [],

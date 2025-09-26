@@ -15,7 +15,7 @@ return function(api)
     end,
     {
       description = "Git distributed version control system.",
-      plugins = { "git-worktree.nvim", "gitsigns.nvim", "diffview.nvim" },
+      plugins = { "git-worktree.nvim", "gitsigns.nvim", "diffview.nvim", "vim-fugitive" },
     }
   )
 
