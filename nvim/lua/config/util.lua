@@ -18,19 +18,34 @@ local function find_repo_root()
     end
   end
 
-  local dir = vim.fs.normalize(resolved_config_root)
-  while dir do
-    local git_dir = dir .. "/.git"
-    local stat = uv.fs_stat(git_dir)
-    if stat then
-      return dir
-    end
-    local parent = vim.fs.dirname(dir)
-    if not parent or parent == dir then
-      break
-    end
-    dir = parent
+  local source = debug.getinfo(1, "S")
+  source = source and source.source or ""
+  if source:sub(1, 1) == "@" then
+    source = source:sub(2)
   end
+
+  if source ~= "" then
+    local file_path = uv.fs_realpath(source) or source
+    local dir = vim.fs.dirname(file_path)
+    while dir and dir ~= "" do
+      if vim.fs.basename(dir) == "lua" then
+        local parent = vim.fs.dirname(dir)
+        if parent and parent ~= "" then
+          local maybe_root = vim.fs.dirname(parent)
+          if maybe_root and maybe_root ~= "" and dir_exists(maybe_root) then
+            return vim.fs.normalize(maybe_root)
+          end
+        end
+        break
+      end
+      local parent = vim.fs.dirname(dir)
+      if not parent or parent == dir then
+        break
+      end
+      dir = parent
+    end
+  end
+
   return vim.fs.normalize(resolved_config_root)
 end
 
