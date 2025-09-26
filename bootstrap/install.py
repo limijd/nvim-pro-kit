@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Installer for linking the Neovim configuration without touching the repo."""
-from __future__ import annotations
 
 import argparse
 import os
@@ -8,6 +7,7 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import List, Optional
 
 
 class InstallError(RuntimeError):
@@ -29,7 +29,7 @@ def ensure_repo_layout(root: Path) -> None:
         raise InstallError("lazy.nvim is missing from vendor/plugins; cannot continue")
 
 
-def config_home(override: Path | None = None) -> Path:
+def config_home(override: Optional[Path] = None) -> Path:
     if override is not None:
         return override.expanduser()
 
@@ -57,7 +57,7 @@ def remove_existing(target: Path) -> None:
         target.unlink(missing_ok=True)
 
 
-def backup_existing(target: Path, create_backup: bool) -> Path | None:
+def backup_existing(target: Path, create_backup: bool) -> Optional[Path]:
     if not (target.exists() or target.is_symlink()):
         return None
 
@@ -81,7 +81,7 @@ def create_symlink(target: Path, source: Path) -> None:
 
 
 def install(
-    config_override: Path | None = None,
+    config_override: Optional[Path] = None,
     *,
     create_backup: bool = True,
     dry_run: bool = False,
@@ -123,7 +123,7 @@ def install(
     print("No files inside the repository were modified.")
 
 
-def parse_args(argv: list[str] | None) -> argparse.Namespace:
+def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--config-home",
@@ -144,7 +144,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     try:
         install(
