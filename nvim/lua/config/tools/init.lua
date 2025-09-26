@@ -162,9 +162,13 @@ local lsp_args = {
   ts_ls = { "--stdio" },
   clangd = {
     "--background-index",
+    "--background-index-priority=background",
     "--clang-tidy",
     "--completion-style=detailed",
     "--function-arg-placeholders",
+    "--limit-results=50",
+    "--malloc-trim",
+    "-j=1",
   },
 }
 
