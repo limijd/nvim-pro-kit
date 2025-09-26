@@ -425,4 +425,26 @@ You now have a fully configured Neovim setup ready for professional use on a fre
 
 ## 🗒️ Release Notes
 
-The project follows semantic versioning starting with **v1.0.0 (2025-09-23)**, which delivers the fully vendored plugin suite, offline bootstrap installer, and manifest-driven maintenance scripts described above. See [`CHANGELOG.md`](./CHANGELOG.md) for the complete history and upgrade guidance.
+### v1.2.0 – 2025-09-26
+
+- Added an Obsidian knowledge base workflow with environment-aware workspace detection, Telescope integration, and leader key mappings for creating, switching, and searching notes.【F:nvim/lua/plugins/obsidian.lua†L1-L86】
+- Bundled the `mini.nvim` suite (AI text objects, commenting, surround editing, auto pairs, and MiniClue prompts) so common editing conveniences work out of the box on every install.【F:nvim/lua/plugins/mini.lua†L1-L47】
+- Shipped Fugitive commands and keymaps that respect the resolved Git binary, giving a first-class CLI-backed Git experience directly inside Neovim.【F:nvim/lua/plugins/vim-fugitive.lua†L1-L22】
+- Hardened the bootstrap installer and Tree-sitter sync script to run on stock Python 3 interpreters by removing the `__future__` dependency and clarifying error handling, improving compatibility on older distributions.【F:bootstrap/install.py†L1-L118】【F:scripts/treesitter-sync.py†L1-L56】
+- Updated repository root discovery to follow the utility module’s location when `$NVIM_PRO_KIT_ROOT` is unset, ensuring vendored assets resolve correctly even when the config is copied elsewhere.【F:nvim/lua/config/util.lua†L1-L48】
+
+### v1.1.0 – 2025-09-26
+
+- Extended the DAP REPL with `.up` and `.down` commands so you can walk the call stack without leaving the keyboard, complementing the curated debug keymaps and sign icons.【F:nvim/lua/plugins/nvim-dap.lua†L8-L43】
+- Display buffer identifiers in Bufferline to match the picker UI and streamline buffer jumps during large sessions.【F:nvim/lua/plugins/bufferline.lua†L32-L70】
+- Tweaked ToggleTerm floating terminal defaults (curved border, zero winblend) to keep the cursor visible and readable across terminal emulators.【F:nvim/lua/plugins/toggleterm.lua†L12-L22】
+- Tuned clangd launch arguments to cap indexing threads and memory usage, making remote or resource-constrained development smoother.【F:nvim/lua/config/tools/init.lua†L101-L118】
+- Stopped forcing the global `unnamedplus` clipboard, eliminating stray OSC52 artifacts when running inside tmux panes.【F:nvim/lua/config/options.lua†L3-L20】
+
+### v1.0.0 – 2025-09-23
+
+- Initial general availability release with every Neovim plugin, Tree-sitter grammar, and helper CLI vendored for offline installation.【F:CHANGELOG.md†L6-L13】
+- Python bootstrap installer that links the repository into a user’s configuration directory while offering automatic backups.【F:CHANGELOG.md†L15-L16】【F:bootstrap/install.py†L1-L118】
+- Manifest-driven maintenance scripts (`vendor_update.py`, `treesitter-sync.py`, and `treesitter-vendor.py`) that keep plugins and parsers reproducible.【F:CHANGELOG.md†L7-L13】【F:scripts/treesitter-sync.py†L1-L56】
+
+See [`CHANGELOG.md`](./CHANGELOG.md) for the complete history and upgrade guidance.
