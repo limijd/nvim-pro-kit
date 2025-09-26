@@ -8,7 +8,6 @@ return {
     require("mini.ai").setup()
     require("mini.comment").setup()
     require("mini.surround").setup()
-    require("mini.pairs").setup()
 
     local clue = require("mini.clue")
     clue.setup({
