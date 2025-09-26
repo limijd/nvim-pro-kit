@@ -206,5 +206,13 @@
     "url": "https://github.com/nvim-tree/nvim-web-devicons",
     "name": "nvim-web-devicons",
     "ref": "master"
+  },
+  {
+    "category": "ultility",
+    "description": "Swiss Army Knife among Neovim Plugins", 
+    "depends": [],
+    "url": "https://github.com/nvim-mini/mini.nvim",
+    "name": "mini.nvim",
+    "ref": "main"
   }
 ]
