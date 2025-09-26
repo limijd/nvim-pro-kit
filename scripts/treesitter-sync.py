@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Build and install Tree-sitter parsers from vendored sources."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -14,7 +12,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 from contextlib import contextmanager
-from typing import Iterable, Iterator, Sequence
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set
 
 
 class BuildError(RuntimeError):
@@ -70,23 +68,20 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 
 def repo_root() -> Path:
-    try:
-        output = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            text=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        raise SystemExit("error: failed to determine git repository root") from exc
-    return Path(output.strip())
+    script_path = Path(__file__).resolve()
+    for candidate in script_path.parents:
+        if (candidate / "nvim").is_dir() and (candidate / "scripts").is_dir():
+            return candidate
+    raise SystemExit("error: failed to determine repository root from script location")
 
 
-def load_manifest(path: Path) -> list[str]:
+def load_manifest(path: Path) -> List[str]:
     try:
         raw_lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
         raise SystemExit(f"error: failed to read manifest at {path}: {exc}") from exc
 
-    languages: list[str] = []
+    languages: List[str] = []
     for line in raw_lines:
         stripped = line.split("#", 1)[0].strip()
         if stripped:
@@ -94,7 +89,7 @@ def load_manifest(path: Path) -> list[str]:
     return languages
 
 
-def load_metadata(path: Path) -> dict[str, dict[str, object]]:
+def load_metadata(path: Path) -> Dict[str, Dict[str, object]]:
     if not path.is_file():
         raise SystemExit(f"error: metadata not found at {path}")
     try:
@@ -145,7 +140,7 @@ def tar_safe_extract(tar: tarfile.TarFile, destination: Path) -> None:
 
 @contextmanager
 def parser_sources(
-    lang: str, info: dict[str, object], vendor_root: Path
+    lang: str, info: Dict[str, object], vendor_root: Path
 ) -> Iterator[Path]:
     archive_path = parser_archive_path(vendor_root, lang)
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -182,7 +177,7 @@ def parser_sources(
 
 def compile_parser(
     lang: str,
-    info: dict[str, object],
+    info: Dict[str, object],
     vendor_root: Path,
     runtime_include: Path,
     output_path: Path,
@@ -195,7 +190,7 @@ def compile_parser(
     uses_cpp = has_cpp_sources(files)
 
     with parser_sources(lang, info, vendor_root) as base_dir:
-        missing: list[str] = []
+        missing: List[str] = []
         for rel in files:
             if not (base_dir / rel).is_file():
                 missing.append(rel)
@@ -206,7 +201,7 @@ def compile_parser(
 
         with tempfile.TemporaryDirectory() as build_dir:
             tmp_output = Path(build_dir) / output_path.name
-            args: list[str] = [compiler]
+            args: List[str] = [compiler]
             args.extend(["-I", "./src"])
             args.extend(["-I", str(runtime_include)])
             args.append("-Os")
@@ -245,13 +240,13 @@ def compile_parser(
             shutil.copy2(tmp_output, output_path)
 
 
-def list_parsers(parser_dir: Path, extension: str) -> set[str]:
+def list_parsers(parser_dir: Path, extension: str) -> Set[str]:
     if not parser_dir.is_dir():
         return set()
     return {path.stem for path in parser_dir.glob(f"*{extension}")}
 
 
-def list_revisions(info_dir: Path) -> set[str]:
+def list_revisions(info_dir: Path) -> Set[str]:
     if not info_dir.is_dir():
         return set()
     return {path.stem for path in info_dir.glob("*.revision")}
@@ -276,7 +271,7 @@ def prune_extras(extra: Iterable[str], parser_dir: Path, info_dir: Path, extensi
             pass
 
 
-def write_revision(info_dir: Path, lang: str, revision: str | None) -> None:
+def write_revision(info_dir: Path, lang: str, revision: Optional[str]) -> None:
     info_dir.mkdir(parents=True, exist_ok=True)
     path = info_dir / f"{lang}.revision"
     text = (revision or "").strip()
@@ -286,7 +281,7 @@ def write_revision(info_dir: Path, lang: str, revision: str | None) -> None:
 
 def verify_installation(
     lang: str,
-    info: dict[str, object],
+    info: Dict[str, object],
     parser_dir: Path,
     info_dir: Path,
     extension: str,
@@ -313,8 +308,8 @@ def verify_installation(
 
 def report(
     manifest_langs: Sequence[str],
-    installed: set[str],
-    revisions: set[str],
+    installed: Set[str],
+    revisions: Set[str],
     *,
     check: bool,
     prune: bool,
