@@ -425,6 +425,10 @@ You now have a fully configured Neovim setup ready for professional use on a fre
 
 ## 🗒️ Release Notes
 
+### v1.0.3 – 2025-09-26
+
+- Fix issues exposed when deploy to old Linux.
+
 ### v1.0.2 – 2025-09-26
 
 - Added an Obsidian knowledge base workflow with environment-aware workspace detection, Telescope integration, and leader key mappings for creating, switching, and searching notes.【F:nvim/lua/plugins/obsidian.lua†L1-L86】
