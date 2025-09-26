@@ -425,7 +425,7 @@ You now have a fully configured Neovim setup ready for professional use on a fre
 
 ## 🗒️ Release Notes
 
-### v1.2.0 – 2025-09-26
+### v1.0.2 – 2025-09-26
 
 - Added an Obsidian knowledge base workflow with environment-aware workspace detection, Telescope integration, and leader key mappings for creating, switching, and searching notes.【F:nvim/lua/plugins/obsidian.lua†L1-L86】
 - Bundled the `mini.nvim` suite (AI text objects, commenting, surround editing, auto pairs, and MiniClue prompts) so common editing conveniences work out of the box on every install.【F:nvim/lua/plugins/mini.lua†L1-L47】
@@ -433,7 +433,7 @@ You now have a fully configured Neovim setup ready for professional use on a fre
 - Hardened the bootstrap installer and Tree-sitter sync script to run on stock Python 3 interpreters by removing the `__future__` dependency and clarifying error handling, improving compatibility on older distributions.【F:bootstrap/install.py†L1-L118】【F:scripts/treesitter-sync.py†L1-L56】
 - Updated repository root discovery to follow the utility module’s location when `$NVIM_PRO_KIT_ROOT` is unset, ensuring vendored assets resolve correctly even when the config is copied elsewhere.【F:nvim/lua/config/util.lua†L1-L48】
 
-### v1.1.0 – 2025-09-26
+### v1.0.1 – 2025-09-26
 
 - Extended the DAP REPL with `.up` and `.down` commands so you can walk the call stack without leaving the keyboard, complementing the curated debug keymaps and sign icons.【F:nvim/lua/plugins/nvim-dap.lua†L8-L43】
 - Display buffer identifiers in Bufferline to match the picker UI and streamline buffer jumps during large sessions.【F:nvim/lua/plugins/bufferline.lua†L32-L70】
