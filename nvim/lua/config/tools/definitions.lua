@@ -198,40 +198,6 @@ return function(api)
   )
 
   define(
-    "tree_sitter",
-    function()
-      return resolve("NVIM_PRO_KIT_TREE_SITTER", {
-        linux_x86_64 = {
-          repo_tool("tools/linux_x86_64/tree-sitter/latest/tree-sitter"),
-          repo_tool("tools/linux_x86_64/tree_sitter/latest/tree-sitter"),
-          "/usr/bin/tree-sitter",
-          "/usr/local/bin/tree-sitter",
-        },
-        linux_aarch64 = {
-          repo_tool("tools/linux_aarch64/tree-sitter/latest/tree-sitter"),
-          repo_tool("tools/linux_aarch64/tree_sitter/latest/tree-sitter"),
-          "/usr/bin/tree-sitter",
-          "/usr/local/bin/tree-sitter",
-        },
-        macos_x86_64 = {
-          repo_tool("tools/macos_x86_64/tree-sitter/latest/tree-sitter"),
-          repo_tool("tools/macos_x86_64/tree_sitter/latest/tree-sitter"),
-          "/usr/local/bin/tree-sitter",
-        },
-        macos_arm64 = {
-          repo_tool("tools/macos_arm64/tree-sitter/latest/tree-sitter"),
-          repo_tool("tools/macos_arm64/tree_sitter/latest/tree-sitter"),
-          "/opt/homebrew/bin/tree-sitter",
-        },
-      }, { "tree-sitter" })
-    end,
-    {
-      description = "Tree-sitter CLI for working with parser grammars.",
-      plugins = {},
-    }
-  )
-
-  define(
     "make",
     function()
       return resolve("NVIM_PRO_KIT_MAKE", {
