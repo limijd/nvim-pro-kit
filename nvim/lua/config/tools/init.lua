@@ -2,8 +2,10 @@ local M = {}
 
 local api = vim.api
 local uv = vim.uv or vim.loop
+local util = require("config.util")
 local dir_separator = package.config:sub(1, 1)
 local path_separator = package.config:sub(3, 3)
+local repo_root = util.repo_root()
 
 local function detect_platform()
   local uname = (uv and uv.os_uname and uv.os_uname()) or {}
@@ -154,6 +156,7 @@ require("config.tools.definitions")({
   define = define,
   resolve = resolve,
   mason_tool = mason_tool,
+  repo_root = repo_root,
 })
 
 local lsp_args = {
