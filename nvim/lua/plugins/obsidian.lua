@@ -106,20 +106,37 @@ return {
     local workspace_env = vim.env.NVIM_PRO_KIT_OBSIDIAN_WORKSPACES or vim.env.OBSIDIAN_WORKSPACES
 
     local workspaces = parse_workspaces(workspace_env)
+    local workspace_env_configured = workspace_env and vim.trim(workspace_env) ~= ""
+
     if not workspaces then
       local expanded = vim.fn.expand(default_path)
       local normalized = vim.fs.normalize(expanded)
-      workspaces = {
-        {
-          name = "notes",
-          path = normalized,
-        },
-      }
+      local stat = normalized and vim.loop.fs_stat(normalized) or nil
+
+      if not stat or stat.type ~= "directory" then
+        if workspace_env_configured then
+          workspaces = {
+            {
+              name = "notes",
+              path = normalized,
+            },
+          }
+        else
+          return
+        end
+      else
+        workspaces = {
+          {
+            name = "notes",
+            path = normalized,
+          },
+        }
+      end
     end
 
     local existing, missing = filter_existing_workspaces(workspaces)
 
-    if #missing > 0 then
+    if #missing > 0 and workspace_env_configured then
       local lines = { "obsidian.nvim workspaces not found:" }
       for _, workspace in ipairs(missing) do
         local label = workspace.name and (workspace.name .. " → ") or ""
@@ -134,6 +151,9 @@ return {
     end
 
     if #existing == 0 then
+      if not workspace_env_configured then
+        return
+      end
       vim.schedule(function()
         vim.notify(
           "obsidian.nvim disabled because no workspace directories exist.\n" ..
