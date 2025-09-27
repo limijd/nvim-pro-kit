@@ -36,6 +36,24 @@ local function parse_workspaces(value)
   end
 end
 
+local function filter_existing_workspaces(workspaces)
+  if not workspaces then
+    return {}, {}
+  end
+
+  local valid, missing = {}, {}
+  for _, workspace in ipairs(workspaces) do
+    local stat = vim.loop.fs_stat(workspace.path)
+    if stat and stat.type == "directory" then
+      table.insert(valid, workspace)
+    else
+      table.insert(missing, workspace)
+    end
+  end
+
+  return valid, missing
+end
+
 return {
   name = "obsidian.nvim",
   dir = util.vendor("obsidian.nvim"),
@@ -99,8 +117,37 @@ return {
       }
     end
 
+    local existing, missing = filter_existing_workspaces(workspaces)
+
+    if #missing > 0 then
+      local lines = { "obsidian.nvim workspaces not found:" }
+      for _, workspace in ipairs(missing) do
+        local label = workspace.name and (workspace.name .. " → ") or ""
+        table.insert(lines, string.format("  • %s%s", label, workspace.path))
+      end
+
+      table.insert(lines, "Configure NVIM_PRO_KIT_OBSIDIAN or NVIM_PRO_KIT_OBSIDIAN_WORKSPACES to silence this warning.")
+
+      vim.schedule(function()
+        vim.notify(table.concat(lines, "\n"), vim.log.levels.WARN, { title = "obsidian.nvim" })
+      end)
+    end
+
+    if #existing == 0 then
+      vim.schedule(function()
+        vim.notify(
+          "obsidian.nvim disabled because no workspace directories exist.\n" ..
+            "Set NVIM_PRO_KIT_OBSIDIAN or NVIM_PRO_KIT_OBSIDIAN_WORKSPACES to configure one.",
+          vim.log.levels.WARN,
+          { title = "obsidian.nvim" }
+        )
+      end)
+
+      return
+    end
+
     require("obsidian").setup({
-      workspaces = workspaces,
+      workspaces = existing,
       completion = { nvim_cmp = true },
     })
   end,
