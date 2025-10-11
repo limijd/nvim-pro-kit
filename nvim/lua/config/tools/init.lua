@@ -55,9 +55,16 @@ local function ensure_dir_on_path(path)
     return
   end
 
+  local normalized_dir = vim.fs.normalize(dir)
+
   local current = vim.env.PATH or ""
   for entry in string.gmatch(current, "[^" .. path_separator .. "]+") do
     if entry == dir then
+      return
+    end
+
+    local ok, normalized_entry = pcall(vim.fs.normalize, entry)
+    if ok and normalized_entry == normalized_dir then
       return
     end
   end
