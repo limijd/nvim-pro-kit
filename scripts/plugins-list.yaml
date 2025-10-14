@@ -32,6 +32,14 @@
     "ref": "stable"
   },
   {
+    "category": "formatting",
+    "description": "Simple formatter orchestrator with LSP fallbacks and format-on-save hooks.",
+    "depends": [],
+    "url": "https://github.com/stevearc/conform.nvim",
+    "name": "conform.nvim",
+    "ref": "master"
+  },
+  {
     "category": "git",
     "description": "Lightweight Git integration with signs for the Neovim gutter.",
     "depends": ["plenary.nvim"],

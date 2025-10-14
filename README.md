@@ -8,6 +8,7 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
 - [✨ Highlights](#-highlights)
 - [🚀 Installation](#-installation)
 - [🧰 Tools](#-tools)
+- [🧹 Formatting](#-formatting)
 - [🐞 Debugging](#-debugging)
 - [📦 Managing Vendored Plugins](#-managing-vendored-plugins)
   - [Plugin manifest](#plugin-manifest)
@@ -139,6 +140,7 @@ The module currently resolves the following tools:
 - `ripgrep` (`rg`);
 - `python` (debugpy);
 - `node`, `npm`, and the Tree-sitter CLI;
+- formatters: `stylua`, `black`, `prettierd`, `prettier`, `clang-format`, and `shfmt`;
 - `make` (used to build native Telescope/LuaSnip components);
 - `gdb`;
 - language servers: `lua_ls`, `pyright`, `ts_ls`;
@@ -150,6 +152,14 @@ executables without editing the repository.
 Set `NVIM_PRO_KIT_COMPILERS` to a path-separated list if you need to override the compiler search order; otherwise the helper prefers
 `cc`/`gcc`/`clang` on Linux and `clang`/`cc` on macOS. Adjust the platform-specific paths inside `nvim/lua/config/tools/definitions.lua` if you install binaries in
 non-standard locations.
+
+## 🧹 Formatting
+
+`nvim-pro-kit` wires [`stevearc/conform.nvim`](https://github.com/stevearc/conform.nvim) into the plugin stack to offer consistent formatting without giving up language-server fallbacks. Conform runs automatically on save for supported filetypes whenever a matching formatter is available on your `$PATH`.
+
+- Press `<leader>cf` to format the current buffer on demand.
+- Run `:FormatDisable` to stop formatting every buffer, or `:FormatDisable!` to disable it only for the current buffer. Bring it back with `:FormatEnable` / `:FormatEnable!`.
+- Conform prefers dedicated CLI tools (StyLua, Black, Prettier/Prettierd, clang-format, shfmt); Neovim falls back to LSP formatting when none of them resolve via `config.tools`.
 
 ## 📦 Managing Vendored Plugins
 

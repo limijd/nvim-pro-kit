@@ -198,6 +198,218 @@ return function(api)
   )
 
   define(
+    "stylua",
+    function()
+      local mason = mason_tool("stylua")
+      return resolve("NVIM_PRO_KIT_STYLUA", {
+        linux_x86_64 = {
+          repo_tool("tools/linux_x86_64/stylua/latest/stylua"),
+          "/usr/bin/stylua",
+          "/usr/local/bin/stylua",
+          mason,
+        },
+        linux_aarch64 = {
+          repo_tool("tools/linux_aarch64/stylua/latest/stylua"),
+          "/usr/bin/stylua",
+          "/usr/local/bin/stylua",
+          mason,
+        },
+        macos_x86_64 = {
+          repo_tool("tools/macos_x86_64/stylua/latest/stylua"),
+          "/usr/local/bin/stylua",
+          mason,
+        },
+        macos_arm64 = {
+          repo_tool("tools/macos_arm64/stylua/latest/stylua"),
+          "/opt/homebrew/bin/stylua",
+          mason,
+        },
+      }, { mason, "stylua" })
+    end,
+    {
+      description = "StyLua formatter for Lua codebases.",
+      plugins = { "conform.nvim" },
+    }
+  )
+
+  define(
+    "black",
+    function()
+      local mason = mason_tool("black")
+      return resolve("NVIM_PRO_KIT_BLACK", {
+        linux_x86_64 = {
+          repo_tool("tools/linux_x86_64/black/latest/black"),
+          "/usr/bin/black",
+          "/usr/local/bin/black",
+          mason,
+        },
+        linux_aarch64 = {
+          repo_tool("tools/linux_aarch64/black/latest/black"),
+          "/usr/bin/black",
+          "/usr/local/bin/black",
+          mason,
+        },
+        macos_x86_64 = {
+          repo_tool("tools/macos_x86_64/black/latest/black"),
+          "/usr/local/bin/black",
+          mason,
+        },
+        macos_arm64 = {
+          repo_tool("tools/macos_arm64/black/latest/black"),
+          "/opt/homebrew/bin/black",
+          mason,
+        },
+      }, { mason, "black" })
+    end,
+    {
+      description = "Black formatter for Python projects.",
+      plugins = { "conform.nvim" },
+    }
+  )
+
+  define(
+    "prettierd",
+    function()
+      local mason = mason_tool("prettierd")
+      return resolve("NVIM_PRO_KIT_PRETTIERD", {
+        linux_x86_64 = {
+          repo_tool("tools/linux_x86_64/prettierd/latest/prettierd"),
+          "/usr/bin/prettierd",
+          "/usr/local/bin/prettierd",
+          mason,
+        },
+        linux_aarch64 = {
+          repo_tool("tools/linux_aarch64/prettierd/latest/prettierd"),
+          "/usr/bin/prettierd",
+          "/usr/local/bin/prettierd",
+          mason,
+        },
+        macos_x86_64 = {
+          repo_tool("tools/macos_x86_64/prettierd/latest/prettierd"),
+          "/usr/local/bin/prettierd",
+          mason,
+        },
+        macos_arm64 = {
+          repo_tool("tools/macos_arm64/prettierd/latest/prettierd"),
+          "/opt/homebrew/bin/prettierd",
+          mason,
+        },
+      }, { mason, "prettierd" })
+    end,
+    {
+      description = "prettierd daemon for formatting web projects.",
+      plugins = { "conform.nvim" },
+    }
+  )
+
+  define(
+    "prettier",
+    function()
+      local mason = mason_tool("prettier")
+      return resolve("NVIM_PRO_KIT_PRETTIER", {
+        linux_x86_64 = {
+          repo_tool("tools/linux_x86_64/prettier/latest/prettier"),
+          "/usr/bin/prettier",
+          "/usr/local/bin/prettier",
+          mason,
+        },
+        linux_aarch64 = {
+          repo_tool("tools/linux_aarch64/prettier/latest/prettier"),
+          "/usr/bin/prettier",
+          "/usr/local/bin/prettier",
+          mason,
+        },
+        macos_x86_64 = {
+          repo_tool("tools/macos_x86_64/prettier/latest/prettier"),
+          "/usr/local/bin/prettier",
+          mason,
+        },
+        macos_arm64 = {
+          repo_tool("tools/macos_arm64/prettier/latest/prettier"),
+          "/opt/homebrew/bin/prettier",
+          mason,
+        },
+      }, { mason, "prettier" })
+    end,
+    {
+      description = "Prettier CLI fallback for web formatting.",
+      plugins = { "conform.nvim" },
+    }
+  )
+
+  define(
+    "clang_format",
+    function()
+      local mason = mason_tool("clang-format")
+      return resolve("NVIM_PRO_KIT_CLANG_FORMAT", {
+        linux_x86_64 = {
+          repo_tool("tools/linux_x86_64/clang-format/latest/clang-format"),
+          "/usr/bin/clang-format",
+          "/usr/local/bin/clang-format",
+          mason,
+        },
+        linux_aarch64 = {
+          repo_tool("tools/linux_aarch64/clang-format/latest/clang-format"),
+          "/usr/bin/clang-format",
+          "/usr/local/bin/clang-format",
+          mason,
+        },
+        macos_x86_64 = {
+          repo_tool("tools/macos_x86_64/clang-format/latest/clang-format"),
+          "/usr/local/opt/llvm/bin/clang-format",
+          "/usr/local/bin/clang-format",
+          mason,
+        },
+        macos_arm64 = {
+          repo_tool("tools/macos_arm64/clang-format/latest/clang-format"),
+          "/opt/homebrew/opt/llvm/bin/clang-format",
+          "/opt/homebrew/bin/clang-format",
+          mason,
+        },
+      }, { mason, "clang-format" })
+    end,
+    {
+      description = "clang-format for C and C++ code styles.",
+      plugins = { "conform.nvim" },
+    }
+  )
+
+  define(
+    "shfmt",
+    function()
+      local mason = mason_tool("shfmt")
+      return resolve("NVIM_PRO_KIT_SHFMT", {
+        linux_x86_64 = {
+          repo_tool("tools/linux_x86_64/shfmt/latest/shfmt"),
+          "/usr/bin/shfmt",
+          "/usr/local/bin/shfmt",
+          mason,
+        },
+        linux_aarch64 = {
+          repo_tool("tools/linux_aarch64/shfmt/latest/shfmt"),
+          "/usr/bin/shfmt",
+          "/usr/local/bin/shfmt",
+          mason,
+        },
+        macos_x86_64 = {
+          repo_tool("tools/macos_x86_64/shfmt/latest/shfmt"),
+          "/usr/local/bin/shfmt",
+          mason,
+        },
+        macos_arm64 = {
+          repo_tool("tools/macos_arm64/shfmt/latest/shfmt"),
+          "/opt/homebrew/bin/shfmt",
+          mason,
+        },
+      }, { mason, "shfmt" })
+    end,
+    {
+      description = "shfmt formatter for POSIX shell scripts.",
+      plugins = { "conform.nvim" },
+    }
+  )
+
+  define(
     "make",
     function()
       return resolve("NVIM_PRO_KIT_MAKE", {
