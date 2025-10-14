@@ -18,3 +18,10 @@ opt.updatetime = 250
 opt.completeopt = { "menu", "menuone", "noselect" }
 opt.wrap = false
 opt.mouse = ""
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "markdown", "obsidian" },
+  callback = function()
+    vim.opt_local.conceallevel = 2
+  end,
+})
