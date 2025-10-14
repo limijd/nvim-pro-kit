@@ -5,6 +5,53 @@ return {
   name = "telescope.nvim",
   dir = util.vendor("telescope.nvim"),
   cmd = "Telescope",
+  keys = {
+    {
+      "<leader>ff",
+      function()
+        require("telescope.builtin").git_files()
+      end,
+      desc = "Find Git files",
+      mode = "n",
+      silent = true,
+    },
+    {
+      "<leader>fn",
+      function()
+        require("telescope.builtin").find_files()
+      end,
+      desc = "Find files",
+      mode = "n",
+      silent = true,
+    },
+    {
+      "<leader>fg",
+      function()
+        require("telescope.builtin").live_grep()
+      end,
+      desc = "Live grep",
+      mode = "n",
+      silent = true,
+    },
+    {
+      "<leader>fb",
+      function()
+        require("telescope.builtin").buffers()
+      end,
+      desc = "List buffers",
+      mode = "n",
+      silent = true,
+    },
+    {
+      "<leader>fh",
+      function()
+        require("telescope.builtin").help_tags()
+      end,
+      desc = "Search help tags",
+      mode = "n",
+      silent = true,
+    },
+  },
   dependencies = {
     "plenary.nvim",
     "telescope-fzf-native.nvim",
@@ -48,14 +95,5 @@ return {
 
     pcall(telescope.load_extension, "fzf")
 
-    local builtin = require("telescope.builtin")
-    local map = vim.keymap.set
-    local opts = { noremap = true, silent = true }
-
-    map("n", "<leader>ff", builtin.git_files, vim.tbl_extend("force", opts, { desc = "Find Git files" }))
-    map("n", "<leader>fn", builtin.find_files, vim.tbl_extend("force", opts, { desc = "Find files" }))
-    map("n", "<leader>fg", builtin.live_grep, vim.tbl_extend("force", opts, { desc = "Live grep" }))
-    map("n", "<leader>fb", builtin.buffers, vim.tbl_extend("force", opts, { desc = "List buffers" }))
-    map("n", "<leader>fh", builtin.help_tags, vim.tbl_extend("force", opts, { desc = "Search help tags" }))
   end,
 }
