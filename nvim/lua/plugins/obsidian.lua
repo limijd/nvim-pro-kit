@@ -166,6 +166,21 @@ return {
       return
     end
 
+    local obsidian_util = require("obsidian.util")
+    if not obsidian_util._nvim_pro_kit_tif_patch then
+      local original_is_img = obsidian_util.is_img
+      obsidian_util.is_img = function(path)
+        if type(path) == "string" then
+          local lowered = path:lower()
+          if lowered:sub(-4) == ".tif" or lowered:sub(-5) == ".tiff" then
+            return true
+          end
+        end
+        return original_is_img(path)
+      end
+      obsidian_util._nvim_pro_kit_tif_patch = true
+    end
+
     require("obsidian").setup({
       workspaces = existing,
       completion = { nvim_cmp = true },
