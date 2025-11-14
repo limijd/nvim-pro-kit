@@ -6,9 +6,10 @@ local Screen = require("test.functional.ui.screen")
 describe("snippets_basic", function()
 	local screen
 
-	before_each(function()
+	local function setup(opts)
+		opts.setup_parsers = true
 		ls_helpers.clear()
-		ls_helpers.session_setup_luasnip({ setup_parsers = true })
+		ls_helpers.session_setup_luasnip(opts)
 
 		screen = ls_helpers.new_screen(50, 3)
 		screen:set_default_attr_ids({
@@ -17,6 +18,9 @@ describe("snippets_basic", function()
 			[2] = { bold = true },
 			[3] = { background = Screen.colors.LightGray },
 		})
+	end
+	before_each(function()
+		setup({})
 	end)
 
 	after_each(function()
@@ -60,7 +64,7 @@ describe("snippets_basic", function()
 			ls.expand({
 				jump_into_func = function(snip)
 					izero = snip.insert_nodes[0]
-					require("luasnip.util.util").no_region_check_wrap(izero.jump_into, izero, 1)
+					izero:jump_into(1)
 				end
 			})
 		]])
@@ -1091,60 +1095,70 @@ describe("snippets_basic", function()
 		ecma = [[(\d+)]],
 	}
 	for engine, trig in pairs(engine_data) do
-		it('trigEngine "' .. engine .. '" works', function()
-			exec_lua(
-				[[
+		ls_helpers.jsregexp_it(
+			it,
+			setup,
+			'trigEngine "' .. engine .. '" works',
+			function()
+				exec_lua(
+					[[
 				trigEngine, trig = ...
 				snip = s({trig = trig, docTrig = "3", trigEngine = trigEngine}, {t"c1: ", l(l.CAPTURE1)})
 				ls.add_snippets("all", {snip})
 			]],
-				engine,
-				trig
-			)
-			feed("i<Space>3")
-			exec_lua("ls.expand()")
-			screen:expect({
-				grid = [[
+					engine,
+					trig
+				)
+				feed("i<Space>3")
+				exec_lua("ls.expand()")
+				screen:expect({
+					grid = [[
 				 c1: 3^                                            |
 				{0:~                                                 }|
 				{2:-- INSERT --}                                      |]],
-			})
-			-- make sure docTrig works with all engines.
-			assert.is_true(
-				exec_lua([[return snip:get_docstring()[1] == "c1: 3$0"]])
-			)
-		end)
+				})
+				-- make sure docTrig works with all engines.
+				assert.is_true(
+					exec_lua([[return snip:get_docstring()[1] == "c1: 3$0"]])
+				)
+			end
+		)
 	end
 
 	for engine, trig in pairs(engine_data) do
-		it('trigEngine "' .. engine .. '" respects `max_len`', function()
-			exec_lua(
-				[[
+		ls_helpers.jsregexp_it(
+			it,
+			setup,
+			'trigEngine "' .. engine .. '" respects `max_len`',
+			function()
+				exec_lua(
+					[[
 				trigEngine, trig = ...
 				snip = s({trig=trig, wordTrig=false, trigEngine=trigEngine, trigEngineOpts={max_len = 2}}, {t"c1: ", l(l.CAPTURE1)})
 				ls.add_snippets("all", {snip})
 			]],
-				engine,
-				trig
-			)
-			feed("i<Space>33")
-			exec_lua("ls.expand()")
-			screen:expect({
-				grid = [[
+					engine,
+					trig
+				)
+				feed("i<Space>33")
+				exec_lua("ls.expand()")
+				screen:expect({
+					grid = [[
 				 c1: 33^                                           |
 				{0:~                                                 }|
 				{2:-- INSERT --}                                      |]],
-			})
+				})
 
-			feed("<Cr>333")
-			exec_lua("ls.expand()")
-			screen:expect({
-				grid = [[
+				feed("<Cr>333")
+				exec_lua("ls.expand()")
+				screen:expect({
+					grid = [[
 				 c1: 33                                           |
 				3c1: 33^                                           |
 				{2:-- INSERT --}                                      |]],
-			})
-		end)
+				})
+			end
+		)
 	end
 
 	it("custom trigEngine works", function()
@@ -1402,6 +1416,7 @@ describe("snippets_basic", function()
 			}
 		]])
 		exec_lua([[ls.lsp_expand("a$1$1a")]])
+		exec_lua("vim.wait(10, function() end)")
 		exec_lua([[ls.lsp_expand("b$1")]])
 		feed("ccc")
 		exec_lua([[ls.active_update_dependents()]])
@@ -1652,4 +1667,19 @@ describe("snippets_basic", function()
 			})
 		end
 	)
+	it("throws error when reusing nodes", function()
+		local ok, err = pcall(
+			exec_lua,
+			[[
+			local i1 = i(1)
+			local snipA = ls.s({trig="asdf"}, {i1})
+			local snipB = ls.s({trig="asdf"}, {i1})
+		]]
+		)
+		assert(not ok, "Throws error")
+		assert(
+			err:match("Node at position 1 is already initialized") ~= nil,
+			"Throws correct error"
+		)
+	end)
 end)
