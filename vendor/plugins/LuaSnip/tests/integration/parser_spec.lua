@@ -207,25 +207,30 @@ describe("Parser", function()
 		})
 	end)
 
-	ls_helpers.jsregexp_it(it, "can parse transformed variables", function()
-		-- ls_helpers.session_setup_luasnip()
-		local snip = '"a${TM_LINE_INDEX/(.*)/asdf $1 asdf/g}a"'
+	ls_helpers.jsregexp_it(
+		it,
+		setup,
+		"can parse transformed variables",
+		function()
+			-- ls_helpers.session_setup_luasnip()
+			local snip = '"a${TM_LINE_INDEX/(.*)/asdf $1 asdf/g}a"'
 
-		-- /g matches as often as possible, hence two matches, but one with an
-		-- empty (eg. without a) group 1.
-		ls_helpers.lsp_static_test(
-			snip,
-			{ "aasdf $TM_LINE_INDEX asdfasdf  asdfa" }
-		)
+			-- /g matches as often as possible, hence two matches, but one with an
+			-- empty (eg. without a) group 1.
+			ls_helpers.lsp_static_test(
+				snip,
+				{ "aasdf $TM_LINE_INDEX asdfasdf  asdfa" }
+			)
 
-		exec_lua("ls.lsp_expand(" .. snip .. ")")
-		screen:expect({
-			grid = [[
+			exec_lua("ls.lsp_expand(" .. snip .. ")")
+			screen:expect({
+				grid = [[
 			aasdf 0 asdfasdf  asdfa^                           |
 			{0:~                                                 }|
 			{2:-- INSERT --}                                      |]],
-		})
-	end)
+			})
+		end
+	)
 
 	it("just inserts the variable if jsregexp is not available.", function()
 		setup({ prevent_jsregexp = true })
@@ -245,23 +250,27 @@ describe("Parser", function()
 		})
 	end)
 
-	ls_helpers.jsregexp_it(it, "can parse transformed tabstop.", function()
-		-- ls_helpers.session_setup_luasnip()
-		local snip = '"$1 a ${1/(.*)/asdf $1 asdf/} a"'
+	ls_helpers.jsregexp_it(
+		it,
+		setup,
+		"can parse transformed tabstop.",
+		function()
+			-- ls_helpers.session_setup_luasnip()
+			local snip = '"$1 a ${1/(.*)/asdf $1 asdf/} a"'
 
-		ls_helpers.lsp_static_test(snip, { " a asdf  asdf a" })
+			ls_helpers.lsp_static_test(snip, { " a asdf  asdf a" })
 
-		exec_lua("ls.lsp_expand(" .. snip .. ")")
-		screen:expect({
-			grid = [[
+			exec_lua("ls.lsp_expand(" .. snip .. ")")
+			screen:expect({
+				grid = [[
 			^ a asdf  asdf a                                   |
 			{0:~                                                 }|
 			{2:-- INSERT --}                                      |]],
-		})
-	end)
-	it("copies tabstop if jsregexp is not available.", function()
-		setup({ prevent_jsregexp = true })
+			})
+		end
+	)
 
+	it("copies tabstop if jsregexp is not available.", function()
 		-- ls_helpers.session_setup_luasnip()
 		local snip = '"$1 a ${1/(.*)/asdf $1 asdf/} a"'
 
@@ -300,6 +309,7 @@ describe("Parser", function()
 
 			ls_helpers.jsregexp_it(
 				it,
+				setup,
 				"applies " .. modifier .. " correctly",
 				function()
 					-- ls_helpers.session_setup_luasnip()
@@ -449,31 +459,37 @@ describe("Parser", function()
 		})
 	end)
 
-	ls_helpers.jsregexp_it(it, "can modify groups in transform.", function()
-		-- ls_helpers.session_setup_luasnip()
-		local snip = '"$1 a ${1/(.*)/asdf ${1:/upcase} asdf/} a"'
+	ls_helpers.jsregexp_it(
+		it,
+		setup,
+		"can modify groups in transform.",
+		function()
+			-- ls_helpers.session_setup_luasnip()
+			local snip = '"$1 a ${1/(.*)/asdf ${1:/upcase} asdf/} a"'
 
-		ls_helpers.lsp_static_test(snip, { " a asdf  asdf a" })
+			ls_helpers.lsp_static_test(snip, { " a asdf  asdf a" })
 
-		exec_lua("ls.lsp_expand(" .. snip .. ")")
-		screen:expect({
-			grid = [[
+			exec_lua("ls.lsp_expand(" .. snip .. ")")
+			screen:expect({
+				grid = [[
 			^ a asdf  asdf a                                   |
 			{0:~                                                 }|
 			{2:-- INSERT --}                                      |]],
-		})
-		feed("rrrr")
-		exec_lua("ls.jump(1)")
-		screen:expect({
-			grid = [[
+			})
+			feed("rrrr")
+			exec_lua("ls.jump(1)")
+			screen:expect({
+				grid = [[
 			rrrr a asdf RRRR asdf a^                           |
 			{0:~                                                 }|
 			{2:-- INSERT --}                                      |]],
-		})
-	end)
+			})
+		end
+	)
 
 	ls_helpers.jsregexp_it(
 		it,
+		setup,
 		"handle multiple captures in transform.",
 		function()
 			-- ls_helpers.session_setup_luasnip()
@@ -706,6 +722,7 @@ describe("Parser", function()
 
 	ls_helpers.jsregexp_it(
 		it,
+		setup,
 		"Applies transform to empty variable.",
 		function()
 			-- ls_helpers.session_setup_luasnip()
@@ -724,6 +741,7 @@ describe("Parser", function()
 
 	ls_helpers.jsregexp_it(
 		it,
+		setup,
 		"correctly transforms multiline-values.",
 		function()
 			-- ls_helpers.session_setup_luasnip()
@@ -746,6 +764,7 @@ describe("Parser", function()
 
 	ls_helpers.jsregexp_it(
 		it,
+		setup,
 		"correctly transforms if the match does not include the first character.",
 		function()
 			-- ls_helpers.session_setup_luasnip()
@@ -881,6 +900,7 @@ describe("Parser", function()
 
 	ls_helpers.jsregexp_it(
 		it,
+		setup,
 		"Correctly parses unescaped characters.",
 		function()
 			-- ls_helpers.session_setup_luasnip()
