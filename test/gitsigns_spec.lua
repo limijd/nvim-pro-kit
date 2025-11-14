@@ -59,28 +59,29 @@ describe('gitsigns (with screen)', function()
 
     local default_attrs = {
       [1] = { foreground = Screen.colors.DarkBlue, background = Screen.colors.WebGray },
-      [2] = { foreground = Screen.colors.NvimDarkCyan },
-      [3] = { foreground = Screen.colors.NvimDarkGreen },
-      [4] = { foreground = Screen.colors.NvimDarkRed },
+      [2] = { foreground = Screen.colors.DodgerBlue },
+      [3] = { foreground = Screen.colors.SeaGreen },
+      [4] = { foreground = Screen.colors.Red },
       [5] = { foreground = Screen.colors.Brown },
       [6] = { foreground = Screen.colors.Blue1, bold = true },
       [7] = { bold = true },
       [8] = { foreground = Screen.colors.White, background = Screen.colors.Red },
       [9] = { foreground = Screen.colors.SeaGreen, bold = true },
-      [10] = { foreground = Screen.colors.Red },
-      [11] = { foreground = Screen.colors.NvimDarkRed, background = Screen.colors.WebGray },
-      [12] = { foreground = Screen.colors.NvimDarkCyan, background = Screen.colors.WebGray },
+      [11] = { foreground = Screen.colors.Red1, background = Screen.colors.WebGray },
+      [12] = { foreground = Screen.colors.DodgerBlue, background = Screen.colors.WebGray },
     }
 
     -- Use the classic vim colorscheme, not the new defaults in nvim >= 0.10
-    if fn.has('nvim-0.10') > 0 then
-      command('colorscheme vim')
-    else
-      default_attrs[2] = { background = Screen.colors.LightMagenta }
-      default_attrs[3] = { background = Screen.colors.LightBlue }
-      default_attrs[4] =
-        { background = Screen.colors.LightCyan1, bold = true, foreground = Screen.colors.Blue1 }
+    if fn.has('nvim-0.12') == 0 then
+      default_attrs[2].foreground = Screen.colors.NvimDarkCyan
+      default_attrs[3].foreground = Screen.colors.NvimDarkGreen
+      default_attrs[4].foreground = Screen.colors.NvimDarkRed
+      default_attrs[11].foreground = Screen.colors.NvimDarkRed
+      default_attrs[12] =
+        { foreground = Screen.colors.NvimDarkCyan, background = Screen.colors.Gray }
     end
+
+    command('colorscheme vim')
 
     screen:set_default_attr_ids(default_attrs)
 
@@ -327,6 +328,176 @@ describe('gitsigns (with screen)', function()
 
     it('does handle unix', function()
       blame_line_ui_test('false', 'unix')
+    end)
+  end)
+
+  describe('falls back from right_align to eol when text is too long  (#1322)', function()
+    before_each(function()
+      setup_test_repo({
+        test_file_text = {
+          'short',
+          string.rep('a', 25),
+          string.rep('b', 40),
+        },
+      })
+
+      config.current_line_blame = true
+      config.current_line_blame_formatter = ' <author>, <author_time:%R> - <summary>'
+      config.current_line_blame_opts = { virt_text_pos = 'right_align' }
+      setup_gitsigns(config)
+    end)
+
+    it('with nowrap', function()
+      edit(test_file)
+      command('set nowrap')
+      feed('gg')
+
+      screen:expect({
+        grid = [[
+        ^short {MATCH:{6: You, %d+ second}}|
+        aaaaaaaaaaaaaaaaaaaa|
+        bbbbbbbbbbbbbbbbbbbb|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+      ]],
+      })
+
+      -- Medium line: blame should fallback to eol (no space for right_align)
+      feed('j')
+      screen:expect({
+        grid = [[
+        short               |
+        ^aaaaaaaaaaaaaaaaaaaa|
+        bbbbbbbbbbbbbbbbbbbb|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+      ]],
+      })
+
+      -- Move to very long line
+      feed('j')
+      screen:expect({
+        grid = [[
+        short               |
+        aaaaaaaaaaaaaaaaaaaa|
+        ^bbbbbbbbbbbbbbbbbbbb|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+      ]],
+      })
+    end)
+
+    it('with wrap', function()
+      edit(test_file)
+      command('set wrap')
+      feed('gg')
+
+      -- Short line: blame should appear with right_align (normal behavior)
+      screen:expect({
+        grid = [[
+        ^short {MATCH:{6: You, %d+ second}}|
+        aaaaaaaaaaaaaaaaaaaa|
+        aaaaa               |
+        bbbbbbbbbbbbbbbbbbbb|
+        bbbbbbbbbbbbbbbbbbbb|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+      ]],
+      })
+
+      -- Move to medium line (will wrap and blame appears at end of wrapped line)
+      feed('j')
+      screen:expect({
+        grid = [[
+        short               |
+        ^aaaaaaaaaaaaaaaaaaaa|
+        {MATCH:aaaaa {6: You, %d second.*}}|
+        bbbbbbbbbbbbbbbbbbbb|
+        bbbbbbbbbbbbbbbbbbbb|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+      ]],
+      })
+
+      -- Move to very long line (wraps across multiple lines, no blame visible)
+      feed('j')
+      screen:expect({
+        grid = [[
+        short               |
+        aaaaaaaaaaaaaaaaaaaa|
+        aaaaa               |
+        ^bbbbbbbbbbbbbbbbbbbb|
+        bbbbbbbbbbbbbbbbbbbb|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+        {6:~                   }|
+      ]],
+      })
     end)
   end)
 
