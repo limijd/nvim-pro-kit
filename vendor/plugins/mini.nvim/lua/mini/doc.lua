@@ -1,10 +1,7 @@
 --- *mini.doc* Generate Neovim help files
---- *MiniDoc*
 ---
 --- MIT License Copyright (c) 2022 Evgeni Chasnovski
----
---- ==============================================================================
----
+
 --- Key design ideas:
 --- - Keep documentation next to code by writing EmmyLua-like annotation
 ---   comments. They will be parsed as is, so formatting should follow built-in
@@ -63,13 +60,14 @@
 ---
 --- # Comparisons ~
 ---
---- - 'tjdevries/tree-sitter-lua':
+--- - [tjdevries/tree-sitter-lua](https://github.com/tjdevries/tree-sitter-lua):
 ---     - Its key design is to use treesitter grammar to parse both Lua code
 ---       and annotation comments. This makes it not easy to install,
 ---       customize, and support.
 ---     - It takes more care about automating output formatting (like auto
 ---       indentation and line width fit). This plugin leans more to manual
 ---       formatting with option to supply customized post-processing hooks.
+---@tag MiniDoc
 
 --- Data structures
 ---
@@ -131,9 +129,9 @@
 --- - `File`:
 ---     - `path` - absolute path to a file (`''` if not generated from file).
 --- - `Doc`:
----     - `input` - array of input file paths (as in |MiniDoc.generate|).
----     - `output` - output path (as in |MiniDoc.generate|).
----     - `config` - configuration used (as in |MiniDoc.generate|).
+---     - `input` - array of input file paths (as in |MiniDoc.generate()|).
+---     - `output` - output path (as in |MiniDoc.generate()|).
+---     - `config` - configuration used (as in |MiniDoc.generate()|).
 ---@tag MiniDoc-data-structures
 
 -- Module definition ==========================================================
@@ -160,9 +158,7 @@ MiniDoc.setup = function(config)
   H.apply_config(config)
 end
 
---- Module config
----
---- Default values:
+--- Defaults ~
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
 ---@text # Notes ~
 ---
@@ -401,8 +397,14 @@ MiniDoc.config = {
     --minidoc_replace_end
 
     -- Applied before output file is written. Takes lines array as argument.
-    --minidoc_replace_start write_pre = --<function: currently returns its input>,
-    write_pre = function(l) return l end,
+    --minidoc_replace_start write_pre = --<function: removes delimiters at the top>,
+    write_pre = function(l)
+      -- Remove first two lines with `======` and `------` delimiters to comply
+      -- with `:h local-additions` template
+      if l[1]:find('^=+$') ~= nil then table.remove(l, 1) end
+      if l[1]:find('^-+$') ~= nil then table.remove(l, 1) end
+      return l
+    end,
     --minidoc_replace_end
 
     -- Applied after output help file is written. Takes doc as argument.
@@ -541,9 +543,9 @@ MiniDoc.default_hooks = MiniDoc.config.hooks
 --- # Project specific script ~
 ---
 --- If all arguments have default `nil` values, first there is an attempt to
---- source project specific script. This is basically a `luafile
---- <MiniDoc.config.script_path>` with current Lua runtime while caching and
---- restoring current `MiniDoc.config`. Its successful execution stops any
+--- source project specific script. This is basically a
+--- `luafile <MiniDoc.config.script_path>` with current Lua runtime while caching
+--- and restoring current `MiniDoc.config`. Its successful execution stops any
 --- further generation actions while error means proceeding generation as if no
 --- script was found.
 ---

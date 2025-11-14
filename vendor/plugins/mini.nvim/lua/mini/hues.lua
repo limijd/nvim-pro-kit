@@ -1,10 +1,7 @@
 --- *mini.hues* Generate configurable color scheme
---- *MiniHues*
 ---
 --- MIT License Copyright (c) 2023 Evgeni Chasnovski
----
---- ==============================================================================
----
+
 --- Features:
 --- - Required to set two base colors: background and foreground.
 ---   Their shades and other non-base colors are computed to be as much
@@ -36,42 +33,42 @@
 ---
 --- - Plugins (either with explicit definition or by verification that default
 ---   highlighting works appropriately):
----     - 'nvim-mini/mini.nvim'
----     - 'akinsho/bufferline.nvim'
----     - 'anuvyklack/hydra.nvim'
----     - 'DanilaMihailov/beacon.nvim'
----     - 'folke/lazy.nvim'
----     - 'folke/noice.nvim'
----     - 'folke/todo-comments.nvim'
----     - 'folke/trouble.nvim'
----     - 'folke/which-key.nvim'
----     - 'ggandor/leap.nvim'
----     - 'glepnir/dashboard-nvim'
----     - 'glepnir/lspsaga.nvim'
----     - 'HiPhish/rainbow-delimiters.nvim'
----     - 'hrsh7th/nvim-cmp'
----     - 'ibhagwan/fzf-lua'
----     - 'justinmk/vim-sneak'
----     - 'kevinhwang91/nvim-bqf'
----     - 'kevinhwang91/nvim-ufo'
----     - 'lewis6991/gitsigns.nvim'
----     - 'lukas-reineke/indent-blankline.nvim'
----     - 'MeanderingProgrammer/render-markdown.nvim'
----     - 'neoclide/coc.nvim'
----     - 'NeogitOrg/neogit'
----     - 'nvim-lualine/lualine.nvim'
----     - 'nvim-neo-tree/neo-tree.nvim'
----     - 'nvim-telescope/telescope.nvim'
----     - 'nvim-tree/nvim-tree.lua'
----     - 'OXY2DEV/helpview.nvim'
----     - 'OXY2DEV/markview.nvim'
----     - 'phaazon/hop.nvim'
----     - 'rcarriga/nvim-dap-ui'
----     - 'rcarriga/nvim-notify'
----     - 'rlane/pounce.nvim'
----     - 'romgrk/barbar.nvim'
----     - 'stevearc/aerial.nvim'
----     - 'williamboman/mason.nvim'
+---     - [nvim-mini/mini.nvim](https://nvim-mini.org/mini.nvim)
+---     - [akinsho/bufferline.nvim](https://github.com/akinsho/bufferline.nvim)
+---     - [anuvyklack/hydra.nvim](https://github.com/anuvyklack/hydra.nvim)
+---     - [DanilaMihailov/beacon.nvim](https://github.com/DanilaMihailov/beacon.nvim)
+---     - [folke/lazy.nvim](https://github.com/folke/lazy.nvim)
+---     - [folke/noice.nvim](https://github.com/folke/noice.nvim)
+---     - [folke/todo-comments.nvim](https://github.com/folke/todo-comments.nvim)
+---     - [folke/trouble.nvim](https://github.com/folke/trouble.nvim)
+---     - [folke/which-key.nvim](https://github.com/folke/which-key.nvim)
+---     - [ggandor/leap.nvim](https://github.com/ggandor/leap.nvim)
+---     - [glepnir/dashboard-nvim](https://github.com/glepnir/dashboard-nvim)
+---     - [glepnir/lspsaga.nvim](https://github.com/glepnir/lspsaga.nvim)
+---     - [HiPhish/rainbow-delimiters.nvim](https://github.com/HiPhish/rainbow-delimiters.nvim)
+---     - [hrsh7th/nvim-cmp](https://github.com/hrsh7th/nvim-cmp)
+---     - [ibhagwan/fzf-lua](https://github.com/ibhagwan/fzf-lua)
+---     - [justinmk/vim-sneak](https://github.com/justinmk/vim-sneak)
+---     - [kevinhwang91/nvim-bqf](https://github.com/kevinhwang91/nvim-bqf)
+---     - [kevinhwang91/nvim-ufo](https://github.com/kevinhwang91/nvim-ufo)
+---     - [lewis6991/gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim)
+---     - [lukas-reineke/indent-blankline.nvim](https://github.com/lukas-reineke/indent-blankline.nvim)
+---     - [MeanderingProgrammer/render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim)
+---     - [neoclide/coc.nvim](https://github.com/neoclide/coc.nvim)
+---     - [NeogitOrg/neogit](https://github.com/NeogitOrg/neogit)
+---     - [nvim-lualine/lualine.nvim](https://github.com/nvim-lualine/lualine.nvim)
+---     - [nvim-neo-tree/neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim)
+---     - [nvim-telescope/telescope.nvim](https://github.com/nvim-telescope/telescope.nvim)
+---     - [nvim-tree/nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua)
+---     - [OXY2DEV/helpview.nvim](https://github.com/OXY2DEV/helpview.nvim)
+---     - [OXY2DEV/markview.nvim](https://github.com/OXY2DEV/markview.nvim)
+---     - [phaazon/hop.nvim](https://github.com/phaazon/hop.nvim)
+---     - [rcarriga/nvim-dap-ui](https://github.com/rcarriga/nvim-dap-ui)
+---     - [rcarriga/nvim-notify](https://github.com/rcarriga/nvim-notify)
+---     - [rlane/pounce.nvim](https://github.com/rlane/pounce.nvim)
+---     - [romgrk/barbar.nvim](https://github.com/romgrk/barbar.nvim)
+---     - [stevearc/aerial.nvim](https://github.com/stevearc/aerial.nvim)
+---     - [williamboman/mason.nvim](https://github.com/williamboman/mason.nvim)
 ---
 --- # Setup ~
 ---
@@ -101,8 +98,8 @@
 --- - This is used to create some of plugin's color schemes
 ---   (see |MiniHues-color-schemes|).
 ---
---- - Using `setup()` doesn't actually create a |colorscheme|. It basically
----   creates a coordinated set of |highlight|s. To create your own scheme:
+--- - Using `setup()` doesn't actually create a colorscheme. It basically
+---   creates a coordinated set of |highlight-groups|. To create your own scheme:
 ---     - Put "myscheme.lua" file (name after your chosen theme name) inside
 ---       any "colors" directory reachable from 'runtimepath' ("colors" inside
 ---       your Neovim config directory is usually enough).
@@ -112,6 +109,7 @@
 --- - This module doesn't define |cterm-colors| for implementation simplicity.
 ---   Use |mini.colors| module, |MiniColors-colorscheme:add_cterm_attributes()|
 ---   in particular.
+---@tag MiniHues
 
 --- Bundled color schemes
 ---
@@ -128,7 +126,7 @@
 ---   |MiniHues.gen_random_base_colors()| with a slight adjustments for
 ---   'background' value.
 ---
----   Activate it as regular |colorscheme|. Get currently active config with
+---   Activate it as regular |:colorscheme|. Get currently active config with
 ---   `:lua print(vim.inspect(MiniHues.config))`.
 ---@tag MiniHues-color-schemes
 
@@ -164,16 +162,12 @@ MiniHues.setup = function(config)
   H.apply_config(config)
 end
 
---- Module config
----
---- See |MiniHues.make_palette()| for more information about how certain
---- settings affect output color scheme.
----
---- Default values:
+--- Defaults ~
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
----@text # Options ~
+---@text See |MiniHues.make_palette()| for more information about how certain settings
+--- affect output color scheme.
 ---
---- ## Plugin integrations ~
+--- # Plugin integrations ~
 ---
 --- `config.plugins` defines for which supported plugins highlight groups will
 --- be created. Limiting number of integrations slightly decreases startup time.
@@ -181,8 +175,8 @@ end
 --- - If plugin name (as listed in |mini.hues|) has entry, it is used.
 --- - Otherwise `config.plugins.default` is used.
 ---
---- Example which will load only "mini.nvim" integration:
---- >
+--- Example which will load only "mini.nvim" integration: >lua
+---
 ---   require('mini.hues').setup({
 ---     background = '#11262d',
 ---     foreground = '#c0c8cc',
@@ -191,11 +185,25 @@ end
 ---       ['nvim-mini/mini.nvim'] = true,
 ---     },
 ---   })
+--- <
+--- # Auto adjust ~
+---
+--- `config.autoadjust` defines whether to adjust some highlight groups based on
+--- events relevant to them. Currently adjusted groups:
+---
+--- - |hl-MsgSeparator| is adjusted based on `msgsep` flag in |'fillchars'|.
+---   If it is whitespace - highlight background, otherwise - foreground.
+---
+--- - |hl-Pmenu| is adjusted based on |'pumborder'| value (on Neovim>=0.12).
+---   If it results in a border - same as floating window (but with no accent
+---   foreground in border), otherwise - same as |hl-CursorLine|. This design
+---   makes |ins-completion-menu| stand out from regular floating windows.
 ---
 --- # Examples ~
+--- *MiniHues-examples*
 ---
 --- Here are some possible setup configurations (copy first line and then use
---- only one `setup` call): >
+--- only one `setup` call): >lua
 ---
 ---   local setup = require('mini.hues').setup
 ---
@@ -228,6 +236,7 @@ end
 ---   setup({ background = '#11262d', foreground = '#c0c8cc', accent = 'yellow' })
 ---   setup({ background = '#11262d', foreground = '#c0c8cc', accent = 'cyan' })
 ---   setup({ background = '#11262d', foreground = '#c0c8cc', accent = 'blue' })
+--- <
 MiniHues.config = {
   -- **Required** base colors as '#rrggbb' hex strings
   background = nil,
@@ -246,10 +255,13 @@ MiniHues.config = {
   -- Plugin integrations. Use `default = false` to disable all integrations.
   -- Also can be set per plugin (see |MiniHues.config|).
   plugins = { default = true },
+
+  -- Whether to auto adjust highlight groups based on certain events
+  autoadjust = true,
 }
 --minidoc_afterlines_end
 
---- Make palette
+--- # Make palette ~
 ---
 --- General idea of palette generation is that it is mostly based on color channel
 --- information extracted from base colors (background and foreground).
@@ -266,7 +278,7 @@ MiniHues.config = {
 --- For more details about `Oklch` see |MiniColors-color-spaces| or
 --- https://bottosson.github.io/posts/oklab/.
 ---
---- Algorithm overview ~
+--- ## Algorithm overview ~
 ---
 --- - Extract lightness, chroma, and hue of base colors.
 ---
@@ -315,7 +327,7 @@ MiniHues.config = {
 ---
 ---@return table Palette with the following fields:
 ---   - <bg> and <fg> with supplied `background` and `foreground` colors.
----   - Fields like <bg_*> and <fg_*> are essentially <bg> and <fg> but with
+---   - Fields like <bg_xxx> and <fg_xxx> are essentially <bg> and <fg> but with
 ---     different lightness values: `_edge`/`_edge2` - closer to edge lightness,
 ---     `_mid`/`_mid2` - closer to middle lightness.
 ---   - Fields for non-base colors (<red>, <orange>, <yellow>, <green>, <cyan>,
@@ -422,6 +434,9 @@ end
 ---@param plugins table|nil Table with boolean values indicating whether to create
 ---   highlight groups for specific plugins. See |MiniHues.config| for more details.
 ---   Default: the value from |MiniHues.config|.
+---@param opts table|nil Options. Possible fields:
+---   - <autoadjust> - whether to auto adjust some highlight groups when needed.
+---     Default: value of `autoadjust` in |MiniHues.config|.
 ---
 ---@usage >lua
 ---   local palette = require('mini.hues').make_palette({
@@ -433,10 +448,11 @@ end
 ---   require('mini.hues').apply_palette(palette)
 --- <
 ---@seealso |MiniHues.get_palette()|
-MiniHues.apply_palette = function(palette, plugins)
+MiniHues.apply_palette = function(palette, plugins, opts)
   if type(palette) ~= 'table' then H.error('`palette` should be table with palette colors.') end
   plugins = plugins or MiniHues.config.plugins
   if type(plugins) ~= 'table' then H.error('`plugins` should be table with plugin integrations data.') end
+  opts = vim.tbl_extend('force', { autoadjust = MiniHues.config.autoadjust }, opts or {})
 
   H.palette = vim.deepcopy(palette)
 
@@ -449,13 +465,16 @@ MiniHues.apply_palette = function(palette, plugins)
   -- might cause some issues with `syntax on`.
   vim.g.colors_name = nil
 
-  local p = palette
+  local p, autoadjust = palette, opts.autoadjust
   local hi = function(name, data) vim.api.nvim_set_hl(0, name, data) end
   local has_integration = function(name)
     local entry = plugins[name]
     if entry == nil then return plugins.default end
     return entry
   end
+
+  -- Special autoadjustable highlight groups
+  if autoadjust then H.setup_autoadjust(p) end
 
   -- NOTE: recommendations for adding new highlight groups:
   -- - Put all related groups (like for new plugin) in single paragraph.
@@ -496,18 +515,19 @@ MiniHues.apply_palette = function(palette, plugins)
   hi('ModeMsg',        { fg=p.green,   bg=nil })
   hi('MoreMsg',        { fg=p.azure,   bg=nil })
   hi('MsgArea',        { link='Normal' })
-  hi('MsgSeparator',   { fg=p.fg_mid2, bg=p.bg_mid2 })
+  hi('MsgSeparator',   H.attr_msgseparator(p, autoadjust))
   hi('NonText',        { fg=p.bg_mid2, bg=nil })
   hi('Normal',         { fg=p.fg,      bg=p.bg })
   hi('NormalFloat',    { fg=p.fg,      bg=p.bg_edge })
   hi('NormalNC',       { link='Normal' })
   hi('OkMsg',          { fg=p.green,   bg=nil })
-  hi('Pmenu',          { fg=p.fg,      bg=p.bg_mid })
+  hi('Pmenu',          H.attr_pmenu(p, autoadjust))
+  hi('PmenuBorder',    { link='Pmenu' })
   hi('PmenuExtra',     { link='Pmenu' })
   hi('PmenuExtraSel',  { link='PmenuSel' })
   hi('PmenuKind',      { link='Pmenu' })
   hi('PmenuKindSel',   { link='PmenuSel' })
-  hi('PmenuMatch',     { fg=p.fg,      bg=p.bg_mid,  bold=true })
+  hi('PmenuMatch',     { fg=nil,       bg=nil,       bold=true })
   hi('PmenuMatchSel',  { fg=nil,       bg=nil,       bold=true,   blend=0, reverse=true })
   hi('PmenuSbar',      { link='Pmenu' })
   hi('PmenuSel',       { fg=nil,       bg=nil,       blend=0,     reverse=true })
@@ -856,6 +876,10 @@ MiniHues.apply_palette = function(palette, plugins)
     hi('@markup.heading.5', { fg=p.azure,  bg=nil })
     hi('@markup.heading.6', { fg=p.blue,   bg=nil })
 
+    hi('@markup.heading.1.delimiter.vimdoc', { fg=p.bg_mid2, bg=nil, bold=true })
+    hi('@markup.heading.2.delimiter.vimdoc', { fg=p.bg_mid2, bg=nil, bold=true })
+    hi('@markup.heading.4.vimdoc', { link='Title' })
+
     hi('@markup.quote',       { link='@string.special' })
     hi('@markup.math',        { link='@string.special' })
     hi('@markup.environment', { link='@module' })
@@ -896,6 +920,7 @@ MiniHues.apply_palette = function(palette, plugins)
     hi('MiniClueTitle',               { link='FloatTitle' })
 
     hi('MiniCompletionActiveParameter',    { link='LspSignatureActiveParameter' })
+    hi('MiniCompletionDeprecated',         { link='DiagnosticDeprecated' })
     hi('MiniCompletionInfoBorderOutdated', { link='DiagnosticFloatingWarn' })
 
     hi('MiniCursorword',        { fg=nil, bg=nil, underline=true })
@@ -995,7 +1020,7 @@ MiniHues.apply_palette = function(palette, plugins)
     hi('MiniStarterFooter',     { link='Comment' })
     hi('MiniStarterHeader',     { fg=p.accent,  bg=nil, bold=true })
     hi('MiniStarterInactive',   { link='Comment' })
-    hi('MiniStarterItem',       { fg=nil,       bg=nil })
+    hi('MiniStarterItem',       { link='Normal' })
     hi('MiniStarterItemBullet', { fg=p.fg_mid2, bg=nil })
     hi('MiniStarterItemPrefix', { fg=p.yellow,  bg=nil, bold=true })
     hi('MiniStarterSection',    { fg=p.purple,  bg=nil })
@@ -1672,6 +1697,7 @@ H.setup_config = function(config)
     H.error('`accent` should be one of ' .. table.concat(vim.tbl_map(vim.inspect, H.accent_values), ', '))
   end
   H.check_type('plugins', config.plugins, 'table')
+  H.check_type('autoadjust', config.autoadjust, 'boolean')
 
   return config
 end
@@ -1680,7 +1706,8 @@ H.apply_config = function(config)
   MiniHues.config = config
 
   -- Apply palette
-  MiniHues.apply_palette(MiniHues.make_palette(config), config.plugins)
+  local opts = { autoadjust = config.autoadjust }
+  MiniHues.apply_palette(MiniHues.make_palette(config), config.plugins, opts)
 end
 
 -- Palette --------------------------------------------------------------------
@@ -1924,7 +1951,33 @@ H.clip_to_gamut = function(lch)
   return res
 end
 
--- ============================================================================
+-- Auto adjusting -------------------------------------------------------------
+H.setup_autoadjust = function(palette)
+  local gr = vim.api.nvim_create_augroup('MiniHuesAdjust', {})
+  local hi = function(name, data) vim.api.nvim_set_hl(0, name, data) end
+  local adjust = function(ev)
+    local adjust_all = ev.event == 'VimEnter'
+    if adjust_all or ev.match == 'fillchars' then hi('MsgSeparator', H.attr_msgseparator(palette, true)) end
+    if adjust_all or ev.match == 'pumborder' then hi('Pmenu', H.attr_pmenu(palette, true)) end
+  end
+
+  -- Use single autocommand without pattern for performance (skips Neovim doing
+  -- pattern matching on the option name). Use 'VimEnter' to work when option
+  -- is set during startup, as 'OptionSet' is not triggered.
+  local au_opts = { group = gr, callback = adjust, desc = 'Autoadjust highlight groups' }
+  vim.api.nvim_create_autocmd({ 'VimEnter', 'OptionSet' }, au_opts)
+end
+
+H.attr_msgseparator = function(p, autoadjust)
+  if not autoadjust then return { fg = p.accent, bg = p.bg_mid } end
+  return vim.o.fillchars:find('msgsep:%S') ~= nil and { fg = p.accent } or { bg = p.bg_mid }
+end
+
+H.attr_pmenu = function(p, autoadjust)
+  local is_pumborder = vim.fn.exists('+pumborder') == 1 and not (vim.o.pumborder == '' or vim.o.pumborder == 'none')
+  return (autoadjust and is_pumborder) and { link = 'NormalFloat' } or { fg = p.fg, bg = p.bg_mid }
+end
+
 -- Utilities ------------------------------------------------------------------
 H.error = function(msg) error('(mini.hues) ' .. msg, 0) end
 

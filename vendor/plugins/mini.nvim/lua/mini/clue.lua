@@ -1,10 +1,7 @@
 --- *mini.clue* Show next key clues
---- *MiniClue*
 ---
 --- MIT License Copyright (c) 2023 Evgeni Chasnovski
----
---- ==============================================================================
----
+
 --- Features:
 --- - Implement custom key query process to reach target key combination:
 ---     - Starts after customizable opt-in triggers (mode + keys).
@@ -108,7 +105,7 @@
 ---
 --- # Comparisons ~
 ---
---- - 'folke/which-key.nvim':
+--- - [folke/which-key.nvim](https://github.com/folke/which-key.nvim):
 ---     - Both have the same main goal: show available next keys along with
 ---       their customizable descriptions.
 ---     - Has different UI and content layout.
@@ -116,7 +113,7 @@
 ---       doesn't have this by design (to clearly separate two different tasks).
 ---     - Doesn't allow creating submodes, while this module does (via `postkeys`).
 ---
---- - 'anuvyklack/hydra.nvim':
+--- - [anuvyklack/hydra.nvim](https://github.com/anuvyklack/hydra.nvim):
 ---     - Both allow creating submodes: state which starts at certain key
 ---       combination; treats some keys differently; ends after `<Esc>`.
 ---     - Doesn't show information about available next keys (outside of
@@ -124,15 +121,15 @@
 ---
 --- # Highlight groups ~
 ---
---- * `MiniClueBorder` - window border.
---- * `MiniClueDescGroup` - group description in clue window.
---- * `MiniClueDescSingle` - single target description in clue window.
---- * `MiniClueNextKey` - next key label in clue window.
---- * `MiniClueNextKeyWithPostkeys` - next key label with postkeys in clue window.
---- * `MiniClueSeparator` - separator in clue window.
---- * `MiniClueTitle` - window title.
+--- - `MiniClueBorder` - window border.
+--- - `MiniClueDescGroup` - group description in clue window.
+--- - `MiniClueDescSingle` - single target description in clue window.
+--- - `MiniClueNextKey` - next key label in clue window.
+--- - `MiniClueNextKeyWithPostkeys` - next key label with postkeys in clue window.
+--- - `MiniClueSeparator` - separator in clue window.
+--- - `MiniClueTitle` - window title.
 ---
---- To change any highlight group, modify it directly with |:highlight|.
+--- To change any highlight group, set it directly with |nvim_set_hl()|.
 ---
 --- # Disabling ~
 ---
@@ -141,10 +138,9 @@
 --- of different scenarios and customization intentions, writing exact rules
 --- for disabling module's functionality is left to user. See
 --- |mini.nvim-disabling-recipes| for common recipes.
+---@tag MiniClue
 
---- # Key query process ~
----
---- ## General info ~
+--- # General info ~
 ---
 --- This module implements custom key query process imitating a usual built-in
 --- mechanism of user pressing keys in order to execute a mapping. General idea
@@ -166,7 +162,7 @@
 --- mode but works in all other main modes: Visual, Insert, Operator-pending
 --- (with caveats; no foolproof guarantees), Command-line, Terminal.
 ---
---- ## Lifecycle ~
+--- # Lifecycle ~
 ---
 --- - Key query process starts when user types a trigger: certain keys in certain
 ---   mode. Those keys are put into key query as a single user input. All possible
@@ -208,7 +204,7 @@
 ---
 ---         - Otherwise wait for the new user key press.
 ---
---- ## Clue window ~
+--- # Clue window ~
 ---
 --- After initiating key query process and after each key press, a timer is
 --- started to show a clue window: floating window with information about
@@ -353,8 +349,8 @@
 ---
 ---   au FileType special_ft lua MiniClue.ensure_buf_triggers()
 --- <
----                                                     *MiniClue-examples-submodes*
 --- # Submodes ~
+--- *MiniClue-examples-submodes*
 ---
 --- Submode is a state initiated after pressing certain key combination ("prefix")
 --- during which some keys are interpreted differently.
@@ -510,9 +506,7 @@ MiniClue.setup = function(config)
 end
 
 --stylua: ignore
---- Module config
----
---- Default values:
+--- Defaults ~
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
 ---@text # General info ~
 ---
@@ -610,11 +604,12 @@ MiniClue.config = {
 }
 --minidoc_afterlines_end
 
---- Enable triggers in all listed buffers
+--- Enable triggers in all listed and some special buffers
 MiniClue.enable_all_triggers = function()
   for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-    -- Map only inside valid listed buffers
-    if vim.fn.buflisted(buf_id) == 1 then H.map_buf_triggers(buf_id) end
+    -- Map only inside valid listed buffers and ones with special filetypes
+    local is_special = H.ft_to_enable[vim.bo[buf_id].filetype]
+    if vim.fn.buflisted(buf_id) == 1 or is_special then H.map_buf_triggers(buf_id) end
   end
 end
 
@@ -1186,6 +1181,11 @@ H.keys = {
   ctrl_u = vim.api.nvim_replace_termcodes('<C-u>', true, true, true),
 }
 
+-- Special filetypes for which to enable triggers. These are common interactive
+-- not listed filetypes. NOTE: no 'minifiles' as `'` trigger conflicts with its
+-- local `'`. Plus it pollutes `g?` content.
+H.ft_to_enable = { help = true, git = true, ministarter = true }
+
 -- Timers
 H.timers = {
   getcharstr = vim.loop.new_timer(),
@@ -1259,10 +1259,7 @@ H.create_autocommands = function()
   -- - Respect `LspAttach` as it is a common source of buffer-local mappings
   local events = { 'BufAdd', 'LspAttach' }
   au(events, '*', ensure_triggers, 'Ensure buffer-local trigger keymaps')
-  -- - Respect common interactive not listed filetypes. NOTE: no 'minifiles' as
-  --   `'` trigger conflicts with its local `'`. Plus it pollutes `g?` content.
-  local special_ft = { 'help', 'git' }
-  au('Filetype', special_ft, ensure_triggers, 'Ensure buffer-local trigger keymaps')
+  au('Filetype', vim.tbl_keys(H.ft_to_enable), ensure_triggers, 'Ensure buffer-local trigger keymaps')
 
   -- Disable all triggers (current and future) when recording macro as they
   -- interfere with what is actually recorded
@@ -1341,7 +1338,11 @@ H.map_trigger = function(buf_id, trigger)
 
   -- Compute mapping RHS
   trigger.keys = H.replace_termcodes(trigger.keys)
-  local keys_trans = H.keytrans(trigger.keys)
+  local lhs = H.keytrans(trigger.keys)
+
+  local is_ministarter_map = vim.bo[buf_id].filetype == 'ministarter'
+    and vim.api.nvim_buf_call(buf_id, function() return vim.fn.maparg(lhs, trigger.mode) ~= '' end)
+  if is_ministarter_map then return end
 
   local rhs = function()
     -- Don't act if for some reason entered the same trigger during state exec
@@ -1365,11 +1366,11 @@ H.map_trigger = function(buf_id, trigger)
 
   -- Use buffer-local mappings and `nowait` to make it a primary source of
   -- keymap execution
-  local desc = string.format('Query keys after "%s"', keys_trans)
+  local desc = string.format('Query keys after "%s"', lhs)
   local opts = { buffer = buf_id, nowait = true, desc = desc }
 
   -- Create mapping. Use translated variant to make it work with <F*> keys.
-  vim.keymap.set(trigger.mode, keys_trans, rhs, opts)
+  vim.keymap.set(trigger.mode, lhs, rhs, opts)
 end
 
 H.unmap_trigger = function(buf_id, trigger)
@@ -1678,13 +1679,17 @@ H.window_get_config = function()
   local max_height = vim.o.lines - vim.o.cmdheight - (has_tabline and 1 or 0) - (has_statusline and 1 or 0) - 2
   max_height = math.max(max_height, 1)
 
+  local keys = H.query_to_keys(H.state.query)
+  local query_clue = (H.state.clues[keys] or {}).desc or ''
+  local title = (#H.state.query <= 1 or query_clue == '') and H.keytrans(keys) or query_clue
+
   local buf_id = H.state.buf_id
   local cur_config_fields = {
     row = vim.o.lines - vim.o.cmdheight - (has_statusline and 1 or 0),
     col = vim.o.columns,
     height = math.min(vim.api.nvim_buf_line_count(buf_id), max_height),
-    title = ' ' .. H.keytrans(H.query_to_keys(H.state.query)) .. ' ',
-    border = (vim.fn.exists('+winborder') == 1 and vim.o.winborder ~= '') and vim.o.winborder or 'single',
+    title = ' ' .. title .. ' ',
+    border = (vim.fn.exists('+winborder') == 0 or vim.o.winborder == '') and 'single' or nil,
   }
   local user_config = H.expand_callable(H.get_config().window.config, buf_id) or {}
   local res = vim.tbl_deep_extend('force', H.default_win_config, cur_config_fields, user_config)

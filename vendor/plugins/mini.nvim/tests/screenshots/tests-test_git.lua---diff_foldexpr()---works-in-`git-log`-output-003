@@ -29,10 +29,10 @@
 28|                                                  
 29|    Commit 2                                      
 30|                                                  
-31|diff --git a/dir/file1 b/dir/file1                
+31|diff --git i/dir/file1 w/dir/file1                
 32|index dd2b945..b81ef66 100644                     
-33|--- a/dir/file1                                   
-34|+++ b/dir/file1                                   
+33|--- i/dir/file1                                   
+34|+++ w/dir/file1                                   
 35|@@ -247 +247 @@ Hunk header 1                     
 36|+----  2 lines: -      Previous line 02···········
 37|@@ -317,4 +317,4 @@                               

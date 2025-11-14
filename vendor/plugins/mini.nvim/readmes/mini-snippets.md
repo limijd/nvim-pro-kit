@@ -1,26 +1,29 @@
-<div align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-snippets_readme.png" alt="mini.snippets"/> </div>
+<p align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-snippets_readme.png?raw=true" alt="mini.snippets" style="max-width:100%;border:solid 2px"/> </p>
 
 ### Manage and expand snippets
 
-See more details in [Features](#features) and [help file](../doc/mini-snippets.txt).
+See more details in [Features](#features) and [Documentation](../doc/mini-snippets.txt).
 
 ---
 
 > [!NOTE]
 > This was previously hosted at a personal `echasnovski` GitHub account. It was transferred to a dedicated organization to improve long term project stability. See more details [here](https://github.com/nvim-mini/mini.nvim/discussions/1970).
 
-⦿ This is a part of [mini.nvim](https://github.com/nvim-mini/mini.nvim) library. Please use [this link](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-snippets.md) if you want to mention this module.
+⦿ This is a part of [mini.nvim](https://nvim-mini.org/mini.nvim) library. Please use [this link](https://nvim-mini.org/mini.nvim/readmes/mini-snippets) if you want to mention this module.
 
 ⦿ All contributions (issues, pull requests, discussions, etc.) are done inside of 'mini.nvim'.
 
-⦿ See the repository page to learn about common design principles and configuration recipes.
+⦿ See [whole library documentation](https://nvim-mini.org/mini.nvim/doc/mini-nvim) to learn about general design principles, disable/configuration recipes, and more.
+
+⦿ See [MiniMax](https://nvim-mini.org/MiniMax) for a full config example that uses this module.
 
 ---
 
-If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://github.com/nvim-mini/mini.nvim/blob/main/CONTRIBUTING.md) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
+If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://nvim-mini.org/mini.nvim/CONTRIBUTING) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
 
 ## Demo
 
+<!-- Demo source: https://github.com/nvim-mini/assets/blob/main/demo/demo-snippets.mp4 -->
 https://github.com/user-attachments/assets/2cb38960-a26c-48ae-83cd-5fbcaa57d1cf
 
 ## Features
@@ -33,7 +36,7 @@ https://github.com/user-attachments/assets/2cb38960-a26c-48ae-83cd-5fbcaa57d1cf
 
 - Select from several matched snippets via `vim.ui.select()`. See `:h MiniSnippets.default_select()`.
 
-- Start specialized in-process LSP server to show loaded snippets inside (auto)completion engines (like [mini.completion](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-completion.md)). See `:h MiniSnippets.start_lsp_server()`.
+- Start specialized in-process LSP server to show loaded snippets inside (auto)completion engines (like [mini.completion](https://nvim-mini.org/mini.nvim/readmes/mini-completion)). See `:h MiniSnippets.start_lsp_server()`.
 
 - Insert, jump, and edit during snippet session in a configurable manner:
     - Configurable mappings for jumping and stopping.
@@ -50,11 +53,13 @@ https://github.com/user-attachments/assets/2cb38960-a26c-48ae-83cd-5fbcaa57d1cf
 - Exported function to parse snippet body into easy-to-reason data structure. See `:h MiniSnippets.parse()`.
 
 Notes:
+
 - It does not set up any snippet collection by default. Explicitly populate `config.snippets` to have snippets to match from.
 - It does not come with a built-in snippet collection. It is expected from users to add their own snippets, manually or with dedicated plugin(s).
 - It does not support variable/tabstop transformations in default snippet session. This requires ECMAScript Regular Expression parser which can not be implemented concisely.
 
 Sources with more details:
+
 - [Overview](#overview)
 - `:h MiniSnippets-glossary`
 - `:h MiniSnippets-examples`
@@ -120,6 +125,7 @@ This overview assumes default config for mappings and expand. See `:h MiniSnippe
 ### Snippet structure
 
 Snippet consists from three parts:
+
 - `Prefix` - identifier used to match against current text.
 - `Body` - actually inserted content with appropriate syntax.
 - `Desc` - description in human readable form.
@@ -164,6 +170,7 @@ There is a `:h MiniSnippets.parse()` function for programmatically parsing snipp
 ### Expand
 
 Using snippets is done via what is called "expanding". It goes like this:
+
 - Type snippet prefix or its recognizable part.
 - Press `<C-j>` to expand. It will perform the following steps:
     - Prepare available snippets in current context (buffer + local language). This allows snippet setup to have general function loaders which return different snippets in different contexts.
@@ -171,7 +178,8 @@ Using snippets is done via what is called "expanding". It goes like this:
     - If there are several matches, use `vim.ui.select()` to choose one.
     - Insert single matching snippet. If snippet contains tabstops, start snippet session.
 
-For more details about each step see:
+For more information see these parts of help:
+
 - `:h MiniSnippets.default_prepare()`
 - `:h MiniSnippets.default_match()`
 - `:h MiniSnippets.default_select()`
@@ -191,9 +199,9 @@ Snippet session allows interactive editing at tabstop locations:
 
 - Stop session manually by pressing `<C-c>` or make it stop automatically: if final tabstop is current either make a text edit or exit to Normal mode. If snippet doesn't explicitly define final tabstop, it is added at the end of the snippet.
 
-For more details about snippet session see `:h MiniSnippets-session`.
+For more information about snippet session see `:h MiniSnippets-session`.
 
-To select and insert snippets via completion engine (that supports LSP completion; like [mini.completion](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-completion.md) or `:h vim.lsp.completion`), call `:h MiniSnippets.start_lsp_server()` after `require('mini.snippets').setup()`. This sets up an LSP server that matches and provides snippets loaded with 'mini.snippets'. To match with completion engine, use `start_lsp_server({ match = false })`.
+To select and insert snippets via completion engine (that supports LSP completion; like [mini.completion](https://nvim-mini.org/mini.nvim/readmes/mini-completion) or `:h vim.lsp.completion`), call `:h MiniSnippets.start_lsp_server()` after `require('mini.snippets').setup()`. This sets up an LSP server that matches and provides snippets loaded with 'mini.snippets'. To match with completion engine, use `start_lsp_server({ match = false })`.
 
 ### Management
 
@@ -214,16 +222,19 @@ The following files are supported:
     - Array-like: array in JSON; returned array table in Lua; preserves order.
 
 Example of file content with a single snippet:
+
 - Lua dict-like:   `return { name = { prefix = 't', body = 'Text' } }`
 - Lua array-like:  `return { { prefix = 't', body = 'Text', desc = 'name' } }`
 - JSON dict-like:  `{ "name": { "prefix": "t", "body": "Text" } }`
 - JSON array-like: `[ { "prefix": "t", "body": "Text", "desc": "name" } ]`
 
 General advice:
+
 - Put files in "snippets" subdirectory of any path in 'runtimepath' (like '`$XDG_CONFIG_HOME`/nvim/snippets/global.json'). This is compatible with `:h MiniSnippets.gen_loader.from_runtime()` and [Quickstart](#quickstart).
 - Prefer `*.json` files with dict-like content if you want more cross platform setup. Otherwise use `*.lua` files with array-like content.
 
 Notes:
+
 - There is no built-in support for VSCode-like "package.json" files. Define structure manually in `:h MiniSnippets.setup()` via built-in or custom loaders.
 - There is no built-in support for `scope` field of snippet data. Snippets are expected to be manually separated into smaller files and loaded on demand.
 
@@ -241,85 +252,66 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-deps.md">mini.deps</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th> <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td rowspan=2><i>Follow recommended 'mini.deps' installation</i></td>
-        </tr>
-        <tr>
-            <td>Stable</td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>add('nvim-mini/mini.snippets')</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>add({ source = 'nvim-mini/mini.snippets', checkout = 'stable' })</code></td>
-        </tr>
-    </tbody>
-</table>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | *Follow recommended ‘mini.deps’ installation* |
+    | Stable | *Follow recommended ‘mini.deps’ installation* |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                                       |
+    |--------|--------------------------------------------------------------------|
+    | Main   | `add(‘nvim-mini/mini.snippets’)`                                   |
+    | Stable | `add({ source = ‘nvim-mini/mini.snippets’, checkout = ‘stable’ })` |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th> <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td><code>{ 'nvim-mini/mini.nvim', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.nvim', version = '*' },</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>{ 'nvim-mini/mini.snippets', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.snippets', version = '*' },</code></td>
-        </tr>
-    </tbody>
-</table>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                      |
+    |--------|---------------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.snippets', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.snippets', version = '*' },`   |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th> <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td><code>Plug 'nvim-mini/mini.nvim'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>Plug 'nvim-mini/mini.snippets'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.snippets', { 'branch': 'stable' }</code></td>
-        </tr>
-    </tbody>
-</table>
-</details>
 
-<br>
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                         |
+    |--------|------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
+    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                             |
+    |--------|----------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.snippets'`                         |
+    | Stable | `Plug 'nvim-mini/mini.snippets', { 'branch': 'stable' }` |
+
+</details>
 
 **Important**: don't forget to call `require('mini.snippets').setup()` with non-empty `snippets` to have snippets to match from.
 
 **Note**: if you are on Windows, there might be problems with too long file paths (like `error: unable to create file <some file name>: Filename too long`). Try doing one of the following:
+
 - Enable corresponding git global config value: `git config --system core.longpaths true`. Then try to reinstall.
 - Install plugin in other place with shorter path.
 

@@ -1,6 +1,7 @@
 This is the log of changes for past and current development versions. It lists changes in user-facing functionality per module (or all modules) and type.
 
 There are following change types:
+
 - `Evolve` - change in previously intended functionality *while* adding a new one.
 - `Refine` - change in previously intended functionality *without* adding new one. This is usually described as a "breaking change", but used here in a sense that it might break user's expectations about existing functionality.
 - `Expand` - adding new functionality without affecting existing ones. This is essentially new features.
@@ -46,6 +47,22 @@ There are following change types:
 
 - Add `gen_spec.user_prompt` that acts the same as `?` built-in textobject. It can be used for using this textobject under another identifier.
 
+## mini.basics
+
+### Refine
+
+- Change default value of `options.win_border` to be `'auto'`.
+
+### Expand
+
+- Update `options.win_border` to allow value `'auto'` which infers target 'fillchars' values from 'winborder' option.
+
+## mini.colors
+
+- Update `add_transparency()` color scheme method to adjust more groups:
+    - `XxxMsg` groups in case of `opts.general = true`.
+    - `DiagnosticSignXxx` groups in case of `opts.statuscolumn = true`.
+
 ## mini.completion
 
 ### Evolve
@@ -60,9 +77,15 @@ There are following change types:
 
 ## mini.clue
 
+### Evolve
+
+- Use current query clue (if not immediately after trigger) as a window title instead of showing keys verbatim. This shows extra context when navigating through mappings.
+
 ### Expand
 
 - Add `gen_clues.square_brackets` to generate clues for `[` and `]` keys. By @TheLeoP, PR #1937.
+
+- Ensure triggers for 'mini.starter' buffers, but not override its query updaters (like for "g" and "z" triggers).
 
 ## mini.diff
 
@@ -70,21 +93,43 @@ There are following change types:
 
 - Add support for working with files containing BOM bytes.
 
+## mini.doc
+
+### Refine
+
+- Update default `write_pre` hook to remove `===` and `---` delimiters from the top of the file to better comply with `:h local-additions`.
+
 ## mini.extra
 
 ### Expand
 
 - Add `pickers.colorschemes` picker. By @pkazmier, PR #1789.
 
+- Add `workspace_symbol_live` scope to `pickers.lsp` picker. It allows searching for LSP symbols in the workspace with live feedback. Relates to `workspace_symbol` scope similarly to how `MiniPick.builtin.grep_live()` relates to `MiniPick.builtin.grep()`.
+
 - Add `<C-e>` mapping for `pickers.history` picker to edit commands or searches in cmdline. By @TheLeoP, PR #1960.
 
 ## mini.files
+
+### Evolve
+
+- Allow appending `/` to a file name to mean "delete file" + "create directory". This is useful when initial intention was to create a directory but there was no `/` at the end.
 
 ### Refine
 
 - Ensure preview window is never hidden, even if cursor is on the line for a not (yet) existing file system entry. This reduces flickering of preview window when creating new files in Insert mode.
 
+### Expand
+
+- Add `config.content.highlight` to customize how file system entry is highlighted. Defaults to a new `default_highlight()` function.
+
 ## mini.hues
+
+### Evolve
+
+- Add auto adjusting of highlight groups based on certain events. It can be disabled via new `autoadjust` config setting or `opts.autoadjust` in `apply_palette()`. Affected groups:
+    - `MsgSeparator` depends on `msgsep` flag of 'fillchars' option.
+    - `Pmenu` depends on 'pumborder' option value (on Neovim>=0.12).
 
 ### Refine
 
@@ -120,17 +165,31 @@ There are following change types:
 
 - Add `gen_spotter.vimpattern()` that can generate spotter based on Vimscript (not Lua) pattern.
 
+## mini.map
+
+### Expand
+
+- Update `gen_integration.builtin_search()` to react to change of `v:hlsearch`.
+
 ## mini.misc
 
 ### Expand
 
 - Update `zoom()` to return whether current buffer is zoomed in. By @loichyan, PR #1954.
 
+- Add `log_add()` and related functions (`log_get()`, `log_show()`, `log_clear()`) to work with a special in-memory log array. Useful when debugging Lua code (instead of `print()`).
+
 ## mini.pick
+
+### Evolve
+
+- Pickers `grep` and `grep_live` with `rg` tool now respect Neovim's `'ignorecase'` and `'smartcase'` options. This forces corresponding case matching flag (thus overriding global configuration) in favor of a more consistent user experience.
 
 ### Expand
 
 - "Paste" action now supports special registers: `<C-w>` (word at cursor), `<C-a>` (WORD at cursor), `<C-l>` (line at cursor), `<C-f>` (filename at cursor).
+
+- Key query process now respects most language mappings. By @yehorb, PR #2026.
 
 ## mini.sessions
 
@@ -143,6 +202,8 @@ There are following change types:
 ### Evolve
 
 - Stop creating `update_n_lines` mapping: it occupies "mapping real estate" while being rarely needed and straightforward to create manually using `MiniSurround.update_n_lines()`.
+
+- Automatically map `s` key to `<Nop>` if the key is not already mapped and any of created mappings starts with it. This prevents accidental trigger of built-in `s` if there is a long delay between pressing "s" and the next key.
 
 ### Refine
 
@@ -229,8 +290,9 @@ There are following change types:
 
 ### Evolve
 
-- Add snippet support. By default uses 'mini.snippets' to manage snippet session (if enabled, **highly recommended), falls back to `vim.snippet` on Neovim>=0.10. See "Snippets" section in `:h MiniCompletion` for more details.<br>
-  This affect existing functionality because items with `Snippet` kind are no longer filtered out by default.
+- Add snippet support. By default uses 'mini.snippets' to manage snippet session (if enabled, **highly recommended), falls back to `vim.snippet` on Neovim>=0.10. See "Snippets" section in `:h MiniCompletion` for more details.
+
+    This affect existing functionality because items with `Snippet` kind are no longer filtered out by default.
 
 - Rework how LSP completion items are converted to Neovim's completion items:
     - Show `detail` highlighted as buffer's language at the start of info window, but only if `detail` provides information not already present in `documentation`. It was previously used as extra text in the popup menu (via `menu` field), but this doesn't quite follow LSP specification: `detail` and `documentation` fields can be delayed up until `completionItem/resolve` request which implies they should be treated similarly.

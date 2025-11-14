@@ -54,6 +54,7 @@ T['setup()']['creates `config` field'] = function()
   expect_config('n_hues', 8)
   expect_config('saturation', 'medium')
   expect_config('accent', 'bg')
+  expect_config('autoadjust', true)
 end
 
 T['setup()']['respects `config` argument'] = function()
@@ -82,6 +83,8 @@ T['setup()']['validates `config` argument'] = function()
   expect_config_error({ background = bg, foreground = fg, saturation = 'aaa' }, 'saturation', 'one of')
 
   expect_config_error({ background = bg, foreground = fg, accent = 'aaa' }, 'accent', 'one of')
+
+  expect_config_error({ background = bg, foreground = fg, autoadjust = 1 }, 'autoadjust', 'boolean')
 end
 
 T['setup()']['defines builtin highlight groups'] = function()
@@ -214,6 +217,40 @@ T['setup()']['respects `config.plugins`'] = function()
   })
   validate_hl_group('MiniCursorword', 'cterm=underline gui=underline')
   expect.match(child.cmd_capture('hi GitSignsAdd'), 'cleared')
+end
+
+T['setup()']['respects `config.autoadjust`'] = function()
+  -- By default it should autoadjust
+  child.cmd('highlight clear')
+  child.o.fillchars = 'msgsep:-'
+  load_module({ background = '#222222', foreground = '#dddddd' })
+  -- - Should also initially pick proper attributes
+  validate_hl_group('MsgSeparator', 'guifg=#dddddd')
+
+  child.o.fillchars = 'msgsep: '
+  validate_hl_group('MsgSeparator', 'guibg=#3e3e3e')
+  child.o.fillchars = 'msgsep:-'
+  validate_hl_group('MsgSeparator', 'guifg=#dddddd')
+
+  -- Should not autoadjust if `autoadjust = false`
+  child.cmd('highlight clear')
+  child.api.nvim_del_augroup_by_name('MiniHuesAdjust')
+  child.o.fillchars = 'msgsep:-'
+  load_module({ background = '#222222', foreground = '#dddddd', autoadjust = false })
+  validate_hl_group('MsgSeparator', 'guifg=#dddddd guibg=#3e3e3e')
+  child.o.fillchars = 'msgsep: '
+  validate_hl_group('MsgSeparator', 'guifg=#dddddd guibg=#3e3e3e')
+
+  -- Should autoadjust `Pmenu` based on 'pumborder'
+  if child.fn.has('nvim-0.12') == 1 then
+    child.cmd('highlight clear')
+    child.o.pumborder = 'single'
+    load_module({ background = '#222222', foreground = '#dddddd' })
+    validate_hl_group('Pmenu', 'links to NormalFloat')
+
+    child.o.pumborder = 'none'
+    validate_hl_group('Pmenu', 'guifg=#dddddd guibg=#3e3e3e')
+  end
 end
 
 T['make_palette()'] = new_set()
@@ -479,6 +516,29 @@ T['apply_palette()']['respects `plugins`'] = function()
   apply_palette(palette)
   validate_hl_group('MiniCursorword', 'cleared')
   validate_hl_group('WhichKey', 'guifg=#a1efdf')
+end
+
+T['apply_palette()']['respects `opts.autoadjust`'] = function()
+  local palette = make_palette({ background = '#222222', foreground = '#dddddd' })
+
+  -- By default it should follow `config.autoadjust`
+  child.lua('MiniHues.config.autoadjust = false')
+  child.cmd('highlight clear')
+  child.o.fillchars = 'msgsep:-'
+
+  apply_palette(palette)
+  validate_hl_group('MsgSeparator', 'guifg=#dddddd guibg=#3e3e3e')
+
+  child.o.fillchars = 'msgsep: '
+  validate_hl_group('MsgSeparator', 'guifg=#dddddd guibg=#3e3e3e')
+
+  -- Should respect `opts.autoadjust` value
+  child.o.fillchars = 'msgsep: '
+  apply_palette(palette, {}, { autoadjust = true })
+  validate_hl_group('MsgSeparator', 'guibg=#3e3e3e')
+
+  child.o.fillchars = 'msgsep:-'
+  validate_hl_group('MsgSeparator', 'guifg=#dddddd')
 end
 
 T['apply_palette()']['clears highlight groups'] = function()

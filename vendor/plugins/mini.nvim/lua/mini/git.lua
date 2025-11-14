@@ -1,10 +1,7 @@
 --- *mini.git* Git integration
---- *MiniGit*
 ---
 --- MIT License Copyright (c) 2024 Evgeni Chasnovski
----
---- ==============================================================================
----
+
 --- Features:
 ---
 --- - Automated tracking of Git related data: root path, status, HEAD, etc.
@@ -24,7 +21,7 @@
 ---
 --- - Replace fully featured Git client. Rule of thumb: if feature does not rely
 ---   on a state of current Neovim (opened buffers, etc.), it is out of scope.
----   For more functionality, use either |MiniDiff| or fully featured Git client.
+---   For more functionality, use either |mini.diff| or fully featured Git client.
 ---
 --- Sources with more details:
 --- - |:Git|
@@ -42,7 +39,7 @@
 ---
 --- # Comparisons ~
 ---
---- - 'tpope/vim-fugitive':
+--- - [tpope/vim-fugitive](https://github.com/tpope/vim-fugitive):
 ---     - Mostly a dedicated Git client, while this module is not (by design).
 ---     - Provides buffer-local Git data only through fixed statusline component,
 ---       while this module has richer data in the form of a Lua table.
@@ -53,13 +50,13 @@
 ---       Also this module provides slightly different (usually richer)
 ---       completion suggestions.
 ---
---- - 'NeogitOrg/neogit':
+--- - [NeogitOrg/neogit](https://github.com/NeogitOrg/neogit):
 ---     - Similar to 'tpope/vim-fugitive', but without `:Git` command.
 ---
---- - 'lewis6991/gitsigns.nvim':
+--- - [lewis6991/gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim):
 ---     - Provides buffer-local Git data with emphasis on granular diff status,
 ---       while this module is more oriented towards repository and file level
----       data (root, HEAD, file status, etc.). Use |MiniDiff| for diff tracking.
+---       data (root, HEAD, file status, etc.). Use |mini.diff| for diff tracking.
 ---
 --- # Disabling ~
 ---
@@ -68,6 +65,7 @@
 --- different scenarios and customization intentions, writing exact rules for
 --- disabling module's functionality is left to user.
 --- See |mini.nvim-disabling-recipes| for common recipes.
+---@tag MiniGit
 
 --- # Statusline component ~
 ---
@@ -145,7 +143,7 @@
 ---   determined automatically based on the data Git itself provides.
 ---   Split window is made current after command execution.
 ---
----   Use split-related |command-modifiers| (|:vertical|, |:horizontal|, or |:tab|)
+---   Use split-related |:command-modifiers| (|:vertical|, |:horizontal|, or |:tab|)
 ---   to force output in a particular type of split. Default split direction is
 ---   controlled by `command.split` in |MiniGit.config|.
 ---
@@ -182,7 +180,9 @@
 ---   Like `:Git commit -m Hello\ world` and not `:Git commit -m 'Hello world'`
 ---   (which treats `'Hello` and `world'` as separate arguments).
 ---
----                                                         *MiniGit-command-events*
+--- # Events ~
+--- *MiniGit-command-events*
+---
 --- There are several `User` events triggered during command execution:
 ---
 --- - `MiniGitCommandDone` - after command is done executing. For Lua callbacks it
@@ -190,18 +190,17 @@
 ---     - <cmd_input> `(table)` - structured data about executed command.
 ---       Has same structure as Lua function input in |nvim_create_user_command()|.
 ---     - <cwd> `(string)` - directory path inside which Git command was executed.
----     - `<exit_code>` `(number)` - exit code of CLI process.
----     - `<git_command>` `(table)` - array with arguments of full executed command.
----     - `<git_subcommand>` `(string)` - detected Git subcommand (like "log", etc.).
----     - `<stderr>` `(string)` - `stderr` process output.
----     - `<stdout>` `(string)` - `stdout` process output.
+---     - <exit_code> `(number)` - exit code of CLI process.
+---     - <git_command> `(table)` - array with arguments of full executed command.
+---     - <git_subcommand> `(string)` - detected Git subcommand (like "log", etc.).
+---     - <stderr> `(string)` - `stderr` process output.
+---     - <stdout> `(string)` - `stdout` process output.
 ---
 --- - `MiniGitCommandSplit` - after command showed its output in a split. Triggered
 ---   after `MiniGitCommandDone` and provides similar `data` table with extra fields:
----     - `<win_source>` `(number)` - window identifier of "source" window (current at
+---     - <win_source> `(number)` - window identifier of "source" window (current at
 ---       the moment before command execution).
----     - `<win_stdout>` `(number)` - window identifier of command output.
----@tag MiniGit-command
+---     - <win_stdout> `(number)` - window identifier of command output.
 ---@tag :Git
 
 ---@alias __git_buf_id number Target buffer identifier. Default: 0 for current buffer.
@@ -259,9 +258,7 @@ MiniGit.setup = function(config)
 end
 
 --stylua: ignore
---- Module config
----
---- Default values:
+--- Defaults ~
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
 ---@text # Job ~
 ---
@@ -389,16 +386,15 @@ MiniGit.show_diff_source = function(opts)
       lines = H.git_cli_output(args, cwd)
     end
     if #lines == 0 and not is_worktree then
-      return H.notify('Can not show ' .. path .. 'at commit ' .. commit, 'WARN')
+      return H.notify('Can not show ' .. path .. ' at commit ' .. commit, 'WARN')
     end
     H.show_in_split(mods, lines, 'show', table.concat(args, ' '))
   end
 
   local has_before_shown = false
   if target ~= 'after' then
-    -- "Before" file can be absend if hunk is from newly added file
     if src.path_before == nil then
-      H.notify('Could not find "before" file', 'WARN')
+      H.notify('No "before" as file was created', 'WARN')
     else
       show(src.commit_before, src.path_before, split)
       vim.api.nvim_win_set_cursor(0, { src.lnum_before, 0 })
@@ -407,9 +403,13 @@ MiniGit.show_diff_source = function(opts)
   end
 
   if target ~= 'before' then
-    local mods_after = has_before_shown and 'belowright vertical' or split
-    show(src.commit_after, src.path_after, mods_after)
-    vim.api.nvim_win_set_cursor(0, { src.lnum_after, 0 })
+    if src.path_after == nil then
+      H.notify('No "after" as file was deleted', 'WARN')
+    else
+      local mods_after = has_before_shown and 'belowright vertical' or split
+      show(src.commit_after, src.path_after, mods_after)
+      vim.api.nvim_win_set_cursor(0, { src.lnum_after, 0 })
+    end
   end
 end
 
@@ -1494,7 +1494,8 @@ H.diff_pos_to_source = function()
   -- Try fall back to inferring target commits from 'mini.git' buffer name
   if res.commit_before == nil or res.commit_after == nil then H.diff_parse_bufname(res) end
 
-  local all_present = res.lnum_after and res.path_after and res.commit_after
+  local all_present = (res.lnum_before and res.path_before and res.commit_before)
+    or (res.lnum_after and res.path_after and res.commit_after)
   local is_in_order = commit_lnum <= paths_lnum and paths_lnum <= hunk_lnum
   if not (all_present and is_in_order) then return nil end
 
@@ -1502,23 +1503,35 @@ H.diff_pos_to_source = function()
 end
 
 H.diff_parse_paths = function(out, lines, lnum)
-  local pattern_before, pattern_after = '^%-%-%- a/(.*)$', '^%+%+%+ b/(.*)$'
+  -- NOTE: with `diff.mnemonicPrefix=true` source and destination prefixes can
+  -- be not only `a`/`b`, but other characters or none (if added/deleted file)
+  local pattern_before, pattern_after = '^%-%-%- ([acio]?)/(.*)$', '^%+%+%+ ([biw]?)/(.*)$'
 
   -- Allow placing cursor directly on path defining lines
   local cur_line = lines[lnum]
-  local path_before, path_after = string.match(cur_line, pattern_before), string.match(cur_line, pattern_after)
-  if path_before ~= nil or path_after ~= nil then
-    out.path_before = path_before or string.match(lines[lnum - 1] or '', pattern_before)
-    out.path_after = path_after or string.match(lines[lnum + 1] or '', pattern_after)
+  local prefix_before, path_before = string.match(cur_line, pattern_before)
+  local prefix_after, path_after = string.match(cur_line, pattern_after)
+  if path_before ~= nil then
+    out.path_before = path_before
+    prefix_after, out.path_after = string.match(lines[lnum + 1] or '', pattern_after)
+    out.lnum_before, out.lnum_after = 1, 1
+  elseif path_after ~= nil then
+    prefix_before, out.path_before = string.match(lines[lnum - 1] or '', pattern_before)
+    out.path_after = path_after
     out.lnum_before, out.lnum_after = 1, 1
   else
     -- Iterate lines upward to find path patterns
     while out.path_after == nil and lnum > 0 do
-      out.path_after = string.match(lines[lnum] or '', pattern_after)
+      prefix_after, out.path_after = string.match(lines[lnum] or '', pattern_after)
       lnum = lnum - 1
     end
-    out.path_before = string.match(lines[lnum] or '', pattern_before)
+    prefix_before, out.path_before = string.match(lines[lnum] or '', pattern_before)
   end
+
+  -- - Don't treat '--- /dev/null' and '+++ /dev/null' matches as paths
+  --   Need to check prefix to work in cases like '--- a/dev/null'
+  if prefix_before == '' then out.path_before = nil end
+  if prefix_after == '' then out.path_after = nil end
 
   return lnum
 end

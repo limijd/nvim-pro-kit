@@ -883,6 +883,19 @@ T['gen_loader']['from_file()']['works'] = function()
   eq(child.lua_get('_G.loader_tilde()'), out)
 end
 
+T['gen_loader']['from_file()']['works with function items'] = function()
+  child.lua('_G.file_dynamic_path = ' .. vim.inspect(test_dir_absolute .. '/file-dynamic-snippets.lua'))
+  local dyn_snippets = child.lua([[
+    MiniSnippets.config.snippets = { MiniSnippets.gen_loader.from_file(_G.file_dynamic_path) }
+    return MiniSnippets.expand({ match = false, insert = false })
+  ]])
+  local buf_id = get_buf()
+  eq(dyn_snippets, {
+    { prefix = 'dyn', body = 'Buf: ' .. buf_id, desc = 'Dynamic' },
+    { prefix = 'dynest', body = 'Buf (from nested): ' .. buf_id, desc = 'Dynamic nested' },
+  })
+end
+
 T['gen_loader']['from_file()']['does not cache if there were reading problems'] = function()
   local temp_file = child.lua([[
     local temp_file = vim.fn.tempname() .. '.lua'
@@ -989,6 +1002,21 @@ T['read_file()']['works with array-like content'] = function()
   validate('file-array.lua')
   validate('file-array.json')
   validate('file-array.code-snippets')
+end
+
+T['read_file()']['works with function items'] = function()
+  child.lua('_G.file_dynamic_path = ' .. vim.inspect(test_dir_absolute .. '/file-dynamic-snippets.lua'))
+  local dyn_snippets = child.lua([[
+    MiniSnippets.config.snippets = {
+      function() return MiniSnippets.read_file(_G.file_dynamic_path) end
+    }
+    return MiniSnippets.expand({ match = false, insert = false })
+  ]])
+  local buf_id = get_buf()
+  eq(dyn_snippets, {
+    { prefix = 'dyn', body = 'Buf: ' .. buf_id, desc = 'Dynamic' },
+    { prefix = 'dynest', body = 'Buf (from nested): ' .. buf_id, desc = 'Dynamic nested' },
+  })
 end
 
 T['read_file()']['works with relative paths'] = function()

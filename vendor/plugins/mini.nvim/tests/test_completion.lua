@@ -594,7 +594,7 @@ T['Autocompletion']['works without LSP clients'] = function()
 
   -- Completion menu is filtered after entering characters
   type_keys('a')
-  child.set_size(10, 20)
+  child.set_size(10, 30)
   child.expect_screenshot()
 end
 
@@ -642,7 +642,7 @@ T['Autocompletion']['forces new LSP completion at LSP trigger'] = new_set(
     test = function(source_func)
       reload_module({ lsp_completion = { source_func = source_func } })
       mock_completefunc_lsp_tracking()
-      child.set_size(16, 20)
+      child.set_size(16, 30)
       child.api.nvim_set_current_buf(child.api.nvim_create_buf(true, false))
 
       --stylua: ignore
@@ -1620,6 +1620,50 @@ T['Information window']["respects 'winborder' option"] = function()
   -- Should prefer explicitly configured value over 'winborder'
   child.lua('MiniCompletion.config.window.info.border = "double"')
   validate({ '╔', '═', '╗', '║', '╝', '═', '╚', '║' })
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  child.lua('MiniCompletion.config.window.info.border = nil')
+  child.o.winborder = '+,-,+,|,+,-,+,|'
+  validate({ '+', '-', '+', '|', '+', '-', '+', '|' })
+end
+
+T['Information window']["respects 'pumborder' option"] = function()
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("'pumborder' option is present on Neovim>=0.12") end
+  child.set_size(15, 33)
+
+  local validate = function(offset, pumborder, keys)
+    keys = keys or { 'A', 'J', '<C-Space>' }
+    child.o.pumborder = pumborder
+    set_lines({ string.rep(' ', offset) })
+    type_keys(keys)
+    type_keys('<C-n>')
+    sleep(default_info_delay + small_time)
+    child.expect_screenshot()
+
+    type_keys('<C-e>')
+    child.ensure_normal_mode()
+    set_lines({})
+  end
+
+  -- Should properly adjust coordinates and pick side
+  validate(7, 'single')
+  validate(8, 'single')
+
+  -- Should respect no border in both windows
+  validate(0, 'none')
+
+  child.lua('MiniCompletion.config.window.info.border = "none"')
+  validate(0, 'single')
+  validate(0, 'none')
+  child.lua('MiniCompletion.config.window.info.border = nil')
+
+  -- Should work with present scrollbar
+  validate(0, 'single', { 'A', '<C-Space>' })
+  validate(0, 'none', { 'A', '<C-Space>' })
+  child.lua('MiniCompletion.config.window.info.border = "none"')
+  validate(0, 'single', { 'A', '<C-Space>' })
+  validate(0, 'none', { 'A', '<C-Space>' })
 end
 
 T['Information window']['triggers relevant events'] = function()
@@ -1993,6 +2037,12 @@ T['Signature help']["respects 'winborder' option"] = function()
   -- Should prefer explicitly configured value over 'winborder'
   child.lua('MiniCompletion.config.window.signature.border = "double"')
   validate({ '╔', '═', '╗', '║', '╝', '═', '╚', '║' })
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  child.lua('MiniCompletion.config.window.signature.border = nil')
+  child.o.winborder = '+,-,+,|,+,-,+,|'
+  validate({ '+', '-', '+', '|', '+', '-', '+', '|' })
 end
 
 T['Signature help']['triggers relevant events'] = function()
@@ -2557,10 +2607,10 @@ T['Snippets']['are not inserted if have no tabstops or variables'] = function()
   -- Treating text as snippet if there is a variable is important for a snippet
   -- insert method to expand them.
 
-  child.set_size(19, 52)
+  child.set_size(21, 52)
   local snippets = {
     -- - No insert:
-    'Just\ntext',
+    'Just text',
     [[Text with \$1 escaped dollar]],
     [[Text with \$TM_FILENAME escaped dollar]],
     [[Text with \${1} escaped dollar]],
@@ -2576,6 +2626,8 @@ T['Snippets']['are not inserted if have no tabstops or variables'] = function()
     'Has $0 tabstop',
     'Has ${0} tabstop',
     'Has tabstop$0',
+    'Has\ttab',
+    'Has\nnewline',
   }
   mock_lsp_snippets(snippets)
 
@@ -2753,6 +2805,16 @@ T['Snippets']['respect covering `textEdit` in candidate'] = function()
         },
       },
     },
+    {
+      label = 'Snip D',
+      kind = kind_snippet,
+      textEdit = {
+        newText = 'Snippet D $1',
+        -- Bad range that does not cover starting position. Should not result
+        -- in side effects like "extra `x` characters".
+        range = { start = { line = 2, character = 1 }, ['end'] = { line = 2, character = 2 } },
+      },
+    },
   }
 
   mock_lsp_items(items)
@@ -2772,6 +2834,7 @@ T['Snippets']['respect covering `textEdit` in candidate'] = function()
   validate(items[1], { 'aSnippet A h' }, { 1, 11 })
   validate(items[2], { 'abSnippet B def', 'gh' }, { 1, 12 })
   validate(items[3], { 'X Snippet C dYf', 'gh' }, { 1, 12 })
+  validate(items[4], { 'ab def', 'gSnippet D ' }, { 2, 11 })
 end
 
 T['Snippets']["LSP server from 'mini.snippets'"] = new_set({

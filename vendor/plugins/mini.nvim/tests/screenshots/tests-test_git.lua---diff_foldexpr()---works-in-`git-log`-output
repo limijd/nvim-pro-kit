@@ -16,7 +16,7 @@
 15|                                                  
 16|    Commit 2                                      
 17|                                                  
-18|+-- 21 lines: diff --git a/dir/file1 b/dir/file1··
+18|+-- 21 lines: diff --git i/dir/file1 w/dir/file1··
 19|~                                                 
 20|~                                                 
 21|~                                                 

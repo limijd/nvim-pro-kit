@@ -1,29 +1,33 @@
-<div align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-icons_readme.png" alt="mini.icons"/> </div>
+<p align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-icons_readme.png?raw=true" alt="mini.icons" style="max-width:100%;border:solid 2px"/> </p>
 
 ### Icon provider
 
-See more details in [Features](#features) and [help file](../doc/mini-icons.txt).
+See more details in [Features](#features) and [Documentation](../doc/mini-icons.txt).
 
 ---
 
 > [!NOTE]
 > This was previously hosted at a personal `echasnovski` GitHub account. It was transferred to a dedicated organization to improve long term project stability. See more details [here](https://github.com/nvim-mini/mini.nvim/discussions/1970).
 
-⦿ This is a part of [mini.nvim](https://github.com/nvim-mini/mini.nvim) library. Please use [this link](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-icons.md) if you want to mention this module.
+⦿ This is a part of [mini.nvim](https://nvim-mini.org/mini.nvim) library. Please use [this link](https://nvim-mini.org/mini.nvim/readmes/mini-icons) if you want to mention this module.
 
 ⦿ All contributions (issues, pull requests, discussions, etc.) are done inside of 'mini.nvim'.
 
-⦿ See the repository page to learn about common design principles and configuration recipes.
+⦿ See [whole library documentation](https://nvim-mini.org/mini.nvim/doc/mini-nvim) to learn about general design principles, disable/configuration recipes, and more.
+
+⦿ See [MiniMax](https://nvim-mini.org/MiniMax) for a full config example that uses this module.
 
 ---
 
-If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://github.com/nvim-mini/mini.nvim/blob/main/CONTRIBUTING.md) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
+If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://nvim-mini.org/mini.nvim/CONTRIBUTING) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
 
 ## Demo
 
-![demo-icons_glyph-dark](https://github.com/nvim-mini/mini.nvim/assets/24854248/37aedd6b-3b2e-452b-90f9-bfef96acbede)
-![demo-icons_ascii](https://github.com/nvim-mini/mini.nvim/assets/24854248/18f4527c-a7ee-4d40-9066-4fe8623c5632)
-![demo-icons_glyph-light](https://github.com/nvim-mini/mini.nvim/assets/24854248/93091aa7-2334-4d6d-9876-b687cfeff8bd)
+![demo-icons_glyph-dark](https://github.com/nvim-mini/assets/blob/main/demo/demo-icons_glyph-dark.png?raw=true)
+
+![demo-icons_ascii](https://github.com/nvim-mini/assets/blob/main/demo/demo-icons_ascii.png?raw=true)
+
+![demo-icons_glyph-light](https://github.com/nvim-mini/assets/blob/main/demo/demo-icons_glyph-light.png?raw=true)
 
 ## Features
 
@@ -39,7 +43,7 @@ If you want to help this project grow but don't know where to start, check out [
 
 - Mocking methods of 'nvim-tree/nvim-web-devicons' for better integrations with plugins outside 'mini.nvim'. See `:h MiniIcons.mock_nvim_web_devicons()`.
 
-- Tweaking built-in maps for "LSP kind" to include icons. In particular, this makes ['mini.completion'](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-completion.md) use icons in LSP step. See `:h MiniIcons.tweak_lsp_kind()`.
+- Tweaking built-in maps for "LSP kind" to include icons. In particular, this makes ['mini.completion'](https://nvim-mini.org/mini.nvim/readmes/mini-completion) use icons in LSP step. See `:h MiniIcons.tweak_lsp_kind()`.
 
 Notes:
 
@@ -78,86 +82,68 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-deps.md">mini.deps</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th> <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td rowspan=2><i>Follow recommended 'mini.deps' installation</i></td>
-        </tr>
-        <tr>
-            <td>Stable</td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>add('nvim-mini/mini.icons')</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>add({ source = 'nvim-mini/mini.icons', checkout = 'stable' })</code></td>
-        </tr>
-    </tbody>
-</table>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | *Follow recommended ‘mini.deps’ installation* |
+    | Stable | *Follow recommended ‘mini.deps’ installation* |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                                    |
+    |--------|-----------------------------------------------------------------|
+    | Main   | `add(‘nvim-mini/mini.icons’)`                                   |
+    | Stable | `add({ source = ‘nvim-mini/mini.icons’, checkout = ‘stable’ })` |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th> <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td><code>{ 'nvim-mini/mini.nvim', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.nvim', version = '*' },</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>{ 'nvim-mini/mini.icons', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.icons', version = '*' },</code></td>
-        </tr>
-    </tbody>
-</table>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                   |
+    |--------|------------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.icons', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.icons', version = '*' },`   |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th> <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td><code>Plug 'nvim-mini/mini.nvim'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>Plug 'nvim-mini/mini.icons'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.icons', { 'branch': 'stable' }</code></td>
-        </tr>
-    </tbody>
-</table>
-</details>
 
-<br>
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                         |
+    |--------|------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
+    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                          |
+    |--------|-------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.icons'`                         |
+    | Stable | `Plug 'nvim-mini/mini.icons', { 'branch': 'stable' }` |
+
+</details>
 
 **Important**: don't forget to call `require('mini.icons').setup()` to enable its functionality.
 
 **Note**: if you are on Windows, there might be problems with too long file paths (like `error: unable to create file <some file name>: Filename too long`). Try doing one of the following:
+
 - Enable corresponding git global config value: `git config --system core.longpaths true`. Then try to reinstall.
+- Install plugin in other place with shorter path.
 
 ## Default config
 

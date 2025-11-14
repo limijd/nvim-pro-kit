@@ -893,6 +893,42 @@ T['start()']['allows overriding built-in mappings'] = function()
   eq(get_picker_state().caret, 2)
 end
 
+T['start()']['works with language mappings'] = function()
+  if child.fn.has('nvim-0.10') == 0 then
+    MiniTest.skip('Helper function that gets language mappings is available only on Neovim>=0.10')
+  end
+  child.o.keymap = 'ukrainian-jcuken'
+  eq(child.o.iminsert, 1)
+
+  start_with_items({})
+  type_keys('g', 'h')
+  eq(get_picker_query(), { 'п', 'р' })
+  type_keys('<C-u>')
+
+  -- Should allow changing 'iminsert' while picker is active
+  child.o.iminsert = 0
+  type_keys('g', 'h')
+  eq(get_picker_query(), { 'g', 'h' })
+  type_keys('<C-c>')
+
+  -- Should work with custom "good" language mappings
+  child.o.keymap = ''
+  child.o.iminsert = 1
+  child.cmd('lmap a 1')
+  child.cmd('lmap b <char-0x1f171>')
+  child.cmd('lmap cc C')
+
+  start_with_items({})
+  type_keys('a', 'b', 'c', 'c')
+  eq(get_picker_query(), { '1', 'b', 'c', 'c' })
+  type_keys('<C-u>')
+
+  -- Should cache language mappings per picker session
+  child.cmd('lmap d 4')
+  type_keys('d')
+  eq(get_picker_query(), { 'd' })
+end
+
 T['start()']['respects `window.config`'] = function()
   -- As table
   start({ source = { items = { 'a', 'b', 'c' } }, window = { config = { border = 'double' } } })
@@ -2784,7 +2820,7 @@ T['builtin.grep()']['respects `local_opts.pattern`'] = function()
   local spawn_log = get_spawn_log()
   eq(#spawn_log, 1)
   local args = spawn_log[1].options.args
-  eq(vim.list_slice(args, #args - 2), { '--color=never', '--', 'abc' })
+  eq(vim.list_slice(args, #args - 3), { '--color=never', '--case-sensitive', '--', 'abc' })
 end
 
 T['builtin.grep()']['respects `local_opts.globs`'] = function()
@@ -2806,7 +2842,7 @@ T['builtin.grep()']['respects `local_opts.globs`'] = function()
     clear_spawn_log()
   end
 
-  validate('rg', { '--glob', '*.lua', '--glob', 'lua/**', '--', 'abc' })
+  validate('rg', { '--glob', '*.lua', '--glob', 'lua/**', '--case-sensitive', '--', 'abc' })
   validate('git', { '-e', 'abc', '--', '*.lua', 'lua/**' })
 
   -- Should preserve if called as `builtin.resume()`
@@ -2852,6 +2888,41 @@ T['builtin.grep()']['respects `source.show` from config'] = function()
   mock_cli_return({ real_file('b.txt') .. '\0001\0001' })
   builtin_grep({ pattern = 'b' })
   child.expect_screenshot()
+end
+
+T['builtin.grep()']["respects 'ignorecase'/'smartcase'"] = function()
+  local validate = function(tool, ref_case_arg, ref_cases_noarg)
+    mock_fn_executable({ tool })
+    mock_cli_return({})
+    builtin_grep({ pattern = 'b', tool = tool })
+
+    local args = child.lua_get('_G.spawn_log[1].options.args')
+
+    validate_contains_all(args, { ref_case_arg })
+
+    for _, ref_arg in ipairs(ref_cases_noarg) do
+      for _, arg in ipairs(args) do
+        if arg == ref_arg then error('There is ' .. ref_arg .. ' in arguments') end
+      end
+    end
+
+    type_keys('<C-c>')
+    clear_spawn_log()
+  end
+
+  validate('rg', '--case-sensitive', { '--ignore-case', '--smart-case' })
+
+  child.o.ignorecase = true
+  validate('rg', '--ignore-case', { '--case-sensitive', '--smart-case' })
+  validate('git', '--ignore-case', {})
+
+  child.o.smartcase = true
+  validate('rg', '--smart-case', { '--case-sensitive', '--ignore-case' })
+  validate('git', '--ignore-case', {})
+
+  child.o.ignorecase = false
+  validate('rg', '--case-sensitive', { '--ignore-case', '--smart-case' })
+  validate('git', nil, { '--ignore-case' })
 end
 
 T['builtin.grep()']['respects `opts`'] = function()
@@ -3017,7 +3088,13 @@ T['builtin.grep_live()']['respects `local_opts.tool`'] = function()
     clear_spawn_log()
   end
 
-  validate('rg', { '--column', '--line-number', '--no-heading', '--field-match-separator', '\\x00', '--', 'b' })
+  --stylua: ignore
+  local rg_args = {
+    '--column', '--line-number', '--no-heading',
+    '--field-match-separator', '\\x00', '--case-sensitive',
+    '--', 'b',
+  }
+  validate('rg', rg_args)
   validate('git', { 'grep', '--column', '--line-number', '--null', '--', 'b' })
 
   -- Should not accept "fallback" tool
@@ -3048,7 +3125,7 @@ T['builtin.grep_live()']['respects `local_opts.globs`'] = function()
     clear_spawn_log()
   end
 
-  validate('rg', { '--glob', '*.lua', '--glob', 'lua/**', '--', 'a' })
+  validate('rg', { '--glob', '*.lua', '--glob', 'lua/**', '--case-sensitive', '--', 'a' })
   validate('git', { '-e', 'a', '--', '*.lua', 'lua/**' })
 
   -- Should preserve if called as `builtin.resume()`
@@ -3076,7 +3153,7 @@ T['builtin.grep_live()']['has custom "add glob" mapping'] = function()
   mock_cli_return({})
   type_keys('a')
   local args = get_spawn_log()[1].options.args
-  eq(vim.list_slice(args, #args - 3), { '--glob', '*.lua', '--', 'a' })
+  eq(vim.list_slice(args, #args - 4), { '--glob', '*.lua', '--case-sensitive', '--', 'a' })
 end
 
 T['builtin.grep_live()']['respects `source.show` from config'] = function()
@@ -3089,6 +3166,42 @@ T['builtin.grep_live()']['respects `source.show` from config'] = function()
   mock_cli_return({ real_file('b.txt') .. '\0001\0001' })
   type_keys('b')
   child.expect_screenshot()
+end
+
+T['builtin.grep_live()']["respects 'ignorecase'/'smartcase'"] = function()
+  local validate = function(tool, ref_case_arg, ref_cases_noarg)
+    mock_fn_executable({ tool })
+    mock_cli_return({})
+    builtin_grep_live({ tool = tool })
+    type_keys('b')
+
+    local args = child.lua_get('_G.spawn_log[1].options.args')
+
+    validate_contains_all(args, { ref_case_arg })
+
+    for _, ref_arg in ipairs(ref_cases_noarg) do
+      for _, arg in ipairs(args) do
+        if arg == ref_arg then error('There is ' .. ref_arg .. ' in arguments') end
+      end
+    end
+
+    type_keys('<C-c>')
+    clear_spawn_log()
+  end
+
+  validate('rg', '--case-sensitive', { '--ignore-case', '--smart-case' })
+
+  child.o.ignorecase = true
+  validate('rg', '--ignore-case', { '--case-sensitive', '--smart-case' })
+  validate('git', '--ignore-case', {})
+
+  child.o.smartcase = true
+  validate('rg', '--smart-case', { '--case-sensitive', '--ignore-case' })
+  validate('git', '--ignore-case', {})
+
+  child.o.ignorecase = false
+  validate('rg', '--case-sensitive', { '--ignore-case', '--smart-case' })
+  validate('git', nil, { '--ignore-case' })
 end
 
 T['builtin.grep_live()']['respects `opts`'] = function()
@@ -4671,7 +4784,7 @@ T[':Pick']['correctly parses arguments'] = function()
 end
 
 T[':Pick']['has proper complete'] = function()
-  child.set_size(10, 20)
+  child.set_size(10, 30)
   local validate = function(keys)
     type_keys(':Pick ', keys, '<Tab>')
     child.expect_screenshot()
@@ -4877,22 +4990,26 @@ end
 T['Overall view']["respects 'winborder' option"] = function()
   if child.fn.has('nvim-0.11') == 0 then MiniTest.skip("'winborder' option is present on Neovim>=0.11") end
 
-  child.o.winborder = 'rounded'
-  start_with_items({ 'a', 'b', 'c' })
-  child.expect_screenshot()
-  stop()
+  local validate = function(winborder)
+    child.o.winborder = winborder
+    start_with_items({ 'a', 'b', 'c' })
+    child.expect_screenshot()
+    stop()
+  end
+
+  validate('rounded')
 
   -- Should prefer explicitly configured value over 'winborder'
-  child.lua([[MiniPick.config.window.config = { border = 'double' }]])
-  start_with_items({ 'a', 'b', 'c' })
-  child.expect_screenshot()
-  stop()
+  child.lua('MiniPick.config.window.config = { border = "double" }')
+  validate('rounded')
 
   -- Should infer custom border (for visible title/footer) for `winborder=none`
-  child.lua([[MiniPick.config.window.config = nil]])
-  child.o.winborder = 'none'
-  start_with_items({ 'a', 'b', 'c' })
-  child.expect_screenshot()
+  child.lua('MiniPick.config.window.config = nil')
+  validate('none')
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  validate('+,-,+,|,+,-,+,|')
 end
 
 T['Overall view']["respects tabline, statusline, 'cmdheight'"] = function()
@@ -6146,6 +6263,15 @@ T['Paste']['respects `delay.async` when waiting for register label'] = function(
   -- Test that redraw is done repeatedly
   sleep(8 * small_time)
   validate(3, { '', 'Line 1', 'Line 2', 'Line 3' })
+end
+
+T['Paste']['is not affected by language mappings'] = function()
+  child.o.iminsert = 1
+  child.cmd('lmap a 1')
+  child.fn.setreg('a', 'xxx')
+  start_with_items({ 'a' })
+  type_keys('<C-r>', 'a')
+  eq(get_picker_query(), { 'x', 'x', 'x' })
 end
 
 T['Refine'] = new_set()

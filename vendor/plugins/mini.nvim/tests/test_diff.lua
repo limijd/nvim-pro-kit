@@ -2702,18 +2702,27 @@ T['Diff']['redraws statusline when diff is updated'] = function()
 end
 
 T['Diff']['triggers dedicated event'] = function()
-  child.cmd('au User MiniDiffUpdated lua _G.n = (_G.n or 0) + 1')
+  child.lua([[
+    _G.event_log = {}
+    local track = function(ev) table.insert(_G.event_log, ev.buf) end
+    vim.api.nvim_create_autocmd('User', { pattern = 'MiniDiffUpdated', callback = track})
+  ]])
 
   set_lines({ 'aaa', 'uuu' })
-  set_ref_text(0, { 'aaa' })
-  eq(child.lua_get('_G.n'), 1)
+  local buf_id = get_buf()
+
+  set_buf(new_buf())
+  set_ref_text(buf_id, { 'aaa' })
+  -- Should trigger with correct buffer in event data
+  eq(child.lua_get('_G.event_log'), { buf_id })
+  set_buf(buf_id)
 
   set_cursor(2, 0)
   type_keys('o', 'hello')
 
-  eq(child.lua_get('_G.n'), 1)
+  eq(child.lua_get('_G.event_log'), { buf_id })
   sleep(dummy_text_change_delay + small_time)
-  eq(child.lua_get('_G.n'), 2)
+  eq(child.lua_get('_G.event_log'), { buf_id, buf_id })
 end
 
 T['Diff']['`MiniDiffUpdated` event can be used to override `minidiff_summary_string` variable'] = function()

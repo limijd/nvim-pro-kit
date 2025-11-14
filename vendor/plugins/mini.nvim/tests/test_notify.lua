@@ -843,15 +843,23 @@ end
 T['Window']["respects 'winborder' option"] = function()
   if child.fn.has('nvim-0.11') == 0 then MiniTest.skip("'winborder' option is present on Neovim>=0.11") end
 
-  child.o.winborder = 'rounded'
-  add('Hello', 'ERROR', 'Comment')
-  child.expect_screenshot()
-  clear()
+  local validate = function(winborder)
+    child.o.winborder = winborder
+    add('Hello', 'ERROR', 'Comment')
+    child.expect_screenshot()
+    clear()
+  end
+
+  validate('rounded')
 
   -- Should prefer explicitly configured value over 'winborder'
-  child.lua([[MiniNotify.config.window.config.border = 'double']])
-  add('Hello', 'ERROR', 'Comment')
-  child.expect_screenshot()
+  child.lua('MiniNotify.config.window.config.border = "double"')
+  validate('rounded')
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  child.lua('MiniNotify.config.window.config.border = nil')
+  validate('+,-,+,|,+,-,+,|')
 end
 
 T['Window']['respects `window.max_width_share`'] = function()

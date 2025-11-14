@@ -238,6 +238,7 @@ T['setup()']['creates `config` field'] = function()
   local expect_config = function(field, value) eq(child.lua_get('MiniFiles.config.' .. field), value) end
 
   expect_config('content.filter', vim.NIL)
+  expect_config('content.highlight', vim.NIL)
   expect_config('content.prefix', vim.NIL)
   expect_config('content.sort', vim.NIL)
 
@@ -279,6 +280,7 @@ T['setup()']['validates `config` argument'] = function()
   expect_config_error('a', 'config', 'table')
   expect_config_error({ content = 'a' }, 'content', 'table')
   expect_config_error({ content = { filter = 1 } }, 'content.filter', 'function')
+  expect_config_error({ content = { highlight = 1 } }, 'content.highlight', 'function')
   expect_config_error({ content = { prefix = 1 } }, 'content.prefix', 'function')
   expect_config_error({ content = { sort = 1 } }, 'content.sort', 'function')
 
@@ -640,6 +642,33 @@ T['open()']['respects `content.filter`'] = function()
 
   local lua_cmd = string.format(
     [[MiniFiles.open(%s, false, { content = { filter = _G.filter_starts_from_a } })]],
+    vim.inspect(test_dir_path)
+  )
+  child.lua(lua_cmd)
+  child.expect_screenshot()
+end
+
+T['open()']['respects `content.highlight`'] = function()
+  child.lua([[
+    _G.highlight_arg = {}
+    MiniFiles.config.content.highlight = function(fs_entry)
+      _G.highlight_arg = fs_entry
+      -- Should use 'MiniFilesNormal' as a fallback
+      return nil
+    end
+  ]])
+
+  open(test_dir_path)
+  child.expect_screenshot()
+  validate_fs_entry(child.lua_get('_G.highlight_arg'))
+
+  -- Local value from argument should take precedence
+  child.lua([[_G.highlight_starts_from_a = function(fs_entry)
+    return vim.startswith(fs_entry.name, 'a') and 'String' or 'Comment'
+  end]])
+
+  local lua_cmd = string.format(
+    'MiniFiles.open(%s, false, { content = { highlight = _G.highlight_starts_from_a } })',
     vim.inspect(test_dir_path)
   )
   child.lua(lua_cmd)
@@ -1774,6 +1803,40 @@ end
 
 T['show_help()']['works when no explorer is opened'] = function() expect.no_error(show_help) end
 
+T['show_help()']["respects 'winborder' option"] = function()
+  if child.fn.has('nvim-0.11') == 0 then MiniTest.skip("'winborder' option is present on Neovim>=0.11") end
+  child.set_size(20, 40)
+
+  local validate = function(winborder)
+    child.o.winborder = winborder
+    open(test_dir_path)
+    show_help()
+    child.expect_screenshot()
+    close()
+  end
+
+  validate('rounded')
+
+  -- Should prefer explicitly configured value over 'winborder'
+  local au_id = child.lua([[
+    return vim.api.nvim_create_autocmd('User', {
+      pattern = 'MiniFilesWindowOpen',
+      callback = function(args)
+        local win_id = args.data.win_id
+        local config = vim.api.nvim_win_get_config(win_id)
+        config.border = 'double'
+        vim.api.nvim_win_set_config(win_id, config)
+      end,
+    })
+  ]])
+  validate('rounded')
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  child.api.nvim_del_autocmd(au_id)
+  validate('+,-,+,|,+,-,+,|')
+end
+
 T['get_fs_entry()'] = new_set()
 
 local get_fs_entry = forward_lua('MiniFiles.get_fs_entry')
@@ -2516,6 +2579,24 @@ T['Windows']['correctly highlight content during editing'] = function()
   child.expect_screenshot()
 end
 
+T['Windows']['always show cursor line in directories'] = function()
+  child.o.cursorline = false
+  child.o.cursorlineopt = 'number'
+  open(test_dir_path, false, { windows = { preview = true } })
+  child.expect_screenshot()
+  eq(child.wo.cursorlineopt, 'number,line')
+
+  -- File preview should not show cursor line
+  type_keys('G')
+  child.expect_screenshot()
+  close()
+
+  -- Should preserve flags of 'cursorlineopt' as much as possible
+  child.o.cursorlineopt = 'screenline'
+  open(test_dir_path)
+  eq(child.wo.cursorlineopt, 'screenline')
+end
+
 T['Windows']['can be closed manually'] = function()
   open(test_dir_path)
   type_keys('G', '<CR>')
@@ -2598,14 +2679,18 @@ T['Windows']["respect 'winborder' option"] = function()
   if child.fn.has('nvim-0.11') == 0 then MiniTest.skip("'winborder' option is present on Neovim>=0.11") end
   child.set_size(15, 40)
 
-  child.o.winborder = 'rounded'
-  open(test_dir_path)
-  child.expect_screenshot()
-  close()
+  local validate = function(winborder)
+    child.o.winborder = winborder
+    open(test_dir_path)
+    child.expect_screenshot()
+    close()
+  end
+
+  validate('rounded')
 
   -- Should prefer explicitly configured value over 'winborder'
-  child.lua([[
-    vim.api.nvim_create_autocmd('User', {
+  local au_id = child.lua([[
+    return vim.api.nvim_create_autocmd('User', {
       pattern = 'MiniFilesWindowOpen',
       callback = function(args)
         local win_id = args.data.win_id
@@ -2615,8 +2700,12 @@ T['Windows']["respect 'winborder' option"] = function()
       end,
     })
   ]])
-  open(test_dir_path)
-  child.expect_screenshot()
+  validate('rounded')
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  child.api.nvim_del_autocmd(au_id)
+  validate('+,-,+,|,+,-,+,|')
 end
 
 T['Preview'] = new_set({
@@ -4206,6 +4295,28 @@ T['File manipulation']['can copy directory inside itself'] = function()
   validate_file_content(join_path(temp_dir, 'dir', 'dir', 'file'), { 'File' })
 
   validate_confirm_args('  COPY   │ dir => dir/dir')
+end
+
+T['File manipulation']['can convert file into directory'] = function()
+  local temp_dir = make_temp_dir('temp', { 'file', 'dir/', 'dir/subfile' })
+  child.fn.writefile({ 'Subfile' }, join_path(temp_dir, 'dir', 'subfile'))
+  open(temp_dir)
+
+  type_keys('A', '/', '<Esc>')
+  type_keys('j', 'A', '/', '<Esc>')
+  child.expect_screenshot()
+
+  mock_confirm(1)
+  synchronize()
+  child.expect_screenshot()
+
+  -- Should convert file->directory but not touch directory->directory
+  validate_tree(temp_dir, { 'file/', 'dir/', 'dir/subfile' })
+  validate_file_content(join_path(temp_dir, 'dir', 'subfile'), { 'Subfile' })
+
+  validate_confirm_args('  DELETE │ file')
+  validate_confirm_args('  RENAME │ dir => dir')
+  validate_confirm_args('  CREATE │ file %(directory%)')
 end
 
 T['File manipulation']['respects modified hidden buffers'] = function()
