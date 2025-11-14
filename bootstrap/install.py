@@ -7,7 +7,7 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 class InstallError(RuntimeError):
@@ -37,6 +37,33 @@ def config_home(override: Optional[Path] = None) -> Path:
     if xdg:
         return Path(xdg).expanduser()
     return Path.home() / ".config"
+
+
+def xdg_dir(env_var: str, default: Path) -> Path:
+    value = os.environ.get(env_var)
+    if value:
+        return Path(value).expanduser()
+    return default
+
+
+def data_home() -> Path:
+    return xdg_dir("XDG_DATA_HOME", Path.home() / ".local" / "share")
+
+
+def state_home() -> Path:
+    return xdg_dir("XDG_STATE_HOME", Path.home() / ".local" / "state")
+
+
+def cache_home() -> Path:
+    return xdg_dir("XDG_CACHE_HOME", Path.home() / ".cache")
+
+
+def runtime_directories() -> List[Tuple[str, Path]]:
+    return [
+        ("Neovim data directory", data_home() / "nvim"),
+        ("Neovim state directory", state_home() / "nvim"),
+        ("Neovim cache directory", cache_home() / "nvim"),
+    ]
 
 
 def link_points_to(target: Path, source: Path) -> bool:
@@ -71,6 +98,26 @@ def backup_existing(target: Path, create_backup: bool) -> Optional[Path]:
     return backup
 
 
+def handle_existing_path(label: str, target: Path, create_backup: bool, dry_run: bool) -> None:
+    exists = target.exists() or target.is_symlink()
+    if not exists:
+        return
+
+    if dry_run:
+        if create_backup:
+            print(f"Would move existing {label} at {target} to a timestamped backup")
+        else:
+            print(f"Would remove existing {label} at {target}")
+        return
+
+    backup = backup_existing(target, create_backup)
+    if create_backup:
+        if backup:
+            print(f"Existing {label} moved to {backup}")
+    else:
+        print(f"Removed existing {label} at {target}")
+
+
 def create_symlink(target: Path, source: Path) -> None:
     if target.exists() or target.is_symlink():
         raise InstallError(
@@ -92,28 +139,23 @@ def install(
     source = root / "nvim"
     config_root = config_home(config_override)
     target = config_root / "nvim"
+    runtime_dirs = runtime_directories()
 
     if link_points_to(target, source):
         message = f"Neovim configuration already linked at {target}"
         print(message if not dry_run else f"No changes required: {message}")
         return
 
-    existing = target.exists() or target.is_symlink()
     if dry_run:
-        if existing:
-            if create_backup:
-                print(
-                    f"Would move existing Neovim configuration at {target} to a timestamped backup"
-                )
-            else:
-                print(f"Would remove existing Neovim configuration at {target}")
+        handle_existing_path("Neovim configuration", target, create_backup, dry_run=True)
+        for label, path in runtime_dirs:
+            handle_existing_path(label, path, create_backup, dry_run=True)
         print(f"Would link {target} -> {source}")
         return
 
-    backup = backup_existing(target, create_backup)
-
-    if backup:
-        print(f"Existing Neovim configuration moved to {backup}")
+    handle_existing_path("Neovim configuration", target, create_backup, dry_run=False)
+    for label, path in runtime_dirs:
+        handle_existing_path(label, path, create_backup, dry_run=False)
 
     target.parent.mkdir(parents=True, exist_ok=True)
     create_symlink(target, source)
