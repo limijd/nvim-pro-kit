@@ -25,10 +25,10 @@
 24|                                                  
 25|    Commit 2                                      
 26|                                                  
-27|diff --git a/dir/file1 b/dir/file1                
+27|diff --git i/dir/file1 w/dir/file1                
 28|index dd2b945..b81ef66 100644                     
-29|--- a/dir/file1                                   
-30|+++ b/dir/file1                                   
+29|--- i/dir/file1                                   
+30|+++ w/dir/file1                                   
 31|+---  8 lines: @@ -247 +247 @@ Hunk header 1······
 32|diff --git a/file.lua b/file.lua                  
 33|index a0a225b..9f8c05f 100644                     

@@ -1,16 +1,13 @@
 --- *mini.extra* Extra 'mini.nvim' functionality
---- *MiniExtra*
 ---
 --- MIT License Copyright (c) 2023 Evgeni Chasnovski
----
---- ==============================================================================
----
+
 --- Extra useful functionality which is not essential enough for other 'mini.nvim'
 --- modules to include directly.
 ---
 --- Features:
 ---
---- - Various pickers for 'mini.pick':
+--- - Various pickers for |mini.pick|:
 ---     - Built-in diagnostic (|MiniExtra.pickers.diagnostic()|).
 ---     - File explorer (|MiniExtra.pickers.explorer()|).
 ---     - Git branches/commits/files/hunks (|MiniExtra.pickers.git_hunks()|, etc.).
@@ -20,9 +17,9 @@
 ---     - And much more.
 ---   See |MiniExtra.pickers| for more.
 ---
---- - Various textobject specifications for 'mini.ai'. See |MiniExtra.gen_ai_spec|.
+--- - Various textobject specifications for |mini.ai|. See |MiniExtra.gen_ai_spec|.
 ---
---- - Various highlighters for 'mini.hipatterns'. See |MiniExtra.gen_highlighter|.
+--- - Various highlighters for |mini.hipatterns|. See |MiniExtra.gen_highlighter|.
 ---
 --- Notes:
 --- - This module requires only those 'mini.nvim' modules which are needed for
@@ -41,12 +38,13 @@
 ---
 --- # Comparisons ~
 ---
---- - 'nvim-telescope/telescope.nvim':
+--- - [nvim-telescope/telescope.nvim](https://github.com/nvim-telescope/telescope.nvim):
 ---     - With |MiniExtra.pickers|, 'mini.pick' is reasonably on par when it comes
 ---       to built-in pickers.
 ---
---- - 'ibhagwan/fzf-lua':
+--- - [ibhagwan/fzf-lua](https://github.com/ibhagwan/fzf-lua):
 ---     - Same as 'nvim-telescope/telescope.nvim'.
+---@tag MiniExtra
 
 ---@diagnostic disable:undefined-field
 ---@diagnostic disable:discard-returns
@@ -95,14 +93,12 @@ MiniExtra.setup = function(config)
 end
 
 --stylua: ignore
---- Module config
----
---- Default values:
+--- Defaults ~
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
 MiniExtra.config = {}
 --minidoc_afterlines_end
 
---- 'mini.ai' textobject specification generators
+--- |mini.ai| textobject specification generators
 ---
 --- This is a table with function elements. Call to actually get specification.
 ---
@@ -175,12 +171,12 @@ end
 --- - Lines above first and below last are non-blank. They are called borders.
 --- - There is at least one non-blank line in a set.
 --- - All non-blank lines between borders have strictly greater indent
----   (perceived leading space respecting |tabstop|) than either of borders.
+---   (perceived leading space respecting |'tabstop'|) than either of borders.
 ---
 --- Notes:
 --- - `a` textobject selects scope including borders.
 --- - `i` textobject selects the scope charwise.
---- - Differences with |MiniIndentscope.textobject|:
+--- - Differences with |MiniIndentscope.textobject()|:
 ---     - This textobject always treats blank lines on top and bottom of `i`
 ---       textobject as part of it, while 'mini.indentscope' can configure that.
 ---     - This textobject can select non-covering scopes, while 'mini.indentscope'
@@ -261,7 +257,7 @@ MiniExtra.gen_ai_spec.number = function()
   end
 end
 
---- 'mini.hipatterns' highlighter generators
+--- |mini.hipatterns| highlighter generators
 ---
 --- This is a table with function elements. Call to actually get specification.
 ---
@@ -299,9 +295,9 @@ MiniExtra.gen_highlighter.words = function(words, group, extmark_opts)
   return { pattern = pattern, group = group, extmark_opts = extmark_opts }
 end
 
---- 'mini.pick' pickers
+--- |mini.pick| pickers
 ---
---- A table with |MiniPick| pickers (which is a hard dependency).
+--- A table with 'mini.pick' pickers (which is a hard dependency).
 --- Notes:
 --- - All have the same signature:
 ---     - <local_opts> - optional table with options local to picker.
@@ -444,7 +440,7 @@ end
 
 --- Neovim commands picker
 ---
---- Pick from Neovim built-in (|ex-commands|) and |user-commands|.
+--- Pick from Neovim built-in (|Ex-commands|) and |user-commands|.
 --- Notes:
 --- - Preview shows information about the command (if available).
 --- - Choosing either executes command (if reliably known that it doesn't need
@@ -561,7 +557,7 @@ end
 --- - Query and preview work as usual (not only `move_next`/`move_prev` can be used).
 --- - Preview works for any item.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.explorer()`
 --- - `:Pick explorer cwd='..'` - open explorer in parent directory.
@@ -621,7 +617,7 @@ end
 --- __extra_pickers_git_notes
 --- - On choose opens scratch buffer with branch's history.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.git_branches({ scope = 'local' })` - local branches of
 ---   the |current-directory| parent Git repository.
@@ -677,7 +673,7 @@ end
 --- __extra_pickers_git_notes
 --- - On choose opens scratch buffer with commit's diff.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.git_commits()` - all commits from parent Git
 ---   repository of |current-directory|.
@@ -735,7 +731,7 @@ end
 --- Pick from Git files using `git ls-files`.
 --- __extra_pickers_git_notes
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.git_files({ scope = 'ignored' })` - ignored files from
 ---   parent Git repository of |current-directory|.
@@ -792,7 +788,7 @@ end
 --- __extra_pickers_git_notes
 --- - On choose navigates to hunk's first change.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.git_hunks({ scope = 'staged' })` - staged hunks from
 ---   parent Git repository of |current-directory|.
@@ -852,7 +848,7 @@ end
 
 --- Matches from 'mini.hipatterns' picker
 ---
---- Pick from |MiniHipatterns| matches using |MiniHipatterns.get_matches()|.
+--- Pick from |mini.hipatterns| matches using |MiniHipatterns.get_matches()|.
 --- Notes:
 --- - Requires 'mini.hipatterns'.
 --- - Highlighter identifier is highlighted with its highlight group.
@@ -932,7 +928,7 @@ end
 ---     - For other scopes nothing is done (but chosen item is still returned).
 --- - `<C-e>` only works for "cmd" / ":" / "search" / "/" / "?" scopes.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - Command history: `MiniExtra.pickers.history({ scope = ':' })`
 --- - Search history: `:Pick history scope='/'`
@@ -1133,7 +1129,7 @@ end
 ---
 --- Note: it requires explicit `scope`.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.list({ scope = 'quickfix' })` - quickfix list.
 --- - `:Pick list scope='jump'` - jump list.
@@ -1176,14 +1172,18 @@ end
 ---     - "references".
 ---     - "type_definition".
 ---     - "workspace_symbol".
---- - Directly relies on `vim.lsp.buf` methods which support |lsp-on-list-handler|.
+---     - "workspace_symbol_live" - same as "workspace_symbol", but with live
+---       feedback treating picker's prompt as LSP server query. Similar to
+---       how |MiniPick.builtin.grep_live()| and |MiniPick.builtin.grep()| are
+---       related. To use regular matching, activate |MiniPick-actions-refine|.
+--- - Relies on `vim.lsp.buf` methods supporting |vim.lsp.LocationOpts.OnList|.
 ---   In particular, it means that picker is started only if LSP server returns
 ---   list of locations and not a single location.
 --- - Doesn't return anything due to async nature of `vim.lsp.buf` methods.
 --- - Requires set up |mini.icons| to show extra icons and highlighting in
----   "document_symbol" and "workspace_symbol" scopes.
+---   "document_symbol", "workspace_symbol", "workspace_symbol_live" scopes.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.lsp({ scope = 'references' })` - references of the symbol
 ---   under cursor.
@@ -1193,7 +1193,7 @@ end
 ---   Possible fields:
 ---   - <scope> `(string)` - LSP method to use. One of the supported ones (see
 ---     list above). Default: `nil` which means explicit scope is needed.
----   - <symbol_query> `(string)` - query for |vim.lsp.buf.workspace_symbol()|.
+---   - <symbol_query> `(string)` - query for `"workspace_symbol"` scope.
 ---     Default: empty string for all symbols (according to LSP specification).
 ---@param opts __extra_pickers_opts
 ---
@@ -1205,16 +1205,28 @@ MiniExtra.pickers.lsp = function(local_opts, opts)
   if local_opts.scope == nil then H.error('`pickers.lsp` needs an explicit scope.') end
   --stylua: ignore
   local allowed_scopes = {
-    'declaration', 'definition', 'document_symbol', 'implementation', 'references', 'type_definition', 'workspace_symbol',
+    'declaration', 'definition',      'document_symbol',  'implementation',
+    'references',  'type_definition', 'workspace_symbol', 'workspace_symbol_live'
   }
   local scope = H.pick_validate_scope(local_opts, allowed_scopes, 'lsp')
 
-  if scope == 'references' then return vim.lsp.buf[scope](nil, { on_list = H.lsp_make_on_list(scope, opts) }) end
+  local buf_lsp_opts, picker_opts = H.lsp_make_opts(scope, opts)
+  if scope == 'references' then return vim.lsp.buf[scope](nil, buf_lsp_opts) end
   if scope == 'workspace_symbol' then
     local query = tostring(local_opts.symbol_query)
-    return vim.lsp.buf[scope](query, { on_list = H.lsp_make_on_list(scope, opts) })
+    return vim.lsp.buf[scope](query, buf_lsp_opts)
   end
-  vim.lsp.buf[scope]({ on_list = H.lsp_make_on_list(scope, opts) })
+  if scope == 'workspace_symbol_live' then
+    picker_opts.source.match = function(_, _, query)
+      if #query == 0 then return MiniPick.set_picker_items({}, { do_match = false }) end
+      local win_id = MiniPick.get_picker_state().windows.target
+      local buf_id = vim.api.nvim_win_get_buf(win_id)
+      vim.api.nvim_buf_call(buf_id, function() vim.lsp.buf.workspace_symbol(table.concat(query), buf_lsp_opts) end)
+    end
+
+    return H.pick_start({}, picker_opts, opts)
+  end
+  vim.lsp.buf[scope](buf_lsp_opts)
 end
 
 --- Neovim marks picker
@@ -1487,11 +1499,11 @@ end
 
 --- Visit paths from 'mini.visits' picker
 ---
---- Pick paths from |MiniVisits| using |MiniVisits.list_paths()|.
+--- Pick paths from |mini.visits| using |MiniVisits.list_paths()|.
 --- Notes:
 --- - Requires 'mini.visits'.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.visit_paths()` - visits registered for |current-directory|
 ---   and ordered by "robust frecency".
@@ -1546,7 +1558,7 @@ end
 
 --- Visit labels from 'mini.visits' picker
 ---
---- Pick labels from |MiniVisits| using |MiniVisits.list_labels()|
+--- Pick labels from |mini.visits| using |MiniVisits.list_labels()|
 --- and |MiniVisits.list_paths()|.
 --- Notes:
 --- - Requires 'mini.visits'.
@@ -1554,7 +1566,7 @@ end
 --- - Choosing essentially starts |MiniExtra.pickers.visit_paths()| for paths
 ---   with the chosen label.
 ---
---- Examples ~
+--- Examples:
 ---
 --- - `MiniExtra.pickers.visit_labels()` - labels from visits registered
 ---   for |current-directory|.
@@ -1863,7 +1875,11 @@ end
 H.git_difflines_to_hunkitems = function(lines, n_context)
   local header_pattern = '^diff %-%-git'
   local hunk_pattern = '^@@ %-%d+,?%d* %+(%d+),?%d* @@'
-  local to_path_pattern = '^%+%+%+ b/(.*)$'
+  -- NOTE: Account for possible `diff.mnemonicPrefix=true` Git config. In that
+  -- case the destination can also be `w`. If won't work for some reason, more
+  -- robust solution is to modify `git diff`: `--src-prefix=a/ --dst-prefix=b/`
+  local from_path_pattern = '^%-%-%- [ai]/(.*)$'
+  local to_path_pattern = '^%+%+%+ [bw]/(.*)$'
 
   -- Parse diff lines
   local cur_header, cur_path, is_in_hunk = {}, nil, false
@@ -1875,7 +1891,7 @@ H.git_difflines_to_hunkitems = function(lines, n_context)
       cur_header = {}
     end
 
-    local path_match = l:match(to_path_pattern)
+    local path_match = l:match(to_path_pattern) or l:match(from_path_pattern)
     if path_match ~= nil and not is_in_hunk then cur_path = path_match end
 
     local hunk_start = l:match(hunk_pattern)
@@ -1924,8 +1940,8 @@ H.git_difflines_to_hunkitems = function(lines, n_context)
 end
 
 -- LSP picker -----------------------------------------------------------------
-H.lsp_make_on_list = function(source, opts)
-  local is_symbol = source == 'document_symbol' or source == 'workspace_symbol'
+H.lsp_make_opts = function(source, opts)
+  local is_symbol = source:find('symbol') ~= nil
 
   -- Prepend file position info to item, add decortion, and sort
   local add_decor_data = function() end
@@ -1958,24 +1974,24 @@ H.lsp_make_on_list = function(source, opts)
   end
 
   local pick = H.validate_pick()
-  local show_explicit = H.pick_get_config().source.show
-  local show = function(buf_id, items_to_show, query)
-    if show_explicit ~= nil then return show_explicit(buf_id, items_to_show, query) end
-    if is_symbol then
-      pick.default_show(buf_id, items_to_show, query)
+  local picker_opts = { source = { name = string.format('LSP (%s)', source) } }
 
-      -- Highlight whole lines with pre-computed symbol kind highlight groups
-      H.pick_clear_namespace(buf_id, H.ns_id.pickers)
-      for i, item in ipairs(items_to_show) do
-        H.pick_highlight_line(buf_id, i, item.hl, 199)
-      end
-      return
-    end
+  local show_explicit = H.pick_get_config().source.show
+  picker_opts.source.show = function(buf_id, items_to_show, query)
+    if show_explicit ~= nil then return show_explicit(buf_id, items_to_show, query) end
     -- Show with icons as the non-symbol scopes should have paths
-    return H.show_with_icons(buf_id, items_to_show, query)
+    if not is_symbol then return H.show_with_icons(buf_id, items_to_show, query) end
+
+    -- Highlight whole lines with pre-computed symbol kind highlight groups
+    pick.default_show(buf_id, items_to_show, query)
+
+    H.pick_clear_namespace(buf_id, H.ns_id.pickers)
+    for i, item in ipairs(items_to_show) do
+      H.pick_highlight_line(buf_id, i, item.hl, 199)
+    end
   end
 
-  local choose = function(item)
+  picker_opts.source.choose = function(item)
     pick.default_choose(item)
     -- Ensure relative path in `:buffers` output with hacky workaround.
     -- `default_choose` ensures it with `bufadd(fnamemodify(path, ':.'))`, but
@@ -1983,16 +1999,21 @@ H.lsp_make_on_list = function(source, opts)
     vim.fn.chdir(vim.fn.getcwd())
   end
 
-  return function(data)
+  local on_list = function(data)
     local items = data.items
     for _, item in ipairs(data.items) do
       item.text, item.path = item.text or '', item.filename or nil
     end
     items = process(items)
 
-    local source_opts = { name = string.format('LSP (%s)', source), show = show, choose = choose }
-    return H.pick_start(items, { source = source_opts }, opts)
+    if MiniPick.is_picker_active() and source == 'workspace_symbol_live' then
+      return MiniPick.set_picker_items(items, { do_match = false })
+    end
+
+    return H.pick_start(items, picker_opts, opts)
   end
+
+  return { on_list = on_list }, picker_opts
 end
 
 H.get_symbol_kind_map = function()

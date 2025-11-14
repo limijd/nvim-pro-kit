@@ -1,55 +1,70 @@
-<div align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-hues_readme.png" alt="mini.hues"/> </div>
+<p align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-hues_readme.png?raw=true" alt="mini.hues" style="max-width:100%;border:solid 2px"/> </p>
 
 ### Generate configurable color scheme
 
-See more details in [Features](#features) and [help file](../doc/mini-hues.txt).
+See more details in [Features](#features) and [Documentation](../doc/mini-hues.txt).
 
 ---
 
 > [!NOTE]
 > This was previously hosted at a personal `echasnovski` GitHub account. It was transferred to a dedicated organization to improve long term project stability. See more details [here](https://github.com/nvim-mini/mini.nvim/discussions/1970).
 
-⦿ This is a part of [mini.nvim](https://github.com/nvim-mini/mini.nvim) library. Please use [this link](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-hues.md) if you want to mention this module.
+⦿ This is a part of [mini.nvim](https://nvim-mini.org/mini.nvim) library. Please use [this link](https://nvim-mini.org/mini.nvim/readmes/mini-hues) if you want to mention this module.
 
 ⦿ All contributions (issues, pull requests, discussions, etc.) are done inside of 'mini.nvim'.
 
-⦿ See the repository page to learn about common design principles and configuration recipes.
+⦿ See [whole library documentation](https://nvim-mini.org/mini.nvim/doc/mini-nvim) to learn about general design principles, disable/configuration recipes, and more.
+
+⦿ See [MiniMax](https://nvim-mini.org/MiniMax) for a full config example that uses this module.
 
 ---
 
-If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://github.com/nvim-mini/mini.nvim/blob/main/CONTRIBUTING.md) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
+If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://nvim-mini.org/mini.nvim/CONTRIBUTING) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
 
 ## Demo
 
+<!-- Demo source: https://github.com/nvim-mini/assets/blob/main/demo/demo-hues.mp4 -->
 https://user-images.githubusercontent.com/24854248/236634787-ab0c33df-f697-4d96-a754-d77eccee7513.mp4
 
 ### Bundled color schemes
 
+#### Four seasons
+
 - `miniwinter`: "icy winter" palette with azure background
 
-<img width="2880" height="1734" alt="miniwinter dark" src="https://github.com/user-attachments/assets/53aaab49-2b35-4b4c-8f01-a23bbc9ab4f0" style="width: 45%"/> <img width="2880" height="1734" alt="miniwinter light" src="https://github.com/user-attachments/assets/b09d1c28-179f-46bf-94b3-d18d7e75156d" style="width: 45%"/>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniwinter-dark.png?raw=true"> <img alt="miniwinter dark" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniwinter-dark.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniwinter-light.png?raw=true"> <img alt="miniwinter light" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniwinter-light.png?raw=true" style="width: 45%"/> </a>
 
 - `minispring`: "blooming spring" palette with green background
 
-<img width="2880" height="1734" alt="minispring dark" src="https://github.com/user-attachments/assets/762f7361-1c58-4a8f-91d6-27b74c1138c3" style="width: 45%"/> <img width="2880" height="1734"  alt="minispring light" src="https://github.com/user-attachments/assets/41f4be2d-dcc1-422a-9d4a-f21f8f102c14" style="width: 45%"/>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-minispring-dark.png?raw=true"> <img alt="minispring dark" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-minispring-dark.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-minispring-light.png?raw=true"> <img alt="minispring light" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-minispring-light.png?raw=true" style="width: 45%"/> </a>
 
 - `minisummer`: "hot summer" palette with brown/yellow background
 
-<img width="2880" height="1734" alt="minisummer dark" src="https://github.com/user-attachments/assets/87f5a405-f20f-41a3-b5ab-9ee5c5a078eb" style="width: 45%"/> <img width="2880" height="1734"  alt="minisummer light" src="https://github.com/user-attachments/assets/b58c757a-8e62-4905-8191-ca1ce322d1d9" style="width: 45%"/>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-minisummer-dark.png?raw=true"> <img alt="minisummer dark" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-minisummer-dark.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-minisummer-light.png?raw=true"> <img alt="minisummer light" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-minisummer-light.png?raw=true" style="width: 45%"/> </a>
 
 - `miniautumn`: "cooling autumn" palette with purple background
 
-<img width="2880" height="1734" alt="miniautumn dark" src="https://github.com/user-attachments/assets/aa98f7ff-827a-439d-82c2-434cafb07ff7" style="width: 45%"/> <img width="2880" height="1734"  alt="miniautumn light" src="https://github.com/user-attachments/assets/a2900b75-641d-4bf6-9368-e6251f2781ea" style="width: 45%"/>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniautumn-dark.png?raw=true"> <img alt="miniautumn dark" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniautumn-dark.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniautumn-light.png?raw=true"> <img alt="miniautumn light" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-miniautumn-light.png?raw=true" style="width: 45%"/> </a>
 
-- `randomhue`: uses **randomly generated** background and foreground of same hue (color will change on every `:colorscheme randomhue` call):
+#### `randomhue`
 
-<img alt="Dark purple" src="https://user-images.githubusercontent.com/24854248/236633651-1c2a69aa-b1d3-4e2a-a537-bf39f94cdfe5.png" style="width: 45%"/> <img alt="Light purple" src="https://user-images.githubusercontent.com/24854248/236633659-87332f44-c7da-4144-9581-5b610f9316bb.png" style="width: 45%"/>
+`randomhue` uses **randomly generated** background and foreground of same hue (color will change on every `:colorscheme randomhue` call):
 
-<img alt="Dark azure" src="https://user-images.githubusercontent.com/24854248/236633641-08c21e39-29bb-41bf-ae7a-b93bc1d029f1.png" style="width: 45%"/> <img alt="Light azure" src="https://user-images.githubusercontent.com/24854248/236633654-c4391c94-1f34-4adb-aaaa-235d1cded327.png" style="width: 45%"/>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-purple.png?raw=true"> <img alt="Dark purple" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-purple.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-purple.png?raw=true"> <img alt="Light purple" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-purple.png?raw=true" style="width: 45%"/> </a>
 
-<img alt="Dark green" src="https://user-images.githubusercontent.com/24854248/236633645-a967617c-74d6-4592-9372-ea5062245b97.png" style="width: 45%"/> <img alt="Light green" src="https://user-images.githubusercontent.com/24854248/236633656-26d11c1c-edca-4735-be60-cfb9a78627ce.png" style="width: 45%"/>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-azure.png?raw=true"> <img alt="Dark azure" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-azure.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-azure.png?raw=true"> <img alt="Light azure" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-azure.png?raw=true" style="width: 45%"/> </a>
 
-<img alt="Dark orange" src="https://user-images.githubusercontent.com/24854248/236633649-73ea93f6-1cad-492a-9a05-f4c52effa78b.png" style="width: 45%"/> <img alt="Light orange" src="https://user-images.githubusercontent.com/24854248/236633658-0b03cdbd-5c56-4330-871c-fdbedc8668bd.png" style="width: 45%"/>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-green.png?raw=true"> <img alt="Dark green" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-green.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-green.png?raw=true"> <img alt="Light green" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-green.png?raw=true" style="width: 45%"/> </a>
+
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-orange.png?raw=true"> <img alt="Dark orange" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_dark-orange.png?raw=true" style="width: 45%"/> </a>
+<a href="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-orange.png?raw=true"> <img alt="Light orange" src="https://github.com/nvim-mini/assets/blob/main/demo/demo-randomhue_light-orange.png?raw=true" style="width: 45%"/> </a>
 
 ## Example configurations
 
@@ -109,7 +124,7 @@ Supported highlight groups:
 - LSP semantic tokens.
 
 - Plugins (either with explicit definition or by verification that default highlighting works appropriately):
-    - [nvim-mini/mini.nvim](https://github.com/nvim-mini/mini.nvim)
+    - [nvim-mini/mini.nvim](https://nvim-mini.org/mini.nvim)
     - [akinsho/bufferline.nvim](https://github.com/akinsho/bufferline.nvim)
     - [anuvyklack/hydra.nvim](https://github.com/anuvyklack/hydra.nvim)
     - [DanilaMihailov/beacon.nvim](https://github.com/DanilaMihailov/beacon.nvim)
@@ -158,91 +173,66 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-deps.md">mini.deps</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td rowspan=2><i>Follow recommended 'mini.deps' installation</i></td>
-        </tr>
-        <tr>
-            <td>Stable</td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>add('nvim-mini/mini.hues')</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>add({ source = 'nvim-mini/mini.hues', checkout = 'stable' })</code></td>
-        </tr>
-    </tbody>
-</table>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | *Follow recommended ‘mini.deps’ installation* |
+    | Stable | *Follow recommended ‘mini.deps’ installation* |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                                   |
+    |--------|----------------------------------------------------------------|
+    | Main   | `add(‘nvim-mini/mini.hues’)`                                   |
+    | Stable | `add({ source = ‘nvim-mini/mini.hues’, checkout = ‘stable’ })` |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td>
-            <td>Main</td> <td><code>{ 'nvim-mini/mini.nvim', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.nvim', version = '*' },</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td>
-            <td>Main</td> <td><code>{ 'nvim-mini/mini.hues', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.hues', version = '*' },</code></td>
-        </tr>
-    </tbody>
-</table>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.hues', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.hues', version = '*' },`   |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td>
-            <td>Main</td> <td><code>Plug 'nvim-mini/mini.nvim'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>Plug 'nvim-mini/mini.hues'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.hues', { 'branch': 'stable' }</code></td>
-        </tr>
-    </tbody>
-</table>
-</details>
 
-<br>
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                         |
+    |--------|------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
+    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                         |
+    |--------|------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.hues'`                         |
+    | Stable | `Plug 'nvim-mini/mini.hues', { 'branch': 'stable' }` |
+
+</details>
 
 **Important**: don't forget to call `require('mini.hues').setup()` **with `background` and `foreground` fields** to enable its functionality.
 
 **Note**: if you are on Windows, there might be problems with too long file paths (like `error: unable to create file <some file name>: Filename too long`). Try doing one of the following:
+
 - Enable corresponding git global config value: `git config --system core.longpaths true`. Then try to reinstall.
 - Install plugin in other place with shorter path.
 
@@ -268,9 +258,12 @@ Here are code snippets for some common installation methods (use only one):
   -- Plugin integrations. Use `default = false` to disable all integrations.
   -- Also can be set per plugin (see |MiniHues.config|).
   plugins = { default = true },
+
+  -- Whether to auto adjust highlight groups based on certain events
+  autoadjust = true,
 }
 ```
 
 ## Similar plugins
 
-- [mini.base16](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-base16.md)
+- [mini.base16](https://nvim-mini.org/mini.nvim/readmes/mini-base16)

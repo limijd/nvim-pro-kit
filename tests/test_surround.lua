@@ -166,34 +166,104 @@ T['setup()']['ensures colors'] = function()
 end
 
 T['setup()']['properly handles `config.mappings`'] = function()
-  local has_map = function(lhs, pattern) return child.cmd_capture('nmap ' .. lhs):find(pattern) ~= nil end
+  local has_surround_map = function(lhs, mode) return child.fn.maparg(lhs, mode):find('[Ss]urround') ~= nil end
+
+  local make_clean_state = function()
+    unload_module()
+    for _, map in ipairs(child.api.nvim_get_keymap('n')) do
+      child.api.nvim_del_keymap('n', map.lhs)
+    end
+    for _, map in ipairs(child.api.nvim_get_keymap('x')) do
+      child.api.nvim_del_keymap('x', map.lhs)
+    end
+  end
 
   -- Regular mappings
-  eq(has_map('sa', 'surround'), true)
+  eq(has_surround_map('sa', 'n'), true)
 
-  unload_module()
-  child.api.nvim_del_keymap('n', 'sa')
+  -- Should map "s" to <Nop>, but only if needed
+  eq(child.fn.maparg('s', 'n'), '<Nop>')
+  eq(child.fn.maparg('s', 'x'), '<Nop>')
 
   -- Supplying empty string should mean "don't create keymap"
+  make_clean_state()
   load_module({ mappings = { add = '' } })
-  eq(has_map('sa', 'surround'), false)
+  eq(has_surround_map('sa', 'n'), false)
 
   -- Extended mappings
-  eq(has_map('sdl', 'previous'), true)
-  eq(has_map('sdn', 'next'), true)
+  eq(has_surround_map('sdl', 'n'), true)
+  eq(has_surround_map('sdn', 'n'), true)
 
-  unload_module()
-  child.api.nvim_del_keymap('n', 'sd')
-  child.api.nvim_del_keymap('n', 'sdl')
-  child.api.nvim_del_keymap('n', 'sdn')
-  child.api.nvim_del_keymap('n', 'srl')
-  child.api.nvim_del_keymap('n', 'srn')
-
+  make_clean_state()
   load_module({ mappings = { delete = '', suffix_last = '' } })
-  eq(has_map('sdl', 'previous'), false)
-  eq(has_map('sdn', 'next'), false)
-  eq(has_map('srl', 'previous'), false)
-  eq(has_map('srn', 'next'), true)
+  eq(has_surround_map('sdl', 'n'), false)
+  eq(has_surround_map('sdn', 'n'), false)
+  eq(has_surround_map('srl', 'n'), false)
+  eq(has_surround_map('srn', 'n'), true)
+
+  -- Should precisely set 's' keymap
+  make_clean_state()
+  load_module({ mappings = { add = 'cs', delete = 'sd' } })
+  eq(child.fn.maparg('s', 'n'), '<Nop>')
+  eq(child.fn.maparg('s', 'x'), '')
+
+  -- - Should ignore presence of buffer-local mappings
+  local vim_surround_mappings = {
+    add = 'ys',
+    delete = 'ds',
+    find = '',
+    find_left = '',
+    highlight = '',
+    replace = 'cs',
+    suffix_last = '',
+    suffix_next = '',
+  }
+  -- - Should also not override already present user mapping for `s`
+  make_clean_state()
+  child.cmd('nmap s <Cmd>echo 1<CR>')
+  load_module({ mappings = vim_surround_mappings })
+  eq(child.fn.maparg('s', 'n'), '<Cmd>echo 1<CR>')
+  eq(child.fn.maparg('s', 'x'), '')
+
+  -- - Should allow creating a plain `s` as a mapping
+  vim_surround_mappings.add = 's'
+  make_clean_state()
+  load_module({ mappings = vim_surround_mappings })
+  eq(has_surround_map('s', 'n'), true)
+  eq(has_surround_map('s', 'x'), true)
+
+  -- - Should ignore buffer-local `s` mappings and still create global `<Nop>`
+  make_clean_state()
+  child.cmd('nmap <buffer> s <Cmd>echo 1<CR>')
+  child.cmd('xmap <buffer> s <Cmd>echo 2<CR>')
+  load_module()
+  eq(child.fn.maparg('s', 'n'), '<Cmd>echo 1<CR>')
+  eq(child.fn.maparg('s', 'x'), '<Cmd>echo 2<CR>')
+
+  local get_global_mapping = function(mode, lhs)
+    for _, map in ipairs(child.api.nvim_get_keymap(mode)) do
+      if map.lhs == lhs then return map end
+    end
+    return {}
+  end
+  -- - NOTE: `nvim_get_keymap()` return `rhs=''` if it is mapped to `<Nop>`
+  --   For absent mapping it would have been `nil`
+  eq(get_global_mapping('n', 's').rhs, '')
+  eq(get_global_mapping('x', 's').rhs, '')
+
+  -- - Should work when there are both buffer-local and global mappings
+  make_clean_state()
+  child.cmd('nmap          s <Cmd>echo 1<CR>')
+  child.cmd('nmap <buffer> s <Cmd>echo 10<CR>')
+  child.cmd('xmap          s <Cmd>echo 2<CR>')
+  child.cmd('xmap <buffer> s <Cmd>echo 20<CR>')
+
+  load_module()
+
+  eq(child.fn.maparg('s', 'n'), '<Cmd>echo 10<CR>')
+  eq(child.fn.maparg('s', 'x'), '<Cmd>echo 20<CR>')
+  eq(get_global_mapping('n', 's').rhs, '<Cmd>echo 1<CR>')
+  eq(get_global_mapping('x', 's').rhs, '<Cmd>echo 2<CR>')
 end
 
 T['update_n_lines()'] = new_set({

@@ -38,10 +38,10 @@
 37|                                                  
 38|    Commit 2                                      
 39|                                                  
-40|diff --git a/dir/file1 b/dir/file1                
+40|diff --git i/dir/file1 w/dir/file1                
 41|index dd2b945..b81ef66 100644                     
-42|--- a/dir/file1                                   
-43|+++ b/dir/file1                                   
+42|--- i/dir/file1                                   
+43|+++ w/dir/file1                                   
 44|@@ -247 +247 @@ Hunk header 1                     
 45|-      Previous line 02                           
 46|+      Current line 02                            

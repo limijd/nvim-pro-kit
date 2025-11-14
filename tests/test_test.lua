@@ -1560,6 +1560,17 @@ T['gen_reporter']['buffer'] = new_set({
 
     -- Should use properly named buffer
     eq(child.api.nvim_buf_get_name(0), 'minitest://' .. child.api.nvim_get_current_buf() .. '/buffer-reporter')
+
+    child.cmd('quit')
+
+    -- Should work with "string array" 'winborder'
+    if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+    -- - Test only for one parameter that doesn't contain explicit `border`
+    if not (vim.startswith(opts_element, 'window') and opts_element:find('border') == nil) then return end
+
+    child.o.winborder = '+,-,+,|,+,-,+,|'
+    child.lua(execute_command)
+    child.expect_screenshot()
   end,
 })
 

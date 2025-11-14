@@ -339,6 +339,7 @@ T['as_colorscheme() methods']['add_transparency()']['works'] = function()
       NormalNC = { bg = '#111111' },
       EndOfBuffer = { ctermbg = 232 },
       MsgArea = { blend = 50 },
+      ErrorMsg = { bg = '#000000' },
       MsgSeparator = hl_group,
       VertSplit = hl_group,
       WinSeparator = hl_group,
@@ -359,6 +360,7 @@ T['as_colorscheme() methods']['add_transparency()']['works'] = function()
     NormalNC = { blend = 0 },
     EndOfBuffer = { blend = 0 },
     MsgArea = { blend = 0 },
+    ErrorMsg = { blend = 0 },
     MsgSeparator = hl_transparent,
     VertSplit = hl_transparent,
     WinSeparator = hl_transparent,
@@ -407,9 +409,13 @@ T['as_colorscheme() methods']['add_transparency()']['respects `opts`'] = functio
 
   -- Other
   validate_groups_become_transparent({ float = true }, { 'FloatBorder', 'FloatTitle', 'NormalFloat' })
+  --stylua: ignore
   validate_groups_become_transparent(
     { statuscolumn = true },
-    { 'FoldColumn', 'LineNr', 'LineNrAbove', 'LineNrBelow', 'SignColumn' }
+    {
+      'FoldColumn', 'LineNr', 'LineNrAbove', 'LineNrBelow', 'SignColumn',
+      'DiagnosticSignError', 'DiagnosticSignWarn', 'DiagnosticSignInfo', 'DiagnosticSignHint', 'DiagnosticSignOk',
+    }
   )
   validate_groups_become_transparent(
     { statusline = true },

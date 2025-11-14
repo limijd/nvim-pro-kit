@@ -1,10 +1,7 @@
 --- *mini.files* Navigate and manipulate file system
---- *MiniFiles*
 ---
 --- MIT License Copyright (c) 2023 Evgeni Chasnovski
----
---- ==============================================================================
----
+
 --- Features:
 --- - Navigate file system using column view (Miller columns) to display nested
 ---   directories. See |MiniFiles-navigation| for overview.
@@ -14,7 +11,7 @@
 --- - Manipulate files and directories by editing text buffers: create, delete,
 ---   copy, rename, move. See |MiniFiles-manipulation| for overview.
 ---
---- - Use as default file explorer instead of |netrw|.
+--- - Use as default file explorer instead of `netrw`.
 ---
 --- - Configurable:
 ---     - Filter/prefix/sort of file system entries.
@@ -48,8 +45,9 @@
 ---
 --- Suggested dependencies (provide extra functionality, will work without them):
 ---
---- - Enabled |MiniIcons| module to show icons near file/directory names.
----   Falls back to 'nvim-tree/nvim-web-devicons' plugin or uses default icons.
+--- - Enabled |mini.icons| module to show icons near file/directory names.
+---   Falls back to [nvim-tree/nvim-web-devicons](https://github.com/nvim-tree/nvim-web-devicons)
+---   plugin or uses default icons.
 ---
 --- # Setup ~
 ---
@@ -66,43 +64,42 @@
 ---
 --- # Comparisons ~
 ---
---- - 'nvim-tree/nvim-tree.lua':
+--- - [nvim-tree/nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua):
 ---     - Provides tree view of file system, while this module uses column view.
 ---     - File system manipulation is done with custom set of mappings for each
 ---       action, while this module is designed to do that by editing text.
 ---     - Has more out of the box functionality with extra configuration, while
 ---       this module has not (by design).
 ---
---- - 'stevearc/oil.nvim':
+--- - [stevearc/oil.nvim](https://github.com/stevearc/oil.nvim):
 ---     - Uses single window to show information only about currently explored
 ---       directory, while this module uses column view to show whole currently
 ---       explored branch.
 ---     - Also uses text editing to manipulate file system entries.
 ---     - Can work for remote file systems, while this module can not (by design).
 ---
---- - 'nvim-neo-tree/neo-tree.nvim':
+--- - [nvim-neo-tree/neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim):
 ---     - Compares to this module mostly the same as 'nvim-tree/nvim-tree.lua'.
 ---
 --- # Highlight groups ~
 ---
---- * `MiniFilesBorder` - border of regular windows.
---- * `MiniFilesBorderModified` - border of windows showing modified buffer.
---- * `MiniFilesCursorLine` - cursor line in explorer windows.
---- * `MiniFilesDirectory` - text and icon representing directory.
---- * `MiniFilesFile` - text representing file.
---- * `MiniFilesNormal` - basic foreground/background highlighting.
---- * `MiniFilesTitle` - title of regular windows.
---- * `MiniFilesTitleFocused` - title of focused window.
+--- - `MiniFilesBorder` - border of regular windows.
+--- - `MiniFilesBorderModified` - border of windows showing modified buffer.
+--- - `MiniFilesCursorLine` - cursor line in explorer windows.
+--- - `MiniFilesDirectory` - text and icon representing directory.
+--- - `MiniFilesFile` - text representing file.
+--- - `MiniFilesNormal` - basic foreground/background highlighting.
+--- - `MiniFilesTitle` - title of regular windows.
+--- - `MiniFilesTitleFocused` - title of focused window.
 ---
---- To change any highlight group, modify it directly with |:highlight|.
+--- To change any highlight group, set it directly with |nvim_set_hl()|.
 ---
 --- # Disabling ~
 ---
 --- This plugin provides only manually started functionality, so no disabling
 --- is available.
+---@tag MiniFiles
 
---- Navigation ~
----
 --- Every navigation starts by calling |MiniFiles.open()|, either directly or via
 --- mapping (see its help for examples of some common scenarios). It will show
 --- an explorer consisting of side-by-side floating windows with the following
@@ -123,7 +120,7 @@
 ---   example, if there are more elements in the branch than can be shown windows.
 ---
 --- - Every buffer line represents separate file system entry following certain
----   format (not visible for users by default; set |conceallevel| to 0 to see it)
+---   format (not visible for users by default; set |'conceallevel'| to 0 to see it)
 ---
 --- - Once directory is shown, its buffer is not updated automatically following
 ---   external file system changes. Manually use |MiniFiles.synchronize()| for that.
@@ -214,8 +211,6 @@
 --- - Keys can be configured with `mappings` table of |MiniFiles.config|.
 ---@tag MiniFiles-navigation
 
---- Manipulation ~
----
 --- File system manipulation is done by editing text inside directory buffers,
 --- which are shown inside dedicated window(s). See |MiniFiles-navigation| for
 --- more information about navigating to a particular directory.
@@ -247,7 +242,7 @@
 --- at the start of every line representing file system entry.
 ---
 --- By default they are hidden as concealed text (along with prefix separators)
---- for more convenience but you can see them by setting |conceallevel| to 0.
+--- for more convenience but you can see them by setting |'conceallevel'| to 0.
 --- DO NOT modify text to the left of entry name.
 ---
 --- During synchronization, actual text for entry name is compared to path index
@@ -288,6 +283,9 @@
 ---
 --- - It is not needed to end directory name with `/`.
 ---
+--- - Appending `/` to a file name will delete it and create empty directory
+---   with the same name.
+---
 --- - Cyclic renames ("a" to "b" and "b" to "a") are not supported.
 ---
 --- ## Copy ~
@@ -314,12 +312,10 @@
 --- - Moving directory inside itself is not supported.
 ---@tag MiniFiles-manipulation
 
---- Events ~
----
 --- To allow user customization and integration of external tools, certain |User|
 --- autocommand events are triggered under common circumstances.
 ---
---- UI events ~
+--- # UI events ~
 ---
 --- - `MiniFilesExplorerOpen` - just after explorer finishes opening.
 ---
@@ -346,7 +342,7 @@
 ---   `MiniFilesBufferCreate` and buffer's first `MiniFilesBufferUpdate` as
 ---   they are triggered before window is created.
 ---
---- File action events ~
+--- # File action events ~
 ---
 --- - `MiniFilesActionCreate` - after entry is successfully created.
 ---
@@ -366,8 +362,6 @@
 --- - <to> - full path of entry after action (`nil` for permanent "delete" action).
 ---@tag MiniFiles-events
 
---- Common configuration examples ~
----
 --- # Toggle explorer ~
 ---
 --- Use a combination of |MiniFiles.open()| and |MiniFiles.close()|: >lua
@@ -586,9 +580,7 @@ MiniFiles.setup = function(config)
 end
 
 --stylua: ignore
---- Module config
----
---- Default values:
+--- Defaults ~
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
 ---@text # Content ~
 ---
@@ -598,6 +590,10 @@ end
 ---
 --- A file system entry data is a table with the following fields:
 --- __minifiles_fs_entry_data_fields
+---
+--- `content.highlight` describes how file system entry name should be highlighted.
+--- Takes file system entry data as input and returns a highlight group name.
+--- Uses |MiniFiles.default_highlight()| by default.
 ---
 --- `content.prefix` describes what text (prefix) to show to the left of file
 --- system entry name (if any) and how to highlight it. It also takes file
@@ -641,7 +637,7 @@ end
 --- # Options ~
 ---
 --- `options.use_as_default_explorer` is a boolean indicating whether this module
---- will be used as a default file explorer to edit directory (instead of |netrw|).
+--- will be used as a default file explorer to edit directory (instead of `netrw`).
 --- Note: to work with directory in |arglist|, do not lazy load this module.
 ---
 --- `options.permanent_delete` is a boolean indicating whether to perform
@@ -669,9 +665,11 @@ MiniFiles.config = {
   content = {
     -- Predicate for which file system entries to show
     filter = nil,
-    -- What prefix to show to the left of file system entry
+    -- Highlight group to use for a file system entry
+    highlight = nil,
+    -- Prefix text and highlight to show to the left of file system entry
     prefix = nil,
-    -- In which order to show file system entries
+    -- Order in which to show file system entries
     sort = nil,
   },
 
@@ -1172,7 +1170,7 @@ MiniFiles.default_filter = function(fs_entry) return true end
 
 --- Default prefix of file system entries
 ---
---- - If |MiniIcons| is set up, use |MiniIcons.get()| for "directory"/"file" category.
+--- - If set up |mini.icons|, use |MiniIcons.get()| for "directory"/"file" category.
 --- - Otherwise:
 ---     - For directory return fixed icon and "MiniFilesDirectory" group name.
 ---     - For file try to use `get_icon()` from 'nvim-tree/nvim-web-devicons'.
@@ -1231,6 +1229,18 @@ MiniFiles.default_sort = function(fs_entries)
   return vim.tbl_map(function(x) return { name = x.name, fs_type = x.fs_type, path = x.path } end, res)
 end
 
+--- Default file system entry highlight
+---
+--- Returns `'MiniFilesDirectory'` for directory and `'MiniFilesFile'` otherwise.
+---
+---@param fs_entry table Table with the following fields:
+--- __minifiles_fs_entry_data_fields
+---
+---@return string Highlight group name.
+MiniFiles.default_highlight = function(fs_entry)
+  return fs_entry.fs_type == 'directory' and 'MiniFilesDirectory' or 'MiniFilesFile'
+end
+
 -- Helper data ================================================================
 -- Module default config
 H.default_config = vim.deepcopy(MiniFiles.config)
@@ -1278,6 +1288,7 @@ H.setup_config = function(config)
 
   H.check_type('content', config.content, 'table')
   H.check_type('content.filter', config.content.filter, 'function', true)
+  H.check_type('content.highlight', config.content.highlight, 'function', true)
   H.check_type('content.prefix', config.content.prefix, 'function', true)
   H.check_type('content.sort', config.content.sort, 'function', true)
 
@@ -1356,6 +1367,7 @@ end
 H.normalize_opts = function(explorer_opts, opts)
   opts = vim.tbl_deep_extend('force', H.get_config(), explorer_opts or {}, opts or {})
   opts.content.filter = opts.content.filter or MiniFiles.default_filter
+  opts.content.highlight = opts.content.highlight or MiniFiles.default_highlight
   opts.content.prefix = opts.content.prefix or MiniFiles.default_prefix
   opts.content.sort = opts.content.sort or MiniFiles.default_sort
 
@@ -1683,10 +1695,16 @@ H.explorer_compute_fs_actions = function(explorer)
   for _, diff in pairs(raw_copy) do
     local action, target = 'copy', copy
     if delete_map[diff.from] then
-      action = H.fs_get_parent(diff.from) == H.fs_get_parent(diff.to) and 'rename' or 'move'
-      target = action == 'rename' and rename or move
-      -- NOTE: Use map instead of array to ensure single move/rename per path
-      delete_map[diff.from] = nil
+      -- Treat appending `/` to file name as file -> directory conversion
+      -- (i.e. delete file + create directory)
+      if diff.to == (diff.from .. '/') and H.fs_get_type(diff.from) == 'file' then
+        target, action, diff.from = create, 'create', nil
+      else
+        action = H.fs_get_parent(diff.from) == H.fs_get_parent(diff.to) and 'rename' or 'move'
+        target = action == 'rename' and rename or move
+        -- NOTE: Use map instead of array to ensure single move/rename per path
+        delete_map[diff.from] = nil
+      end
     end
     table.insert(target, { action = action, dir = diff.dir, from = diff.from, to = diff.to })
   end
@@ -1708,9 +1726,11 @@ H.explorer_compute_fs_actions = function(explorer)
     for _, diff in ipairs(arr) do
       local will_be_deleted = false
       for _, del in ipairs(delete) do
-        local from_is_affected = del.from == diff.from or vim.startswith(diff.from or '', del.from .. '/')
+        local del_from_dir = del.from .. '/'
+        local from_is_affected = del.from == diff.from or vim.startswith(diff.from or '', del_from_dir)
         -- Don't directly account for deleted path to allow "act on freed path"
-        local to_is_affected = vim.startswith(diff.to, del.from .. '/')
+        -- But make "append `/` to file" work as "delete file" + "create dir"
+        local to_is_affected = vim.startswith(diff.to, del_from_dir) and diff.to ~= del_from_dir
         will_be_deleted = will_be_deleted or from_is_affected or to_is_affected
       end
       table.insert(will_be_deleted and before_delete or after_delete, diff)
@@ -1915,7 +1935,7 @@ H.explorer_show_help = function(explorer, explorer_buf_id, explorer_win_id)
   config.height = #lines
   config.title = " 'mini.files' help "
   config.zindex = config.zindex + 1
-  local default_border = (vim.fn.exists('+winborder') == 1 and vim.o.winborder ~= '') and vim.o.winborder or 'single'
+  local default_border = (vim.fn.exists('+winborder') == 0 or vim.o.winborder == '') and 'single' or nil
   config.border = config.border or default_border
   config.style = 'minimal'
 
@@ -1925,6 +1945,8 @@ H.explorer_show_help = function(explorer, explorer_buf_id, explorer_win_id)
   H.window_update_highlight(win_id, 'FloatTitle', 'MiniFilesTitle')
   H.window_update_highlight(win_id, 'CursorLine', 'MiniFilesCursorLine')
   vim.wo[win_id].cursorline = true
+  local culopt = vim.wo[win_id].cursorlineopt
+  if culopt:find('line') == nil then vim.wo[win_id].cursorlineopt = culopt .. ',line' end
 
   vim.api.nvim_set_current_win(win_id)
   return win_id
@@ -2241,7 +2263,8 @@ H.buffer_update_directory = function(buf_id, path, opts, is_preview)
 
   -- Compute lines
   local lines, icon_hl, name_hl = {}, {}, {}
-  local prefix_fun, n_computed_prefixes = opts.content.prefix, is_preview and vim.o.lines or math.huge
+  local prefix_fun, hl_fun = opts.content.prefix, opts.content.highlight
+  local n_computed_prefixes = is_preview and vim.o.lines or math.huge
   for i, entry in ipairs(fs_entries) do
     local prefix, hl, name
     -- Compute prefix only in visible preview (for performance).
@@ -2253,7 +2276,7 @@ H.buffer_update_directory = function(buf_id, path, opts, is_preview)
     prefix, hl, name = prefix or '', hl or '', H.sanitize_string(entry.name)
     table.insert(lines, string.format(line_format, H.path_index[entry.path], prefix, name))
     table.insert(icon_hl, hl)
-    table.insert(name_hl, entry.fs_type == 'directory' and 'MiniFilesDirectory' or 'MiniFilesFile')
+    table.insert(name_hl, hl_fun(entry) or 'MiniFilesNormal')
   end
 
   -- Set lines
@@ -2388,7 +2411,7 @@ end
 H.window_open = function(buf_id, config)
   -- Add always the same extra data
   config.anchor = 'NW'
-  config.border = (vim.fn.exists('+winborder') == 1 and vim.o.winborder ~= '') and vim.o.winborder or 'single'
+  config.border = (vim.fn.exists('+winborder') == 0 or vim.o.winborder == '') and 'single' or nil
   config.focusable = true
   config.relative = 'editor'
   config.style = 'minimal'
@@ -2483,8 +2506,10 @@ H.window_set_view = function(win_id, view)
 
   -- Set cursor (if defined), visible only in directories
   pcall(H.window_set_cursor, win_id, view.cursor)
-  -- NOTE: set 'cursorline' here because changing buffer might remove it
+  -- NOTE: set 'cursorline[opt]' here because changing buffer might remove it
   vim.wo[win_id].cursorline = H.fs_get_type(buf_data.path) == 'directory'
+  local culopt = vim.wo[win_id].cursorlineopt
+  if culopt:find('line') == nil then vim.wo[win_id].cursorlineopt = culopt .. ',line' end
 
   -- Update border highlight based on buffer status
   H.window_update_border_hl(win_id)

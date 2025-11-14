@@ -1049,8 +1049,17 @@ T['gen_integration']['builtin_search()']['updates when appropriate'] = function(
   child.o.hlsearch = true
   child.expect_screenshot(screen_opts)
 
-  -- Ideally, it should also update when starting highlight search with other
-  -- methods (like after `n/N/*`, etc.), but it currently doesn't seem possible
+  -- Should update when `v:hlsearch` is changed (like `\h` in 'mini.basics')
+  if child.fn.has('nvim-0.10') == 0 then return end
+
+  child.v.hlsearch = false
+  child.expect_screenshot(screen_opts)
+
+  child.v.hlsearch = true
+  child.expect_screenshot(screen_opts)
+
+  -- Ideally, it should also update when starting highlight search after
+  -- `n/N/*`, etc.), but it currently doesn't seem possible
   -- See https://github.com/neovim/neovim/issues/18879
 end
 

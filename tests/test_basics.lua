@@ -44,7 +44,7 @@ T['setup()']['creates `config` field'] = function()
   -- Check default values
   expect_config('options.basic', true)
   expect_config('options.extra_ui', false)
-  expect_config('options.win_borders', 'default')
+  expect_config('options.win_borders', 'auto')
   expect_config('mappings.basic', true)
   expect_config('mappings.option_toggle_prefix', [[\]])
   expect_config('mappings.windows', false)
@@ -215,12 +215,41 @@ T['Options']['respect `config.options.extra_ui`'] = function()
 end
 
 T['Options']['respect `config.options.win_borders`'] = function()
-  eq(child.o.fillchars, '')
+  local validate = function(opt_value, ref_fillchars)
+    child.o.fillchars = ''
+    load_module({ options = { basic = false, win_borders = opt_value } })
+    eq(child.o.fillchars, ref_fillchars)
+  end
 
-  load_module({ options = { basic = false, win_borders = 'double' } })
+  validate(nil, '')
+  validate('double', 'horiz:═,horizdown:╦,horizup:╩,msgsep:═,vert:║,verthoriz:╬,vertleft:╣,vertright:╠')
+  -- - Should not respect 'winborder' style names directly
+  validate('none', '')
 
-  local ref_value = 'horiz:═,horizdown:╦,horizup:╩,vert:║,verthoriz:╬,vertleft:╣,vertright:╠'
-  eq(child.o.fillchars, ref_value)
+  if child.fn.has('nvim-0.11') == 0 then return end
+
+  -- With default 'auto' should infer from 'winborder' option
+  local validate_winborder = function(winborder_value, ref_fillchars)
+    child.o.winborder = winborder_value
+    validate(nil, ref_fillchars)
+    validate('auto', ref_fillchars)
+  end
+
+  validate_winborder('', '')
+
+  local single_fcs = 'horiz:─,horizdown:┬,horizup:┴,msgsep:─,vert:│,verthoriz:┼,vertleft:┤,vertright:├'
+  validate_winborder('single', single_fcs)
+  validate_winborder('rounded', single_fcs)
+
+  local solid_fcs = 'horiz: ,horizdown: ,horizup: ,msgsep: ,vert: ,verthoriz: ,vertleft: ,vertright: '
+  validate_winborder('solid', solid_fcs)
+  validate_winborder('none', solid_fcs)
+  validate_winborder('shadow', solid_fcs)
+
+  if child.fn.has('nvim-0.12') == 0 then return end
+
+  -- With custom list 'winborder' should do nothing
+  validate_winborder('+,-,+,|,+,-,+,|', '')
 end
 
 T['Mappings'] = new_set()

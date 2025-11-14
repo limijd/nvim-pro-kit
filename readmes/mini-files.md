@@ -1,35 +1,38 @@
-<div align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-files_readme.png" alt="mini.files"/> </div>
+<p align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-files_readme.png?raw=true" alt="mini.files" style="max-width:100%;border:solid 2px"/> </p>
 
 ### Navigate and manipulate file system
 
-See more details in [Features](#features) and [help file](../doc/mini-files.txt).
+See more details in [Features](#features) and [Documentation](../doc/mini-files.txt).
 
 ---
 
 > [!NOTE]
 > This was previously hosted at a personal `echasnovski` GitHub account. It was transferred to a dedicated organization to improve long term project stability. See more details [here](https://github.com/nvim-mini/mini.nvim/discussions/1970).
 
-⦿ This is a part of [mini.nvim](https://github.com/nvim-mini/mini.nvim) library. Please use [this link](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-files.md) if you want to mention this module.
+⦿ This is a part of [mini.nvim](https://nvim-mini.org/mini.nvim) library. Please use [this link](https://nvim-mini.org/mini.nvim/readmes/mini-files) if you want to mention this module.
 
 ⦿ All contributions (issues, pull requests, discussions, etc.) are done inside of 'mini.nvim'.
 
-⦿ See the repository page to learn about common design principles and configuration recipes.
+⦿ See [whole library documentation](https://nvim-mini.org/mini.nvim/doc/mini-nvim) to learn about general design principles, disable/configuration recipes, and more.
+
+⦿ See [MiniMax](https://nvim-mini.org/MiniMax) for a full config example that uses this module.
 
 ---
 
-If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://github.com/nvim-mini/mini.nvim/blob/main/CONTRIBUTING.md) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
+If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://nvim-mini.org/mini.nvim/CONTRIBUTING) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
 
 ## Demo
 
+<!-- Demo source: https://github.com/nvim-mini/assets/blob/main/demo/demo-files.mp4 -->
 https://github.com/nvim-mini/mini.nvim/assets/24854248/530483a5-fe9a-4e18-9813-a6d609fc89ff
 
 ## Features
 
-- Navigate file system using column view (Miller columns) to display nested directories. See `*MiniFiles-navigation*` tag in help file for overview.
+- Navigate file system using column view (Miller columns) to display nested directories. See `:h MiniFiles-navigation` for overview.
 
 - Opt-in preview of file or directory under cursor.
 
-- Manipulate files and directories by editing text buffers: create, delete, copy, rename, move. See `*MiniFiles-manipulation*` tag in help file for overview.
+- Manipulate files and directories by editing text buffers: create, delete, copy, rename, move. See `:h MiniFiles-manipulation` for overview.
 
 - Use as default file explorer instead of `netrw`.
 
@@ -39,7 +42,7 @@ https://github.com/nvim-mini/mini.nvim/assets/24854248/530483a5-fe9a-4e18-9813-a
     - UI options: whether to show preview of file/directory under cursor, etc.
     - Bookmarks for quicker navigation.
 
-See `*MiniFiles-examples*` tag in help file for some common configuration examples.
+See `:h MiniFiles-examples` for some common configuration examples.
 
 Notes:
 
@@ -53,7 +56,7 @@ Notes:
 
 For full experience needs (still works without any of suggestions):
 
-- Enabled ['mini.icons'](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-icons.md) module to show icons near file/directory names. Can fall back to using [nvim-tree/nvim-web-devicons](https://github.com/nvim-tree/nvim-web-devicons) plugin.
+- Enabled ['mini.icons'](https://nvim-mini.org/mini.nvim/readmes/mini-icons) module to show icons near file/directory names. Can fall back to using [nvim-tree/nvim-web-devicons](https://github.com/nvim-tree/nvim-web-devicons) plugin.
 
 ## Quick start
 
@@ -69,7 +72,7 @@ For full experience needs (still works without any of suggestions):
     - Type `g?` for more information about other available mappings and bookmarks.
     - Move as in any other buffer (`$`, `G`, `f`/`t`, etc.).
 
-For bigger overview, see `*MiniFiles-navigation*` tag in help file.
+For deeper overview, see `:h MiniFiles-navigation`.
 
 ### Manipulation
 
@@ -85,7 +88,7 @@ For bigger overview, see `*MiniFiles-navigation*` tag in help file.
 
 - Press `=`; **read confirmation dialog**; confirm with `y`/`<CR>` or not confirm with `n`/`<Esc>`.
 
-For bigger overview, see `*MiniFiles-manipulation*` tag in help file.
+For deeper overview, see `:h MiniFiles-manipulation`.
 
 ## Installation
 
@@ -99,92 +102,68 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-deps.md">mini.deps</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td rowspan=2><i>Follow recommended 'mini.deps' installation</i></td>
-        </tr>
-        <tr>
-            <td>Stable</td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>add('nvim-mini/mini.files')</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>add({ source = 'nvim-mini/mini.files', checkout = 'stable' })</code></td>
-        </tr>
-    </tbody>
-</table>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | *Follow recommended ‘mini.deps’ installation* |
+    | Stable | *Follow recommended ‘mini.deps’ installation* |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                                    |
+    |--------|-----------------------------------------------------------------|
+    | Main   | `add(‘nvim-mini/mini.files’)`                                   |
+    | Stable | `add({ source = ‘nvim-mini/mini.files’, checkout = ‘stable’ })` |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td>
-            <td>Main</td> <td><code>{ 'nvim-mini/mini.nvim', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.nvim', version = '*' },</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td>
-            <td>Main</td> <td><code>{ 'nvim-mini/mini.files', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.files', version = '*' },</code></td>
-        </tr>
-    </tbody>
-</table>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                   |
+    |--------|------------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.files', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.files', version = '*' },`   |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td>
-            <td>Main</td> <td><code>Plug 'nvim-mini/mini.nvim'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>Plug 'nvim-mini/mini.files'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.files', { 'branch': 'stable' }</code></td>
-        </tr>
-    </tbody>
-</table>
-</details>
 
-<br>
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                         |
+    |--------|------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
+    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                          |
+    |--------|-------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.files'`                         |
+    | Stable | `Plug 'nvim-mini/mini.files', { 'branch': 'stable' }` |
+
+</details>
 
 **Important**: don't forget to call `require('mini.files').setup()` to enable its functionality.
 
 **Note**: if you are on Windows, there might be problems with too long file paths (like `error: unable to create file <some file name>: Filename too long`). Try doing one of the following:
+
 - Enable corresponding git global config value: `git config --system core.longpaths true`. Then try to reinstall.
+- Install plugin in other place with shorter path.
 
 ## Default config
 
@@ -195,9 +174,11 @@ Here are code snippets for some common installation methods (use only one):
   content = {
     -- Predicate for which file system entries to show
     filter = nil,
-    -- What prefix to show to the left of file system entry
+    -- Highlight group to use for a file system entry
+    highlight = nil,
+    -- Prefix text and highlight to show to the left of file system entry
     prefix = nil,
-    -- In which order to show file system entries
+    -- Order in which to show file system entries
     sort = nil,
   },
 

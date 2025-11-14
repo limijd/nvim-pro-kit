@@ -37,10 +37,10 @@ Date:   Sat May 4 16:20:29 2024 +0300
 
     Commit 2
 
-diff --git a/dir/file1 b/dir/file1
+diff --git i/dir/file1 w/dir/file1
 index dd2b945..b81ef66 100644
---- a/dir/file1
-+++ b/dir/file1
+--- i/dir/file1
++++ w/dir/file1
 @@ -247 +247 @@ Hunk header 1
 -      Previous line 02
 +      Current line 02

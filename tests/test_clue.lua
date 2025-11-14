@@ -336,18 +336,41 @@ T['setup()']['ensures valid triggers on `LspAttach` event'] = function()
 end
 
 T['setup()']['ensures valid triggers on selected special buffers'] = function()
-  load_module({ triggers = { { mode = 'n', keys = '<Space>' } }, window = { delay = 0 } })
+  local make_ft_buf = function(ft)
+    local buf_id = child.api.nvim_create_buf(false, true)
+    child.api.nvim_set_option_value('filetype', ft, { buf = buf_id })
+    return buf_id
+  end
 
-  local validate = function(ft)
-    child.cmd('au FileType ' .. ft .. ' lua vim.keymap.set("n", "<Space>a", ":echo 1<CR>", { buffer = true })')
-    load_module({ triggers = { { mode = 'n', keys = '<Space>' } }, window = { delay = 0 } })
+  local validate_trigger = function(ft, buf_id_existing)
     child.api.nvim_set_current_buf(child.api.nvim_create_buf(false, true))
     child.bo.filetype = ft
     validate_trigger_keymap('n', '<Space>', 0)
+    validate_trigger_keymap('n', '<Space>', buf_id_existing)
   end
 
-  validate('help')
-  validate('git')
+  child.cmd('au FileType help,git nmap <buffer> <Space>a :echo 1<CR>')
+
+  local buf_id_help = make_ft_buf('help')
+  local buf_id_git = make_ft_buf('git')
+
+  load_module({ triggers = { { mode = 'n', keys = '<Space>' } }, window = { delay = 0 } })
+
+  validate_trigger('help', buf_id_help)
+  validate_trigger('git', buf_id_git)
+end
+
+T['setup()']["works with 'mini.starter'"] = function()
+  child.lua('require("mini.starter").open()')
+  local triggers = {
+    { mode = 'n', keys = '<Space>' },
+    { mode = 'n', keys = 'g' },
+  }
+  load_module({ triggers = triggers, window = { delay = 0 } })
+
+  -- Should not override query updaters (common for "g", "s", "z" triggers)
+  validate_trigger_keymap('n', '<Space>', 0)
+  validate_no_trigger_keymap('n', 'g', 0)
 end
 
 T['setup()']['respects `vim.b.miniclue_disable`'] = function()
@@ -1294,16 +1317,23 @@ T['Showing keys']["respects 'winborder' option"] = function()
   make_test_map('n', '<Space>a')
   load_module({ triggers = { { mode = 'n', keys = '<Space>' } }, window = { delay = 0 } })
 
-  child.o.winborder = 'rounded'
-  type_keys(' ')
-  child.expect_screenshot()
-  type_keys('<Esc>')
+  local validate = function(winborder)
+    child.o.winborder = winborder
+    type_keys(' ')
+    child.expect_screenshot()
+    type_keys('<Esc>')
+  end
+
+  validate('rounded')
 
   -- Should prefer explicitly configured value over 'winborder'
   child.lua('MiniClue.config.window.config.border = "double"')
-  type_keys(' ')
-  child.expect_screenshot()
-  type_keys('<Esc>')
+  validate('rounded')
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  child.lua('MiniClue.config.window.config.border = nil')
+  validate('+,-,+,|,+,-,+,|')
 end
 
 T['Showing keys']['can have `config.window.config.width="auto"`'] = function()
@@ -1388,6 +1418,48 @@ T['Showing keys']['indicates that description is truncated'] = function()
   child.set_size(5, 20)
   type_keys(' ')
   child.expect_screenshot()
+end
+
+T['Showing keys']['uses query clue as title'] = function()
+  load_module({
+    clues = {
+      { mode = 'n', keys = '<Space>a', desc = 'Group a' },
+      { mode = 'n', keys = '<Space>aa', desc = 'Subgroup aa' },
+      { mode = 'n', keys = '<Space>ba', desc = 'Subgroup ba' },
+    },
+    triggers = { { mode = 'n', keys = '<Space>' } },
+    window = { delay = 0, config = { width = 20 } },
+  })
+
+  child.api.nvim_set_keymap('n', '<Space>aaa', '<Nop>', { desc = 'Do aaa' })
+  child.api.nvim_set_keymap('n', '<Space>aab', '<Nop>', { desc = 'Do aab' })
+  child.api.nvim_set_keymap('n', '<Space>baa', '<Nop>', { desc = 'Do baa' })
+  child.api.nvim_set_keymap('n', '<Space>bab', '<Nop>', { desc = 'Do bab' })
+  child.api.nvim_set_keymap('n', '<Space>caa', '<Nop>', { desc = 'Do caa' })
+
+  child.set_size(10, 30)
+  local validate = function(keys)
+    type_keys(keys)
+    child.expect_screenshot()
+  end
+
+  -- Should show trigger keys (not description/clue)
+  validate(' ')
+  -- Should show `<Space>a` clue
+  validate('a')
+  -- Should show `<Space>aa` clue, even if is a subgroup
+  validate('a')
+  -- Should work after `<BS>`
+  validate('<BS>')
+  -- Should fall back to showing keys if they have no clue
+  type_keys('<BS>')
+  validate('b')
+  -- Should try using only current subgroup (even if there is no parent clue)
+  validate('a')
+  -- Should work for a group with 1 key
+  type_keys('<BS>', '<BS>')
+  validate('c')
+  validate('a')
 end
 
 T['Showing keys']['respects `scroll_down` and `scroll_up` in `config.window`'] = function()

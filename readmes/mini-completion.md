@@ -1,49 +1,52 @@
-<div align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-completion_readme.png" alt="mini.completion"/> </div>
+<p align="center"> <img src="https://github.com/nvim-mini/assets/blob/main/logo-2/logo-completion_readme.png?raw=true" alt="mini.completion" style="max-width:100%;border:solid 2px"/> </p>
 
 ### Autocompletion and signature help plugin
 
 - Async (with customizable 'debounce' delay) 'two-stage chain completion': first builtin LSP, then configurable fallback.
 - Has functionality for completion item info and function signature (both in floating window appearing after customizable delay).
 
-See more details in [Features](#features) and [help file](../doc/mini-completion.txt).
+See more details in [Features](#features) and [Documentation](../doc/mini-completion.txt).
 
 ---
 
 > [!NOTE]
 > This was previously hosted at a personal `echasnovski` GitHub account. It was transferred to a dedicated organization to improve long term project stability. See more details [here](https://github.com/nvim-mini/mini.nvim/discussions/1970).
 
-⦿ This is a part of [mini.nvim](https://github.com/nvim-mini/mini.nvim) library. Please use [this link](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-completion.md) if you want to mention this module.
+⦿ This is a part of [mini.nvim](https://nvim-mini.org/mini.nvim) library. Please use [this link](https://nvim-mini.org/mini.nvim/readmes/mini-completion) if you want to mention this module.
 
 ⦿ All contributions (issues, pull requests, discussions, etc.) are done inside of 'mini.nvim'.
 
-⦿ See the repository page to learn about common design principles and configuration recipes.
+⦿ See [whole library documentation](https://nvim-mini.org/mini.nvim/doc/mini-nvim) to learn about general design principles, disable/configuration recipes, and more.
+
+⦿ See [MiniMax](https://nvim-mini.org/MiniMax) for a full config example that uses this module.
 
 ---
 
-If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://github.com/nvim-mini/mini.nvim/blob/main/CONTRIBUTING.md) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
+If you want to help this project grow but don't know where to start, check out [contributing guides of 'mini.nvim'](https://nvim-mini.org/mini.nvim/CONTRIBUTING) or leave a Github star for 'mini.nvim' project and/or any its standalone Git repositories.
 
 ## Demo
 
+<!-- Demo source: https://github.com/nvim-mini/assets/blob/main/demo/demo-completion.mp4 -->
 https://github.com/user-attachments/assets/dd3fe2e2-9795-47c1-9479-0b3fa14c6e75
 
 ## Features
 
 - Two-stage chain completion:
-    - First stage is an LSP completion. Supports `additionalTextEdits` (like auto-import, etc.) and snippets (see ["Snippets"](#snippets)) (best results require ['mini.snippets'](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-snippets.md) dependency).
+    - First stage is an LSP completion. Supports `additionalTextEdits` (like auto-import, etc.) and snippets (see ["Snippets"](#snippets)) (best results require ['mini.snippets'](https://nvim-mini.org/mini.nvim/readmes/mini-snippets) dependency).
     - If first stage is not set up or resulted into no candidates, fallback action is executed. The most tested actions are Neovim's built-in insert completion.
 - Automatic display in floating window of completion item info (via 'completionItem/resolve' request) and signature help (with highlighting of active parameter if LSP server provides such information). Scrolling is possible in both info/signature window (`<C-f>` / `<C-b>` by default).
 - Automatic actions are done after some configurable amount of delay. This reduces computational load and allows fast typing (completion and signature help) and item selection (item info)
 - User can force two-stage/fallback completion (`<C-Space>` / `<A-Space>` by default).
 - Customizable highlighting of LSP items. Requires Neovim>=0.11. Supported:
     - Item label. By default only checks if item is marked as deprecated and sets `MiniCompletionDeprecated` highlight group.
-    - LSP kind (like "Function", "Keyword", etc.). Requires enabled ['mini.icons'](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-icons.md) (uses its "lsp" category)
+    - LSP kind (like "Function", "Keyword", etc.). Requires enabled ['mini.icons'](https://nvim-mini.org/mini.nvim/readmes/mini-icons) (uses its "lsp" category)
 
 ## Dependencies
 
 For full experience needs (still works without any of suggestions):
 
-- Enabled ['mini.icons'](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-icons.md) module to highlight LSP kind (requires Neovim>=0.11). If absent, `MiniCompletion.default_process_items()` does not add highlighting. Also take a look at `MiniIcons.tweak_lsp_kind()`.
-- Enabled ['mini.snippets'](https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-snippets.md) module for better snippet handling (**much recommended**). If absent and custom snippet insert is not configured, `vim.snippet.expand()` is used on Neovim>=0.10 (nothing extra is done on earlier versions). See `:h MiniCompletion.default_snippet_insert()`.
+- Enabled ['mini.icons'](https://nvim-mini.org/mini.nvim/readmes/mini-icons) module to highlight LSP kind (requires Neovim>=0.11). If absent, `MiniCompletion.default_process_items()` does not add highlighting. Also take a look at `MiniIcons.tweak_lsp_kind()`.
+- Enabled ['mini.snippets'](https://nvim-mini.org/mini.nvim/readmes/mini-snippets) module for better snippet handling (**much recommended**). If absent and custom snippet insert is not configured, `vim.snippet.expand()` is used on Neovim>=0.10 (nothing extra is done on earlier versions). See `:h MiniCompletion.default_snippet_insert()`.
 
 ## Snippets
 
@@ -71,91 +74,66 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://github.com/nvim-mini/mini.nvim/blob/main/readmes/mini-deps.md">mini.deps</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td> <td>Main</td> <td rowspan=2><i>Follow recommended 'mini.deps' installation</i></td>
-        </tr>
-        <tr>
-            <td>Stable</td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>add('nvim-mini/mini.completion')</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>add({ source = 'nvim-mini/mini.completion', checkout = 'stable' })</code></td>
-        </tr>
-    </tbody>
-</table>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | *Follow recommended ‘mini.deps’ installation* |
+    | Stable | *Follow recommended ‘mini.deps’ installation* |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                                         |
+    |--------|----------------------------------------------------------------------|
+    | Main   | `add(‘nvim-mini/mini.completion’)`                                   |
+    | Stable | `add({ source = ‘nvim-mini/mini.completion’, checkout = ‘stable’ })` |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td>
-            <td>Main</td> <td><code>{ 'nvim-mini/mini.nvim', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.nvim', version = '*' },</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td>
-            <td>Main</td> <td><code>{ 'nvim-mini/mini.completion', version = false },</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>{ 'nvim-mini/mini.completion', version = '*' },</code></td>
-        </tr>
-    </tbody>
-</table>
+
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                  |
+    |--------|-----------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                        |
+    |--------|-----------------------------------------------------|
+    | Main   | `{ 'nvim-mini/mini.completion', version = false },` |
+    | Stable | `{ 'nvim-mini/mini.completion', version = '*' },`   |
+
 </details>
 
 <details>
 <summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
-<table>
-    <thead>
-        <tr>
-            <th>Github repo</th>
-            <th>Branch</th> <th>Code snippet</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan=2>'mini.nvim' library</td>
-            <td>Main</td> <td><code>Plug 'nvim-mini/mini.nvim'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }</code></td>
-        </tr>
-        <tr>
-            <td rowspan=2>Standalone plugin</td> <td>Main</td> <td><code>Plug 'nvim-mini/mini.completion'</code></td>
-        </tr>
-        <tr>
-            <td>Stable</td> <td><code>Plug 'nvim-mini/mini.completion', { 'branch': 'stable' }</code></td>
-        </tr>
-    </tbody>
-</table>
-</details>
 
-<br>
+- 'mini.nvim' library:
+
+    | Branch | Code snippet                                         |
+    |--------|------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
+    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
+
+- Standalone plugin:
+
+    | Branch | Code snippet                                               |
+    |--------|------------------------------------------------------------|
+    | Main   | `Plug 'nvim-mini/mini.completion'`                         |
+    | Stable | `Plug 'nvim-mini/mini.completion', { 'branch': 'stable' }` |
+
+</details>
 
 **Important**: don't forget to call `require('mini.completion').setup()` to enable its functionality.
 
 **Note**: if you are on Windows, there might be problems with too long file paths (like `error: unable to create file <some file name>: Filename too long`). Try doing one of the following:
+
 - Enable corresponding git global config value: `git config --system core.longpaths true`. Then try to reinstall.
 - Install plugin in other place with shorter path.
 

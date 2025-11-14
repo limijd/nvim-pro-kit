@@ -146,6 +146,190 @@ T['get_gutter_width()']['respects `win_id` argument'] = function()
   eq(child.lua_get('MiniMisc.get_gutter_width(...)', { windows[2] }), 0)
 end
 
+T['log_add()'] = new_set()
+
+local validate_log = function(ref_log)
+  local log = child.lua_get('MiniMisc.log_get()')
+  eq(#log, #ref_log)
+
+  -- Validate timestamp and non-timestamp data separately
+  local log_small, prev_timestamp = {}, 0
+  for i, l in ipairs(log) do
+    log_small[i] = vim.deepcopy(l)
+    log_small[i].timestamp = nil
+
+    eq(type(l.timestamp), 'number')
+    eq(prev_timestamp < l.timestamp, true)
+    prev_timestamp = l.timestamp
+  end
+  eq(log_small, ref_log)
+end
+
+T['log_add()']['works'] = function()
+  child.lua([[
+    local t = { a = 1 }
+    MiniMisc.log_add('before', t)
+    MiniMisc.log_add('before nodeepcopy', t, { deepcopy = false })
+    t.a = t.a + 1
+    MiniMisc.log_add('after', t)
+
+    MiniMisc.log_add('types 1', { 1, 'text', { x = true } })
+    MiniMisc.log_add('types 2', true)
+    MiniMisc.log_add('types 3', nil)
+
+    MiniMisc.log_add(1, 'number desc')
+    MiniMisc.log_add(nil, 'no desc')
+  ]])
+
+  validate_log({
+    { desc = 'before', state = { a = 1 } },
+    { desc = 'before nodeepcopy', state = { a = 2 } },
+    { desc = 'after', state = { a = 2 } },
+    { desc = 'types 1', state = { 1, 'text', { x = true } } },
+    { desc = 'types 2', state = true },
+    { desc = 'types 3' },
+    { desc = 1, state = 'number desc' },
+    { state = 'no desc' },
+  })
+
+  -- Should allow function in log entry
+  local fun_in_log = child.lua([[
+    MiniMisc.log_add('func 1', function() return 1 end)
+    MiniMisc.log_add('func 2', { f = function() return 2 end })
+
+    local log = MiniMisc.log_get()
+    return { log[#log - 1].state(), log[#log].state.f() }
+  ]])
+  eq(fun_in_log, { 1, 2 })
+
+  -- Should properly set timestamps
+  child.lua('_G.small_time = ' .. vim.inspect(small_time))
+  local diff = child.lua([[
+    MiniMisc.log_add('ts 1', 1)
+    vim.loop.sleep(10 * _G.small_time)
+    MiniMisc.log_add('ts 2', 2)
+
+    local log = MiniMisc.log_get()
+    return log[#log].timestamp - log[#log - 1].timestamp
+  ]])
+  eq((9 * small_time) < diff and diff < (11 * small_time), true)
+end
+
+T['log_get()'] = new_set()
+
+T['log_get()']['works'] = function()
+  -- Most of the testing is done in tests for other functions
+  local log = child.lua([[
+    MiniMisc.log_add('desc', { a = 1 })
+    return MiniMisc.log_get()
+  ]])
+  eq(type(log), 'table')
+  eq(vim.tbl_count(log), 1)
+  local entry_names = vim.tbl_keys(log[1])
+
+  table.sort(entry_names)
+  eq(entry_names, { 'desc', 'state', 'timestamp' })
+
+  eq(log[1].desc, 'desc')
+  eq(log[1].state, { a = 1 })
+  eq(type(log[1].timestamp), 'number')
+  eq(log[1].timestamp > 0, true)
+end
+
+T['log_show()'] = new_set()
+
+T['log_show()']['works'] = function()
+  -- Set up windows
+  local buf_id_other = child.api.nvim_get_current_buf()
+  local win_id_other = child.api.nvim_get_current_win()
+  child.cmd('vert split')
+  local win_id = child.api.nvim_get_current_win()
+
+  -- Should start showing log in a new scratch buffer in the current window
+  child.lua('MiniMisc.log_add("desc", { a = 1 })')
+  child.lua('MiniMisc.log_show()')
+  local buf_id_log = child.api.nvim_get_current_buf()
+  eq(child.api.nvim_buf_get_name(buf_id_log), 'minimisc://' .. buf_id_log .. '/log')
+
+  local validate_wins = function()
+    eq(child.api.nvim_win_get_buf(win_id), buf_id_log)
+    eq(child.api.nvim_win_get_buf(win_id_other), buf_id_other)
+    eq(child.api.nvim_get_current_win(), win_id)
+    eq(buf_id_log == buf_id_other, false)
+  end
+
+  local validate_lines = function(ref_lines)
+    local log_lines = child.api.nvim_buf_get_lines(buf_id_log, 0, -1, false)
+    local mock_ts = 12.33
+    for i = 1, #log_lines do
+      log_lines[i] = log_lines[i]:gsub('timestamp = %d+%.%d+', function()
+        mock_ts = mock_ts + 0.01
+        return 'timestamp = ' .. mock_ts
+      end)
+    end
+    eq(log_lines, ref_lines)
+  end
+
+  validate_wins()
+
+  local ref_lines = {
+    '{ {',
+    '    desc = "desc",',
+    '    state = {',
+    '      a = 1',
+    '    },',
+    '    timestamp = 12.34',
+    '  } }',
+  }
+  validate_lines(ref_lines)
+
+  -- Should reuse buffer and window
+  child.api.nvim_set_current_win(win_id_other)
+  child.lua('MiniMisc.log_add("desc", { b = 2 })')
+  child.lua('MiniMisc.log_show()')
+  validate_wins()
+
+  ref_lines = {
+    '{ {',
+    '    desc = "desc",',
+    '    state = {',
+    '      a = 1',
+    '    },',
+    '    timestamp = 12.34',
+    '  }, {',
+    '    desc = "desc",',
+    '    state = {',
+    '      b = 2',
+    '    },',
+    '    timestamp = 12.35',
+    '  } }',
+  }
+  validate_lines(ref_lines)
+end
+
+T['log_clear()'] = new_set()
+
+T['log_clear()']['works'] = function()
+  child.lua('_G.notify_log = {}; vim.notify = function(...) table.insert(_G.notify_log, { ... }) end')
+  child.lua('_G.small_time = ' .. vim.inspect(small_time))
+  local log = child.lua([[
+    MiniMisc.log_add('desc 1', 1)
+    vim.loop.sleep(10 * _G.small_time)
+    MiniMisc.log_add('desc 2', 2)
+
+    MiniMisc.log_clear()
+    MiniMisc.log_add('after clear', 3)
+
+    return MiniMisc.log_get()
+  ]])
+
+  validate_log({ { desc = 'after clear', state = 3 } })
+  -- Should restart start value for timestamps
+  eq(log[1].timestamp < small_time, true)
+
+  eq(child.lua_get('_G.notify_log'), { { '(mini.misc) Cleared log' } })
+end
+
 local validate_put = {
   put = function(args, reference_output)
     local capture = child.cmd_capture(('lua MiniMisc.put(%s)'):format(args))
@@ -980,14 +1164,22 @@ T['zoom()']["respects 'winborder' option"] = function()
   if child.fn.has('nvim-0.11') == 0 then MiniTest.skip("'winborder' option is present on Neovim>=0.11") end
   child.set_size(5, 30)
 
-  child.o.winborder = 'rounded'
-  child.lua('MiniMisc.zoom()')
-  child.expect_screenshot()
-  child.cmd('quit')
+  local validate = function(winborder, border_arg)
+    child.o.winborder = winborder
+    local lua_cmd = string.format('MiniMisc.zoom(0, { border = %s })', vim.inspect(border_arg))
+    child.lua(lua_cmd)
+    child.expect_screenshot()
+    child.lua('MiniMisc.zoom()')
+  end
+
+  validate('rounded', nil)
 
   -- Should prefer explicitly configured value over 'winborder'
-  child.lua('MiniMisc.zoom(0, { border = "double" })')
-  child.expect_screenshot()
+  validate('rounded', 'double')
+
+  -- Should work with "string array" 'winborder'
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip("String array 'winborder' is present on Neovim>=0.12") end
+  validate('+,-,+,|,+,-,+,|', nil)
 end
 
 T['zoom()']['reacts to relevant UI changes'] = function()

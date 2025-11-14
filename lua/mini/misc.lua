@@ -1,16 +1,18 @@
 --- *mini.misc* Miscellaneous functions
---- *MiniMisc*
 ---
 --- MIT License Copyright (c) 2021 Evgeni Chasnovski
----
---- ==============================================================================
----
+
 --- Features the following functions:
 --- - |MiniMisc.bench_time()| to benchmark function execution time.
 ---   Useful in combination with `stat_summary()`.
 ---
+--- - |MiniMisc.log_add()|, |MiniMisc.log_show()| and other helper functions to work
+---   with a special in-memory log array. Useful when debugging Lua code.
+---
 --- - |MiniMisc.put()| and |MiniMisc.put_text()| to pretty print its arguments
 ---   into command line and current buffer respectively.
+---
+--- - |MiniMisc.resize_window()| to resize current window to its editable width.
 ---
 --- - |MiniMisc.setup_auto_root()| to set up automated change of current directory.
 ---
@@ -42,6 +44,7 @@
 ---
 --- This module doesn't have runtime options, so using `vim.b.minimisc_config`
 --- will have no effect here.
+---@tag MiniMisc
 
 -- Module definition ==========================================================
 local MiniMisc = {}
@@ -67,9 +70,7 @@ MiniMisc.setup = function(config)
   H.apply_config(config)
 end
 
---- Module config
----
---- Default values:
+--- Defaults ~
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
 MiniMisc.config = {
   -- Array of fields to make global (to be used as independent variables)
@@ -107,6 +108,85 @@ MiniMisc.get_gutter_width = function(win_id)
   win_id = (win_id == nil or win_id == 0) and vim.api.nvim_get_current_win() or win_id
   return vim.fn.getwininfo(win_id)[1].textoff
 end
+
+--- Add an entry to the in-memory log array
+---
+--- Useful when trying to debug a Lua code (like Neovim config or plugin).
+--- Use this instead of ad-hoc `print()` statements.
+---
+--- Each entry is a table with the following fields:
+--- - <desc> `(any)` - entry description. Usually a string describing a place
+---   in the code.
+--- - <state> `(any)` - data about current state. Usually a table.
+--- - <timestamp> `(number)` - a timestamp of when the entry was added. A number of
+---   milliseconds since the in-memory log was initiated (after |MiniMisc.setup()|
+---   or |MiniMisc.log_clear()|). Useful during profiling.
+---
+---@param desc any Entry description.
+---@param state any Data about current state.
+---@param opts table|nil Options. Possible fields:
+---   - <deepcopy> - (boolean) Whether to apply |vim.deepcopy| to the {state}.
+---     Usually helpful to record the exact state during code execution and avoid
+---     side effects of tables being changed in-place. Default `true`.
+---
+---@usage >lua
+---   local t = { a = 1 }
+---   MiniMisc.log_add('before', { t = t }) -- Will show `t = { a = 1 }` state
+---   t.a = t.a + 1
+---   MiniMisc.log_add('after', { t = t })  -- Will show `t = { a = 2 }` state
+---
+---   -- Use `:lua MiniMisc.log_show()` or `:=MiniMisc.log_get()` to see the log
+--- <
+---@seealso - |MiniMisc.log_get()| to get log array
+--- - |MiniMisc.log_show()| to show log array in the dedicated buffer
+--- - |MiniMisc.log_clear()| to clear the log array
+MiniMisc.log_add = function(desc, state, opts)
+  opts = vim.tbl_extend('force', { deepcopy = true }, opts or {})
+  local entry = {
+    desc = desc,
+    state = opts.deepcopy and vim.deepcopy(state) or state,
+    timestamp = 0.000001 * (vim.loop.hrtime() - H.log_cache.start_htime),
+  }
+  table.insert(H.log_cache.log, entry)
+end
+
+--- Get log array
+---
+---@return table[] Log array. Returned as is, without |vim.deepcopy()|.
+---
+---@seealso - |MiniMisc.log_add()| to add to the log array
+MiniMisc.log_get = function() return H.log_cache.log end
+
+--- Show log array in a scratch buffer
+---
+---@seealso - |MiniMisc.log_add()| to add to the log array
+MiniMisc.log_show = function()
+  local buf_id = H.log_cache.buf_id
+  if buf_id == nil or not vim.api.nvim_buf_is_valid(buf_id) then
+    buf_id = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_buf_set_name(buf_id, 'minimisc://' .. buf_id .. '/log')
+    H.log_cache.buf_id = buf_id
+  end
+  local lines = vim.split(vim.inspect(H.log_cache.log), '\n')
+  vim.api.nvim_buf_set_lines(buf_id, 0, -1, false, lines)
+
+  local buf_wins = vim.fn.win_findbuf(buf_id)
+  if buf_wins[1] == nil then return vim.api.nvim_win_set_buf(0, buf_id) end
+  vim.api.nvim_set_current_win(buf_wins[1])
+end
+
+--- Clear log array
+---
+--- This also sets a new starting point for entry timestamps.
+---
+---@seealso - |MiniMisc.log_add()| to add to the log array
+MiniMisc.log_clear = function()
+  H.log_cache.log = {}
+  H.log_cache.start_htime = vim.loop.hrtime()
+  H.notify('Cleared log')
+end
+
+H.log_cache = { log = {}, start_htime = vim.loop.hrtime(), buf_id = nil }
 
 --- Print Lua objects in command line
 ---
@@ -182,7 +262,7 @@ end
 --- - Creates autocommand which on every |BufEnter| event with |MiniMisc.find_root()|
 ---   finds root directory for current buffer file and sets |current-directory|
 ---   to it (using |chdir()|).
---- - Resets |autochdir| to `false`.
+--- - Resets |'autochdir'| to `false`.
 ---
 ---@param names table|function|nil Forwarded to |MiniMisc.find_root()|.
 ---@param fallback function|nil Forwarded to |MiniMisc.find_root()|.
@@ -221,7 +301,7 @@ end
 --- directory. If buffer is not associated with file, returns `nil`.
 ---
 --- Root directory is a directory containing at least one of pre-defined files.
---- It is searched using |vim.fn.find()| with `upward = true` starting from
+--- It is searched using |vim.fs.find()| with `upward = true` starting from
 --- directory of current buffer file until first occurrence of root file(s).
 ---
 --- Notes:
@@ -381,7 +461,7 @@ end
 --- Note: it relies on file mark data stored in 'shadafile' (see |shada-f|).
 --- Be sure to enable it.
 ---
----@param opts table|nil Options for |MiniMisc.restore_cursor|. Possible fields:
+---@param opts table|nil Options. Possible fields:
 ---   - <center> - (boolean) Center the window after we restored the cursor.
 ---     Default: `true`.
 ---   - <ignore_filetype> - Array with file types to be ignored (see 'filetype').
@@ -441,7 +521,7 @@ end
 --- Compute summary statistics of numerical array
 ---
 --- This might be useful to compute summary of time benchmarking with
---- |MiniMisc.bench_time|.
+--- |MiniMisc.bench_time()|.
 ---
 ---@param t table Array (table suitable for `ipairs`) of numbers.
 ---
@@ -604,7 +684,7 @@ MiniMisc.zoom = function(buf_id, config)
   local compute_config = function()
     -- Use precise dimensions for no Command line interactions (better scroll)
     local max_width, max_height = vim.o.columns, vim.o.lines - vim.o.cmdheight
-    local default_border = (vim.fn.exists('+winborder') == 1 and vim.o.winborder ~= '') and vim.o.winborder or 'none'
+    local default_border = (vim.fn.exists('+winborder') == 0 or vim.o.winborder == '') and 'none' or nil
     --stylua: ignore
     local default_config = {
       relative = 'editor', row = 0, col = 0,
