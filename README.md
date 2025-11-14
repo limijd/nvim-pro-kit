@@ -14,11 +14,12 @@
     <span> &nbsp;&nbsp;&nbsp; &nbsp; </span>
 </div></h4>
 
-**Dark** and **Light** Themes for neovim >= 0.5 based on [Atom One Dark](https://github.com/atom/atom/tree/master/packages/one-dark-ui) & [Atom One Light](https://github.com/atom/atom/tree/master/packages/one-light-ui) theme written in lua with [TreeSitter](https://github.com/nvim-treesitter/nvim-treesitter) syntax highlight.
+**Dark** and **Light** Themes for neovim >= 0.9 based on [Atom One Dark](https://github.com/atom/atom/tree/master/packages/one-dark-ui) & [Atom One Light](https://github.com/atom/atom/tree/master/packages/one-light-ui) theme written in lua with [TreeSitter](https://github.com/nvim-treesitter/nvim-treesitter) syntax highlight.
 
-*For Vim / Neovim < 0.5, prefer [joshdick/onedark.vim](https://github.com/joshdick/onedark.vim)*
-
-*For latest [TreeSitter](https://github.com/nvim-treesitter/nvim-treesitter) syntax highlight, upgraded to Neovim 0.8.0 or later built with tree-sitter 0.20.3+*
+### Requirements
+- **Neovim 0.9.0+** - For modern TreeSitter captures, LSP semantic tokens, and full feature support
+- *For Neovim 0.5-0.8, use [v0.1.0](https://github.com/navarasu/onedark.nvim/tree/v0.1.0)*
+- *For Vim / Neovim < 0.5, prefer [joshdick/onedark.vim](https://github.com/joshdick/onedark.vim)*
 
 ### Features
   * 8 theme styles (One Dark + 5 variants) and (One Light + 1 variant)
@@ -41,7 +42,10 @@
 </div></p>
 
 ## Installation
-Install via your favourite package manager
+
+### For Neovim 0.9+ (Latest Version)
+
+Install the latest version from master:
 
 ```lua
 -- Using Lazy
@@ -52,7 +56,6 @@ Install via your favourite package manager
     require('onedark').setup {
       style = 'darker'
     }
-    -- Enable theme
     require('onedark').load()
   end
 }
@@ -66,6 +69,35 @@ Plug 'navarasu/onedark.nvim'
 ```lua
 -- Using Packer
 use 'navarasu/onedark.nvim'
+```
+
+### For Neovim 0.5-0.8 (Legacy Version)
+
+Pin to v0.1.0 for compatibility with older Neovim:
+
+```lua
+-- Using Lazy
+{
+  "navarasu/onedark.nvim",
+  version = "v0.1.0", -- Pin to legacy version
+  priority = 1000,
+  config = function()
+    require('onedark').setup {
+      style = 'darker'
+    }
+    require('onedark').load()
+  end
+}
+```
+
+```vim
+" Using Vim-Plug
+Plug 'navarasu/onedark.nvim', { 'tag': 'v0.1.0' }
+```
+
+```lua
+-- Using Packer
+use { 'navarasu/onedark.nvim', tag = 'v0.1.0' }
 ```
 
 ## Configuration
