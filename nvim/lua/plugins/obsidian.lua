@@ -54,6 +54,17 @@ local function filter_existing_workspaces(workspaces)
   return valid, missing
 end
 
+local function build_note_id(title)
+  if title then
+    local trimmed = vim.trim(title)
+    if trimmed ~= "" then
+      return trimmed
+    end
+  end
+
+  return tostring(os.time())
+end
+
 return {
   name = "obsidian.nvim",
   dir = util.vendor("obsidian.nvim"),
@@ -184,6 +195,7 @@ return {
     require("obsidian").setup({
       workspaces = existing,
       completion = { nvim_cmp = true },
+      note_id_func = build_note_id,
     })
   end,
 }
