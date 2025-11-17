@@ -9,10 +9,9 @@ return {
     "plenary.nvim",
   },
   config = function()
-    local git_binary = tools.git() or "git"
+    tools.git()
 
     require("gitsigns").setup({
-      git_cmd = { git_binary },
       signs = {
         add = { text = "▎" },
         change = { text = "▎" },
