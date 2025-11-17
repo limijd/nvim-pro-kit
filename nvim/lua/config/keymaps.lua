@@ -3,6 +3,28 @@ local default_opts = { noremap = true, silent = true }
 
 map({ "n", "v" }, "<Space>", "<Nop>", default_opts)
 
+local function open_obsidian_tree()
+  local vault_root = vim.env.NVIM_PRO_KIT_OBSIDIAN or vim.env.OBSIDIAN_VAULT or "~/Obsidian"
+  local expanded = vim.fn.expand(vault_root)
+  local normalized = expanded ~= "" and vim.fs.normalize(expanded) or nil
+
+  if not normalized or normalized == "" then
+    vim.notify("Obsidian vault path is empty", vim.log.levels.WARN, { title = "keymaps" })
+    return
+  end
+
+  local stat = vim.loop.fs_stat(normalized)
+  if not stat or stat.type ~= "directory" then
+    vim.notify(string.format("Obsidian vault not found: %s", normalized), vim.log.levels.WARN, { title = "keymaps" })
+    return
+  end
+
+  vim.cmd.lcd({ args = { normalized } })
+  vim.cmd.Lexplore({ args = { normalized } })
+end
+
+map("n", "<leader>ov", open_obsidian_tree, vim.tbl_extend("force", default_opts, { desc = "Open Obsidian file tree" }))
+
 vim.keymap.set('t', [[\tt]], [[<C-\><C-n><cmd>ToggleTerm<CR>]], { noremap = true, silent = true, desc = "Toggle terminal" })
 
 map("n", "<leader>w", "<cmd>w<cr>", vim.tbl_extend("force", default_opts, { desc = "Save file" }))
