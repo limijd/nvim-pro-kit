@@ -19,8 +19,17 @@ local function open_obsidian_tree()
     return
   end
 
+  local previous_winsize = vim.g.netrw_winsize
+  vim.g.netrw_winsize = 33
   vim.cmd.lcd({ args = { normalized } })
   vim.cmd.Lexplore({ args = { normalized } })
+  vim.schedule(function()
+    if previous_winsize == nil then
+      vim.g.netrw_winsize = nil
+    else
+      vim.g.netrw_winsize = previous_winsize
+    end
+  end)
 end
 
 map("n", "<leader>ov", open_obsidian_tree, vim.tbl_extend("force", default_opts, { desc = "Open Obsidian file tree" }))
