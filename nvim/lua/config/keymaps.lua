@@ -1,7 +1,6 @@
 local map = vim.keymap.set
 local default_opts = { noremap = true, silent = true }
-local obsidian_tree_group = vim.api.nvim_create_augroup("NvimProKitObsidianTree", { clear = true })
-local obsidian_hide_pattern = [[^\..*]]
+local obsidian_hide_pattern = [[\(^\|\s\s\)\zs\.\S\+]]
 local path_separator = package.config:sub(1, 1)
 
 map({ "n", "v" }, "<Space>", "<Nop>", default_opts)
@@ -156,96 +155,63 @@ local function open_obsidian_note_with(commands, label)
   end
 end
 
-local function apply_obsidian_tree_preferences(bufnr)
-  local vars = vim.b[bufnr]
-  if not vars.npk_obsidian_root then
-    return
-  end
-  if vars.npk_obsidian_active then
-    return
-  end
-
-  vars.npk_obsidian_active = true
-  vars.npk_obsidian_prev_hide = vim.g.netrw_list_hide
-  vars.npk_obsidian_prev_hideflag = vim.g.netrw_hide
-
-  local current = vim.g.netrw_list_hide
-  if current and current ~= "" then
-    if not current:find(obsidian_hide_pattern, 1, true) then
-      vim.g.netrw_list_hide = current .. "," .. obsidian_hide_pattern
-    end
-  else
-    vim.g.netrw_list_hide = obsidian_hide_pattern
-  end
-
-  vim.g.netrw_hide = 1
-end
-
-local function restore_obsidian_tree_preferences(bufnr)
-  local vars = vim.b[bufnr]
-  if not vars.npk_obsidian_root or not vars.npk_obsidian_active then
-    return
-  end
-
-  vars.npk_obsidian_active = false
-
-  vim.g.netrw_list_hide = vars.npk_obsidian_prev_hide
-  vars.npk_obsidian_prev_hide = nil
-
-  if vars.npk_obsidian_prev_hideflag == nil then
-    vim.g.netrw_hide = nil
-  else
-    vim.g.netrw_hide = vars.npk_obsidian_prev_hideflag
-  end
-  vars.npk_obsidian_prev_hideflag = nil
-end
-
-local function ensure_obsidian_tree_autocmds(bufnr)
-  if vim.b[bufnr].npk_obsidian_autocmds then
-    return
-  end
-
-  vim.api.nvim_create_autocmd("BufEnter", {
-    group = obsidian_tree_group,
-    buffer = bufnr,
-    callback = function(args)
-      apply_obsidian_tree_preferences(args.buf)
-    end,
-  })
-
-  vim.api.nvim_create_autocmd({ "BufLeave", "BufWinLeave", "BufUnload", "BufWipeout" }, {
-    group = obsidian_tree_group,
-    buffer = bufnr,
-    callback = function(args)
-      restore_obsidian_tree_preferences(args.buf)
-    end,
-  })
-
-  vim.b[bufnr].npk_obsidian_autocmds = true
-end
-
-local function attach_obsidian_tree_behavior(bufnr, root)
+local function configure_obsidian_tree_buffer(bufnr, root)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
-  vim.b[bufnr].npk_obsidian_root = root
-  ensure_obsidian_tree_autocmds(bufnr)
-  apply_obsidian_tree_preferences(bufnr)
-end
 
-local function find_obsidian_tree_buffer(target_dir)
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    local buf = vim.api.nvim_win_get_buf(win)
-    if vim.api.nvim_buf_get_option(buf, "filetype") == "netrw" then
-      if vim.b[buf].npk_obsidian_root and vim.b[buf].npk_obsidian_root == target_dir then
-        return buf
-      end
-      local curdir = vim.b[buf].netrw_curdir
-      if curdir and is_path_within(curdir, target_dir) then
-        return buf
-      end
+  local vars = vim.b[bufnr]
+  vars.npk_obsidian_root = root
+
+  if vars.npk_obsidian_tree_active then
+    return
+  end
+
+  vars.npk_obsidian_tree_active = true
+  vars.npk_obsidian_prev_list_hide = vim.g.netrw_list_hide
+  vars.npk_obsidian_prev_hideflag = vim.g.netrw_hide
+
+  local current = vim.g.netrw_list_hide
+  local applied = obsidian_hide_pattern
+  if current and current ~= "" then
+    if not current:find(obsidian_hide_pattern, 1, true) then
+      applied = current .. "," .. obsidian_hide_pattern
+    else
+      applied = current
     end
   end
+
+  vim.g.netrw_list_hide = applied
+  vim.g.netrw_hide = 1
+
+  if vars.npk_obsidian_cleanup then
+    pcall(vim.api.nvim_del_autocmd, vars.npk_obsidian_cleanup)
+  end
+
+  vars.npk_obsidian_cleanup = vim.api.nvim_create_autocmd({ "BufWipeout", "BufUnload" }, {
+    buffer = bufnr,
+    callback = function(args)
+      local buf = args.buf
+      local bufvars = vim.b[buf]
+      if bufvars.npk_obsidian_prev_list_hide == nil then
+        vim.g.netrw_list_hide = nil
+      else
+        vim.g.netrw_list_hide = bufvars.npk_obsidian_prev_list_hide
+      end
+
+      if bufvars.npk_obsidian_prev_hideflag == nil then
+        vim.g.netrw_hide = nil
+      else
+        vim.g.netrw_hide = bufvars.npk_obsidian_prev_hideflag
+      end
+
+      bufvars.npk_obsidian_tree_active = nil
+      bufvars.npk_obsidian_prev_list_hide = nil
+      bufvars.npk_obsidian_prev_hideflag = nil
+      bufvars.npk_obsidian_cleanup = nil
+      bufvars.npk_obsidian_root = nil
+    end,
+  })
 end
 
 local function open_obsidian_tree()
@@ -261,35 +227,7 @@ local function open_obsidian_tree()
   vim.cmd.lcd({ args = { normalized } })
   vim.cmd.Lexplore({ args = { normalized } })
 
-  local attached = false
-  local current_buf = vim.api.nvim_get_current_buf()
-  if vim.api.nvim_buf_get_option(current_buf, "filetype") == "netrw" then
-    attach_obsidian_tree_behavior(current_buf, normalized)
-    attached = true
-  end
-
-  if not attached then
-    local tree_buf = find_obsidian_tree_buffer(normalized)
-    if tree_buf then
-      attach_obsidian_tree_behavior(tree_buf, normalized)
-      attached = true
-    end
-  end
-
-  if not attached then
-    vim.defer_fn(function()
-      local buf = find_obsidian_tree_buffer(normalized)
-      if not buf then
-        local maybe_current = vim.api.nvim_get_current_buf()
-        if vim.api.nvim_buf_is_valid(maybe_current) and vim.api.nvim_buf_get_option(maybe_current, "filetype") == "netrw" then
-          buf = maybe_current
-        end
-      end
-      if buf then
-        attach_obsidian_tree_behavior(buf, normalized)
-      end
-    end, 20)
-  end
+  configure_obsidian_tree_buffer(vim.api.nvim_get_current_buf(), normalized)
 
   vim.schedule(function()
     if previous_winsize == nil then
