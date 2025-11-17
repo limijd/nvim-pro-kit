@@ -304,13 +304,8 @@ local function open_obsidian_note_in_firefox()
   open_obsidian_note_with("firefox", "Firefox")
 end
 
-local function open_obsidian_note_in_vscode()
-  open_obsidian_note_with({ "code", "code-insiders" }, "VS Code")
-end
-
 map("n", "<leader>ov", open_obsidian_tree, vim.tbl_extend("force", default_opts, { desc = "Open Obsidian file tree" }))
 map("n", [[\of]], open_obsidian_note_in_firefox, vim.tbl_extend("force", default_opts, { desc = "Open Obsidian note in Firefox" }))
-map("n", [[\ox]], open_obsidian_note_in_vscode, vim.tbl_extend("force", default_opts, { desc = "Open Obsidian note in VS Code" }))
 
 vim.keymap.set('t', [[\tt]], [[<C-\><C-n><cmd>ToggleTerm<CR>]], { noremap = true, silent = true, desc = "Toggle terminal" })
 
