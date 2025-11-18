@@ -5,12 +5,53 @@ local path_separator = package.config:sub(1, 1)
 local obsidian_tree_group = vim.api.nvim_create_augroup("NvimProKitObsidianTree", { clear = true })
 local obsidian_tree_state = {
   root = nil,
+  winid = nil,
   buffers = {},
+  ensuring_window = false,
   prev_list_hide = nil,
   prev_hideflag = nil,
   applied_pattern = nil,
   hide_applied = false,
 }
+
+local ensure_obsidian_tree_target_window
+
+local function desired_tree_width()
+  local total = vim.o.columns or 0
+  if total <= 0 then
+    return nil
+  end
+
+  local width = math.floor(total / 3)
+  if width < 20 then
+    width = 20
+  elseif width >= total then
+    width = total - 1
+  end
+
+  return width
+end
+
+local function apply_tree_width(tree_win)
+  if not tree_win or not vim.api.nvim_win_is_valid(tree_win) then
+    return
+  end
+  local width = desired_tree_width()
+  if not width then
+    return
+  end
+
+  pcall(vim.api.nvim_win_set_width, tree_win, width)
+end
+
+vim.api.nvim_create_autocmd("WinClosed", {
+  group = obsidian_tree_group,
+  callback = function()
+    if obsidian_tree_state.root and obsidian_tree_state.winid then
+      ensure_obsidian_tree_target_window()
+    end
+  end,
+})
 
 map({ "n", "v" }, "<Space>", "<Nop>", default_opts)
 
@@ -206,12 +247,103 @@ local function disable_tree_hide()
   obsidian_tree_state.hide_applied = false
 end
 
+local function configure_placeholder_window_buffer(bufnr)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  local ok = pcall(vim.api.nvim_buf_set_option, bufnr, "bufhidden", "wipe")
+  if not ok then
+    return
+  end
+  pcall(vim.api.nvim_buf_set_option, bufnr, "buftype", "nofile")
+  pcall(vim.api.nvim_buf_set_option, bufnr, "swapfile", false)
+  pcall(vim.api.nvim_buf_set_option, bufnr, "buflisted", false)
+end
+
+ensure_obsidian_tree_target_window = function()
+  if obsidian_tree_state.ensuring_window then
+    return
+  end
+
+  local root = obsidian_tree_state.root
+  local tree_win = obsidian_tree_state.winid
+  if not root or not tree_win then
+    return
+  end
+
+  if not vim.api.nvim_win_is_valid(tree_win) then
+    obsidian_tree_state.winid = nil
+    return
+  end
+
+  local tree_buf = vim.api.nvim_win_get_buf(tree_win)
+  if not tree_buf or not obsidian_tree_state.buffers[tree_buf] then
+    return
+  end
+
+  local target = math.max(tonumber(vim.g.netrw_chgwin) or 2, 2)
+  local win_count = vim.fn.winnr("$")
+  if win_count >= target then
+    apply_tree_width(tree_win)
+    return
+  end
+
+  obsidian_tree_state.ensuring_window = true
+  local previous_win = vim.api.nvim_get_current_win()
+  local restore_win = previous_win ~= tree_win and vim.api.nvim_win_is_valid(previous_win)
+
+  if previous_win ~= tree_win then
+    pcall(vim.api.nvim_set_current_win, tree_win)
+  end
+
+  local ok, err = pcall(function()
+    local created_window = false
+    while vim.fn.winnr("$") < target do
+      vim.cmd("keepalt botright vsplit")
+      vim.cmd("enew")
+      configure_placeholder_window_buffer(vim.api.nvim_get_current_buf())
+      if not vim.api.nvim_win_is_valid(tree_win) then
+        break
+      end
+      vim.api.nvim_set_current_win(tree_win)
+      created_window = true
+    end
+    if created_window or vim.fn.winnr("$") <= target then
+      apply_tree_width(tree_win)
+    end
+  end)
+
+  if restore_win and vim.api.nvim_win_is_valid(previous_win) then
+    pcall(vim.api.nvim_set_current_win, previous_win)
+  end
+
+  obsidian_tree_state.ensuring_window = false
+
+  if not ok then
+    vim.schedule(function()
+      vim.notify(string.format("Obsidian tree window setup failed: %s", err), vim.log.levels.WARN, { title = "keymaps" })
+    end)
+  end
+end
+
 local function configure_obsidian_tree_buffer(bufnr)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
 
   obsidian_tree_state.buffers[bufnr] = true
+  obsidian_tree_state.winid = vim.api.nvim_get_current_win()
+
+  local function refresh_tree_window()
+    obsidian_tree_state.winid = vim.api.nvim_get_current_win()
+    ensure_obsidian_tree_target_window()
+  end
+
+  vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
+    group = obsidian_tree_group,
+    buffer = bufnr,
+    callback = refresh_tree_window,
+  })
 
   vim.api.nvim_create_autocmd({ "BufWipeout", "BufUnload" }, {
     group = obsidian_tree_group,
@@ -222,6 +354,7 @@ local function configure_obsidian_tree_buffer(bufnr)
       if not next(obsidian_tree_state.buffers) then
         disable_tree_hide()
         obsidian_tree_state.root = nil
+        obsidian_tree_state.winid = nil
       end
     end,
   })
@@ -244,6 +377,7 @@ local function open_obsidian_tree()
 
   local buf = vim.api.nvim_get_current_buf()
   configure_obsidian_tree_buffer(buf)
+  ensure_obsidian_tree_target_window()
 
   vim.schedule(function()
     if previous_winsize == nil then
