@@ -1,5 +1,29 @@
 local util = require("config.util")
 local tools = require("config.tools")
+local uv = vim.uv or vim.loop
+
+local function open_project_files()
+  local builtin = require("telescope.builtin")
+  local ok, err = pcall(builtin.git_files)
+  if ok then
+    return
+  end
+
+  local message = err and tostring(err) or "Failed to run telescope.builtin.git_files"
+  local not_git = message:lower():match("not a git")
+  if not_git then
+    local cwd = (uv and uv.cwd()) or vim.fn.getcwd()
+    vim.notify(
+      string.format("Not a Git repository. Falling back to file search for %s", cwd),
+      vim.log.levels.INFO,
+      { title = "Telescope git_files" }
+    )
+    builtin.find_files()
+    return
+  end
+
+  vim.notify(message, vim.log.levels.ERROR, { title = "Telescope git_files" })
+end
 
 return {
   name = "telescope.nvim",
@@ -8,9 +32,7 @@ return {
   keys = {
     {
       "<leader>ff",
-      function()
-        require("telescope.builtin").git_files()
-      end,
+      open_project_files,
       desc = "Find Git files",
       mode = "n",
       silent = true,
