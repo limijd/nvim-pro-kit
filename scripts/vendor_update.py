@@ -137,9 +137,11 @@ def _subtree_add(
 ) -> None:
     path = VENDOR_DIR / name
     print(f"➕ add    {name:<28} ({ref})")
-    cmd = ["git", "subtree", "add", "--prefix", str(path), url, ref]
+    msg = f"vendor: add {name} ({ref})"
+    cmd = ["git", "subtree", "add", "--prefix", str(path)]
     if squash:
         cmd.append("--squash")
+    cmd.extend(["-m", msg, url, ref])
     _run(cmd, cwd=root, dry=dry)
 
 
@@ -151,9 +153,11 @@ def _subtree_pull(
     if not dry:
         # Warm up fetch (subtree pull will fetch too, but this improves reliability).
         subprocess.run(["git", "fetch", url, ref, "--no-tags", "--depth=1"], cwd=root)
-    cmd = ["git", "subtree", "pull", "--prefix", str(path), url, ref]
+    msg = f"vendor: update {name} ({ref})"
+    cmd = ["git", "subtree", "pull", "--prefix", str(path)]
     if squash:
         cmd.append("--squash")
+    cmd.extend(["-m", msg, url, ref])
     _run(cmd, cwd=root, dry=dry)
 
 
