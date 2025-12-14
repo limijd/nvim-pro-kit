@@ -1,0 +1,345 @@
+local Helpers = {}
+
+Helpers = vim.tbl_extend("error", Helpers, require("tests.expectations"))
+
+---Mock the plugin config
+---@return table
+local function mock_config()
+  local config_module = require("codecompanion.config")
+  config_module.setup = function(args)
+    config_module.config = args or {}
+  end
+  config_module.can_send_code = function()
+    return true
+  end
+  return config_module
+end
+
+---Set up the CodeCompanion plugin with test configuration
+---@param config? table
+---@return nil
+Helpers.setup_plugin = function(config)
+  local test_config = config or require("tests.config")
+
+  -- To be safe, ensure that we mock some of the Copilot adapter's features
+  -- that make HTTP requests. This slows tests down and makes them fail
+  -- in GitHub Actions.
+  local function mock_external_calls()
+    local ok, copilot = pcall(require, "codecompanion.adapters.http.copilot")
+    if ok then
+      copilot.schema.max_tokens.default = 16000
+
+      local get_models_ok, get_models = pcall(require, "codecompanion.adapters.http.copilot.get_models")
+      if get_models_ok then
+        get_models.choices = function(adapter, opts, provided_token)
+          return { ["gpt-4.1"] = { opts = {} } }
+        end
+      end
+
+      -- Mock the token module to prevent HTTP calls
+      local token_ok, token = pcall(require, "codecompanion.adapters.http.copilot.token")
+      if token_ok then
+        token.init = function()
+          return true
+        end
+        token.fetch = function()
+          return {
+            oauth_token = "mock_oauth_token",
+            copilot_token = "mock_copilot_token",
+            endpoints = { api = "https://api.githubcopilot.com" },
+          }
+        end
+      end
+    end
+  end
+
+  mock_external_calls()
+
+  local codecompanion = require("codecompanion")
+  codecompanion.setup(test_config)
+  return codecompanion
+end
+
+---Create a mock adapter for testing
+---@param child table The child Neovim instance
+---@param adapter? string|table Adapter name (e.g., "openai"), config table, or nil for default
+---@param opts? { var_name?: string, handlers?: table } Options to customize adapter
+---@return string var_name The variable name where adapter is stored
+Helpers.create_mock_adapter = function(child, adapter, opts)
+  opts = opts or {}
+  local var_name = opts.var_name or "_G.mock_adapter"
+
+  child.lua(
+    string.format(
+      [[
+    local adapter_config
+    local adapter_input = ...
+
+    if adapter_input == nil then
+      -- Default test adapter
+      adapter_config = {
+        name = "test_adapter",
+        type = "http",
+        url = "https://api.openai.com/v1/chat/completions",
+        roles = {
+          llm = "assistant",
+          user = "user",
+        },
+        opts = {
+          stream = true,
+        },
+        headers = {
+          content_type = "application/json",
+        },
+        schema = {
+          model = {
+            default = "gpt-3.5-turbo",
+          },
+        },
+        handlers = {
+          response = {
+            parse_chat = function(self, data)
+              local ok, body = pcall(vim.json.decode, data)
+              if not ok then
+                return nil
+              end
+
+              if body.choices and body.choices[1] and body.choices[1].message then
+                return {
+                  status = "success",
+                  output = body.choices[1].message,
+                }
+              end
+              return nil
+            end,
+          },
+        },
+      }
+    elseif type(adapter_input) == "string" then
+      -- Load real adapter by name
+      local adapters = require("codecompanion.adapters")
+      adapter_config = adapters.resolve(adapter_input)
+    else
+      -- Use provided config
+      adapter_config = adapter_input
+    end
+
+    -- Make it a proper adapter instance
+    local Adapter = require("codecompanion.adapters.http")
+    %s = Adapter.new(adapter_config)
+  ]],
+      var_name
+    ),
+    { adapter }
+  )
+
+  return var_name
+end
+
+---Setup mock HTTP client
+---@param child table The child Neovim instance
+---@param adapter? string Name of the adapter variable in child process (default: "_G.mock_adapter")
+---@return nil
+Helpers.mock_http = function(child, adapter)
+  adapter = adapter or "_G.mock_adapter"
+
+  child.lua(string.format(
+    [[
+    -- Create and store the mock client globally
+    local mock_client = require("tests.mocks.http").new({ adapter = %s })
+    _G.mock_client = mock_client
+
+    -- Replace the http module
+    package.loaded["codecompanion.http"] = {
+      new = function()
+        return _G.mock_client
+      end,
+    }
+  ]],
+    adapter
+  ))
+end
+
+---Queue a response in the mock HTTP client
+---@param child table The child Neovim instance
+---@param response table The response to queue
+---@return nil
+Helpers.queue_mock_http_response = function(child, response)
+  child.lua([[_G.mock_client:queue_response(...)]], { response })
+end
+
+---Get requests captured by mock HTTP client
+---@param child table The child Neovim instance
+---@return table
+Helpers.get_mock_http_requests = function(child)
+  return child.lua([[
+    if not _G.mock_client then
+      error("Mock client not initialized. Did you call setup_mock_http?")
+    end
+    return _G.mock_client:get_requests()
+  ]])
+end
+
+---Mock the submit function of a chat to avoid actual API calls
+---@param response string The mocked response content
+---@param status? string The status to set (default: "success")
+---@return function The original submit function for restoration
+Helpers.mock_submit = function(response, status)
+  local original_submit = require("codecompanion.interactions.chat").submit
+
+  require("codecompanion.interactions.chat").submit = function(self)
+    -- Mock submission instead of calling actual API
+    self:add_buf_message({
+      role = "llm",
+      content = response or "This is a mocked response",
+    })
+    self.status = status or "success"
+    self:done({ response or "Mocked response" })
+    return true
+  end
+
+  return original_submit
+end
+
+---Restore the original submit function
+---@param original function The original submit function to restore
+---@return nil
+Helpers.restore_submit = function(original)
+  require("codecompanion.interactions.chat").submit = original
+end
+
+---Setup and mock a chat buffer
+---@param config? table
+---@param adapter? table
+---@return CodeCompanion.Chat, CodeCompanion.Tools, CodeCompanion.Variables
+Helpers.setup_chat_buffer = function(config, adapter)
+  local test_config = vim.deepcopy(require("tests.config"))
+  local config_module = mock_config()
+  config_module.setup(vim.tbl_deep_extend("force", test_config, config or {}))
+
+  -- Extend the adapters
+  if adapter then
+    config_module.adapters[adapter.name] = adapter.config
+  end
+
+  local chat = require("codecompanion.interactions.chat").new({
+    buffer_context = { bufnr = 1, filetype = "lua" },
+    adapter = adapter and adapter.name or "test_adapter",
+  })
+  chat.vars = {
+    foo = {
+      callback = "spec.codecompanion.interactions.chat.variables.foo",
+      description = "foo",
+    },
+  }
+  local tools = require("codecompanion.interactions.chat.tools").new({ bufnr = 1 })
+  local vars = require("codecompanion.interactions.chat.variables").new()
+
+  return chat, tools, vars
+end
+
+---Mock the sending of a chat buffer to an LLM
+---@param chat CodeCompanion.Chat
+---@param message string
+---@param callback? function
+---@return nil
+Helpers.send_to_llm = function(chat, message, callback)
+  message = message or "Hello there"
+  chat:submit()
+  chat:add_buf_message({ role = "llm", content = message })
+  chat.status = "success"
+  if callback then
+    callback()
+  end
+  chat:done({ message })
+end
+
+---Clean down the chat buffer if required
+---@return nil
+Helpers.teardown_chat_buffer = function()
+  package.loaded["codecompanion.utils.foo"] = nil
+  package.loaded["codecompanion.utils.bar"] = nil
+  package.loaded["codecompanion.utils.bar_again"] = nil
+end
+
+---Simulates a real tool call in a chat buffer
+---@param chat CodeCompanion.Chat
+---@param tool_call table The tool call data
+---@param tool_output string The output from the tool
+---@param messages? table Additional messages to add to the chat
+Helpers.make_tool_call = function(chat, tool_call, tool_output, messages)
+  messages = messages or {}
+
+  -- Firstly, add the LLM's intro message before the tool call
+  if messages.llm_initial_response then
+    chat:add_buf_message({
+      role = "llm",
+      content = messages.llm_initial_response,
+    }, { type = chat.MESSAGE_TYPES.LLM_MESSAGE })
+    chat:add_message({
+      role = "llm",
+      content = messages.llm_initial_response,
+    })
+  end
+
+  -- Then add the LLM's tool call
+  chat:add_message({
+    role = "llm",
+    tool_calls = { tool_call.function_call },
+  }, { visible = false })
+
+  -- Then add the tool output
+  chat:add_tool_output(tool_call, tool_output)
+
+  -- Finally, add any LLM messages
+  if messages.llm_final_response then
+    chat:add_buf_message({
+      role = "llm",
+      content = messages.llm_final_response,
+    }, { type = chat.MESSAGE_TYPES.LLM_MESSAGE })
+    chat:add_message({
+      role = "llm",
+      content = messages.llm_final_response,
+    })
+  end
+end
+
+---Get the lines of a buffer
+---@param bufnr number
+---@return table
+Helpers.get_buf_lines = function(bufnr)
+  return vim.api.nvim_buf_get_lines(bufnr, 0, -1, true)
+end
+
+---Setup the inline buffer
+---@param config table
+---@return CodeCompanion.Inline
+Helpers.setup_inline = function(config)
+  local test_config = vim.deepcopy(require("tests.config"))
+  local config_module = mock_config()
+  config_module.setup(vim.tbl_deep_extend("force", test_config, config or {}))
+
+  return require("codecompanion.interactions.inline").new({
+    buffer_context = {
+      winnr = 0,
+      bufnr = 0,
+      filetype = "lua",
+      start_line = 1,
+      end_line = 1,
+      start_col = 0,
+      end_col = 0,
+    },
+  })
+end
+
+---Start a child Neovim instance with minimal configuration
+---@param child table
+---@return nil
+Helpers.child_start = function(child)
+  child.restart({ "-u", "scripts/minimal_init.lua" })
+  child.o.statusline = ""
+  child.o.laststatus = 0
+  child.o.cmdheight = 0
+end
+
+return Helpers
