@@ -238,5 +238,13 @@
     "url": "https://github.com/nvim-mini/mini.nvim",
     "name": "mini.nvim",
     "ref": "main"
+  },
+  {
+    "category": "ai",
+    "description": "Chat-based and inline AI assistant for Neovim.",
+    "depends": ["plenary.nvim", "nvim-cmp", "nvim-treesitter"],
+    "url": "https://github.com/olimorris/codecompanion.nvim",
+    "name": "codecompanion.nvim",
+    "ref": "main"
   }
 ]
