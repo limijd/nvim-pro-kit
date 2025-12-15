@@ -59,7 +59,7 @@ local function build_ollama_adapter(adapters)
   return adapter
 end
 
-local function build_deepseek_openapi_adapter()
+local function build_deepseek_openapi_adapter(adapters)
   local base = env_nonempty("NVIM_PRO_KIT_CODECOMPANION_DEEPSEEK_BASE")
   local api_key = env_nonempty("NVIM_PRO_KIT_CODECOMPANION_DEEPSEEK_API_KEY") or env_nonempty("DEEPSEEK_API_KEY")
   local model = env_nonempty("NVIM_PRO_KIT_CODECOMPANION_DEEPSEEK_MODEL")
@@ -73,6 +73,13 @@ local function build_deepseek_openapi_adapter()
     return nil
   end
 
+  if adapters and type(adapters.extend) == "function" then
+    local ok_extend, extended = pcall(adapters.extend, deepseek)
+    if ok_extend and extended then
+      deepseek = extended
+    end
+  end
+
   local adapter = vim.deepcopy(deepseek)
   adapter.name = "deepseek"
 
@@ -83,6 +90,9 @@ local function build_deepseek_openapi_adapter()
   if model then
     adapter.schema = adapter.schema or {}
     adapter.schema.model = adapter.schema.model or {}
+    adapter.schema.model.choices = adapter.schema.model.choices or {}
+    adapter.schema.model.choices[model] = adapter.schema.model.choices[model]
+      or { formatted_name = model, opts = { can_use_tools = true } }
     adapter.schema.model.default = model
   end
 
@@ -119,7 +129,7 @@ local function choose_adapter()
     }
   end
 
-  local deepseek_adapter = build_deepseek_openapi_adapter()
+  local deepseek_adapter = build_deepseek_openapi_adapter(adapters)
   if deepseek_adapter then
     return "deepseek", {
       http = {
