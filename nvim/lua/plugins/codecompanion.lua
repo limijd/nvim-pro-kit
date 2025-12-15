@@ -145,9 +145,31 @@ local function choose_adapter()
   return nil, nil
 end
 
+local function has_adapter()
+  local preferred = choose_adapter()
+  return preferred ~= nil
+end
+
+local function build_interactions(preferred_adapter)
+  local interactions = {
+    background = {
+      adapter = preferred_adapter and { name = preferred_adapter } or nil,
+      opts = { enabled = false },
+    },
+  }
+
+  if preferred_adapter then
+    interactions.chat = { adapter = preferred_adapter }
+    interactions.inline = { adapter = preferred_adapter }
+  end
+
+  return interactions
+end
+
 return {
   name = "codecompanion.nvim",
   dir = util.vendor("codecompanion.nvim"),
+  enabled = has_adapter,
   cmd = { "CodeCompanion", "CodeCompanionChat", "CodeCompanionActions" },
   dependencies = {
     "plenary.nvim",
@@ -191,15 +213,11 @@ return {
 
     local preferred_adapter, adapters = choose_adapter()
 
-    local opts = {}
+    local opts = {
+      interactions = build_interactions(preferred_adapter),
+    }
     if adapters and adapters.http and next(adapters.http) then
       opts.adapters = adapters
-    end
-    if preferred_adapter then
-      opts.interactions = {
-        chat = { adapter = preferred_adapter },
-        inline = { adapter = preferred_adapter },
-      }
     end
 
     codecompanion.setup(opts)
