@@ -160,6 +160,8 @@ non-standard locations.
 - Press `<leader>cf` to format the current buffer on demand.
 - Run `:FormatDisable` to stop formatting every buffer, or `:FormatDisable!` to disable it only for the current buffer. Bring it back with `:FormatEnable` / `:FormatEnable!`.
 - Conform prefers dedicated CLI tools (StyLua, Black, Prettier/Prettierd, clang-format, shfmt); Neovim falls back to LSP formatting when none of them resolve via `config.tools`.
+- If C/C++ files suddenly start auto-formatting, it usually means `clang-format` just became discoverable on your `$PATH`; remove it, set `NVIM_PRO_KIT_CLANG_FORMAT` to a non-existent path, or use `:FormatDisable!` to keep saves unformatted for that buffer.
+- Disabling Conform’s autoformatting does **not** affect CodeCompanion; chat/inline actions keep working because they are configured independently.
 
 ## 📦 Managing Vendored Plugins
 

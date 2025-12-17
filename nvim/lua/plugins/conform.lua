@@ -28,6 +28,8 @@ return {
   config = function()
     local conform = require("conform")
 
+    vim.g.conform_disable_autoformat = true
+
     conform.setup({
       formatters_by_ft = {
         lua = { "stylua" },
