@@ -7,6 +7,7 @@ nvim-pro-kit is a batteries-included Neovim configuration tailored for professio
 
 - [✨ Highlights](#-highlights)
 - [🚀 Installation](#-installation)
+  - [Markdown Preview (Optional)](#markdown-preview-optional)
 - [🧰 Tools](#-tools)
 - [🧹 Formatting](#-formatting)
 - [🐞 Debugging](#-debugging)
@@ -45,6 +46,18 @@ python3 bootstrap/install.py
 By default the installer creates a symbolic link from `<repo>/nvim` to your Neovim config directory (typically `~/.config/nvim`), so the repository layout remains untouched. Pass `--copy` to copy the files instead, `--force` to overwrite an existing config, or `--target DIR` to install somewhere else.
 
 After linking you can start Neovim immediately, even on an offline machine.
+
+### Markdown Preview (Optional)
+
+The `markdown-preview.nvim` plugin provides browser-based Markdown preview with synchronized scrolling. It requires Node.js dependencies that are not vendored due to their size. To enable this feature, run:
+
+```bash
+bootstrap/install_markdown_preview_app.sh
+```
+
+This installs npm packages into the plugin's `app` directory. Once installed, use `:MarkdownPreview` to open the current Markdown file in your browser.
+
+If you prefer in-editor Markdown rendering without external dependencies, `markview.nvim` is available out of the box and renders Markdown using virtual text.
 
 ## 🧰 Tools
 

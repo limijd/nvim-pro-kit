@@ -1,1 +1,2 @@
 nvim/lazy-lock.json
+vendor/plugins/markdown-preview.nvim/app/node_modules/
