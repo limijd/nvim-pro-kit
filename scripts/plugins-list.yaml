@@ -248,6 +248,14 @@
     "ref": "main"
   },
   {
+    "category": "ai",
+    "description": "Claude Code integration for Neovim.",
+    "depends": [],
+    "url": "https://github.com/coder/claudecode.nvim",
+    "name": "claudecode.nvim",
+    "ref": "main"
+  },
+  {
     "category": "markdown",
     "description": "Preview Markdown in browser with synchronized scrolling.",
     "depends": [],
