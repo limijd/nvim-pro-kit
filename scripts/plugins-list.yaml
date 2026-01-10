@@ -246,5 +246,21 @@
     "url": "https://github.com/olimorris/codecompanion.nvim",
     "name": "codecompanion.nvim",
     "ref": "main"
+  },
+  {
+    "category": "markdown",
+    "description": "Preview Markdown in browser with synchronized scrolling.",
+    "depends": [],
+    "url": "https://github.com/iamcco/markdown-preview.nvim",
+    "name": "markdown-preview.nvim",
+    "ref": "master"
+  },
+  {
+    "category": "markdown",
+    "description": "Beautiful Markdown rendering inside Neovim using virtual text.",
+    "depends": ["nvim-treesitter", "nvim-web-devicons"],
+    "url": "https://github.com/OXY2DEV/markview.nvim",
+    "name": "markview.nvim",
+    "ref": "main"
   }
 ]
