@@ -193,6 +193,14 @@
   },
   {
     "category": "ui",
+    "description": "UI toolkit with terminal, picker, and window helpers for Neovim.",
+    "depends": [],
+    "url": "https://github.com/folke/snacks.nvim",
+    "name": "snacks.nvim",
+    "ref": "main"
+  },
+  {
+    "category": "ui",
     "description": "Extensible buffer line for Neovim with tabs, diagnostics, and icons.",
     "depends": ["nvim-web-devicons"],
     "url": "https://github.com/akinsho/bufferline.nvim",
@@ -250,7 +258,7 @@
   {
     "category": "ai",
     "description": "Claude Code integration for Neovim.",
-    "depends": [],
+    "depends": ["snacks.nvim"],
     "url": "https://github.com/coder/claudecode.nvim",
     "name": "claudecode.nvim",
     "ref": "main"
