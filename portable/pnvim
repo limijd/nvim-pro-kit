@@ -1,0 +1,3 @@
+#!/bin/bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+NVIM_APPNAME=pnvim exec "$DIR/nvim" --clean -u "$DIR/init.lua" "$@"
