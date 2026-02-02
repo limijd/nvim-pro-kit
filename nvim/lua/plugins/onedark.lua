@@ -1,53 +1,37 @@
 local util = require("config.util")
 
-local function standard_config()
-  return {
-    style = "warmer",
-    transparent = false,
-    term_colors = true,
-    code_style = {
-      comments = "italic",
-      keywords = "bold",
-      functions = "italic",
-    },
-    diagnostics = {
-      darker = true,
-      undercurl = true,
-      background = true,
-    },
-  }
-end
-
-local function tmux_config()
-  return {
-    style = "darker",
-    transparent = true,
-    term_colors = true,
-    code_style = {
-      comments = "italic",
-      keywords = "bold",
-      functions = "italic",
-    },
-    diagnostics = {
-      darker = true,
-      undercurl = true,
-      background = false,
-    },
-  }
-end
-
 return {
-  name = "onedark.nvim",
-  dir = util.vendor("onedark.nvim"),
-  priority = 1000,
-  config = function()
-    local config = standard_config()
+  {
+    name = "onedark.nvim",
+    dir = util.vendor("onedark.nvim"),
+    priority = 1000,
+    config = function()
+      require("onedark").setup({
+        style = "darker",
+        term_colors = true,
+        transparent = true,
+        highlights = {
+          Comment = { fg = "#7F848E" }, -- 不设 bg，不设 italic
+        },
+      })
 
-    if vim.env.TMUX and vim.env.TMUX ~= "" then
-      config = tmux_config()
-    end
+      require("onedark").load()
 
-    require("onedark").setup(config)
-    require("onedark").load()
-  end,
+      local in_tmux = vim.env.TMUX ~= nil
+
+      local function fix_comment()
+        vim.api.nvim_set_hl(0, "Comment", {
+          fg = "#7F848E",
+          italic = not in_tmux,
+        })
+        vim.api.nvim_set_hl(0, "@comment", { link = "Comment" })
+      end
+
+      fix_comment()
+
+      vim.api.nvim_create_autocmd("ColorScheme", {
+        callback = fix_comment,
+      })
+    end,
+  },
 }
