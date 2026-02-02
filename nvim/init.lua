@@ -6,6 +6,7 @@ vim.g.maplocalleader = "\\"
 require("config.options")
 require("config.keymaps")
 require("config.netrw")
+require("config.window_layouts").setup()
 
 -- Discover external tool locations before loading plugins
 require("config.tools").setup()
