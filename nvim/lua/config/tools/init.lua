@@ -177,7 +177,7 @@ local lsp_args = {
     "--completion-style=detailed",
     "--function-arg-placeholders",
     "--limit-results=50",
-    "--malloc-trim",
+
     "-j=1",
   },
 }
