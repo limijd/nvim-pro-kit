@@ -9,6 +9,10 @@ return {
     "nvim-web-devicons",
   },
   config = function()
-    require("markview").setup({})
+    require("markview").setup({
+      preview = {
+        enable = false,
+      },
+    })
   end,
 }

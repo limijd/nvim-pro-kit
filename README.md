@@ -57,7 +57,7 @@ bootstrap/install_markdown_preview_app.sh
 
 This installs npm packages into the plugin's `app` directory. Once installed, use `:MarkdownPreview` to open the current Markdown file in your browser.
 
-If you prefer in-editor Markdown rendering without external dependencies, `markview.nvim` is available out of the box and renders Markdown using virtual text.
+If you prefer in-editor Markdown rendering without external dependencies, `markview.nvim` is available out of the box and can be toggled on demand with `:Markview`.
 
 ## 🧰 Tools
 
