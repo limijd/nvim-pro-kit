@@ -26,7 +26,9 @@ local function on_exit(job_id, code, event)
   vim.cmd("silent! :checktime")
 
   if vim.api.nvim_win_is_valid(prev_win) then
-    vim.api.nvim_win_close(win, true)
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
     vim.api.nvim_set_current_win(prev_win)
     prev_win = -1
     if vim.api.nvim_buf_is_valid(buffer) and vim.api.nvim_buf_is_loaded(buffer) then
