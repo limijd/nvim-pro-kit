@@ -118,7 +118,7 @@ cmp.ItemField = {
 
 ---@class cmp.WindowConfig
 ---@field public completion? cmp.CompletionWindowOptions
----@field public documentation? cmp.DocumentationWindowOptions|nil
+---@field public documentation? cmp.DocumentationWindowOptions|vim.NIL
 
 ---@class cmp.WindowOptions
 ---@field public border? string|string[]
@@ -136,6 +136,9 @@ cmp.ItemField = {
 ---@class cmp.DocumentationWindowOptions: cmp.WindowOptions
 ---@field public max_height? integer|nil
 ---@field public max_width? integer|nil
+---@field public scrolloff integer|nil
+---@field public scrollbar boolean|true
+---@field public col_offset integer|nil
 
 ---@class cmp.ConfirmationConfig
 ---@field public default_behavior cmp.ConfirmBehavior
@@ -187,6 +190,7 @@ cmp.ItemField = {
 ---@class cmp.CustomEntriesViewConfig
 ---@field name 'custom'
 ---@field selection_order 'top_down'|'near_cursor'
+---@field vertical_positioning 'auto'|'above'|'below'
 ---@field follow_cursor boolean
 
 ---@class cmp.NativeEntriesViewConfig

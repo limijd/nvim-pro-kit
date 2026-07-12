@@ -99,6 +99,7 @@ return function()
       entries = {
         name = 'custom',
         selection_order = 'top_down',
+        vertical_positioning = 'below',
         follow_cursor = false,
       },
       docs = {
@@ -122,6 +123,7 @@ return function()
         border = window.get_border(),
         winhighlight = 'FloatBorder:NormalFloat',
         winblend = vim.o.pumblend,
+        col_offset = 0,
       },
     },
   }
