@@ -57,6 +57,11 @@ local function roots()
 
     ---@diagnostic disable-next-line: deprecated
     local get_clients = vim.lsp.get_clients or vim.lsp.get_active_clients
+    for _, client in ipairs(get_clients({ bufnr = 0 })) do
+      if client.config.root_dir then
+        coroutine.yield(client.config.root_dir)
+      end
+    end
     for _, client in ipairs(get_clients()) do
       if client.config.root_dir then
         coroutine.yield(client.config.root_dir)
