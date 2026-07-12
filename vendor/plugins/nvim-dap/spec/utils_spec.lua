@@ -123,7 +123,7 @@ describe('utils.splitstr', function ()
   end)
 
   it('escaped quote', function ()
-    assert.are.same({'foo', '"bar'}, utils.splitstr('foo \"bar'))
+    assert.are.same({'foo', '"bar'}, utils.splitstr([[foo \"bar]]))
   end)
 
   it("returns empty list for empty strings", function ()
@@ -133,6 +133,10 @@ describe('utils.splitstr', function ()
   it("trims leading and trailing whitespace", function ()
     assert.are.same({"a"}, utils.splitstr("a   "))
     assert.are.same({"a", "b"}, utils.splitstr("     a       b   "))
+  end)
+
+  it("mixed and balanced quotes", function ()
+    assert.are.same({"abc", 'def', 'ghi'}, utils.splitstr([['a'b'c' d"e"f "g"'h'i]]))
   end)
 end)
 
