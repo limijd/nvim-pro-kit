@@ -195,7 +195,7 @@ function Win:jump(file, line)
   if target_buf == self.client:get_buf() then
     self:_with_saved_win(true, function()
       vim.api.nvim_set_current_win(self.jump_win)
-      target_buf = self:_open_file("noswapfile view " .. file)
+      target_buf = self:_open_file("noswapfile view " .. vim.fn.fnameescape(file))
     end)
   end
 
@@ -207,7 +207,7 @@ function Win:jump(file, line)
         end
         -- Hide the current line sign when navigating away.
         self.cursor:hide()
-        target_buf = self:_open_file("noswap e " .. file)
+        target_buf = self:_open_file("noswap e " .. vim.fn.fnameescape(file))
       end)
     end)
   end
@@ -305,11 +305,17 @@ function Win:lopen(cmd, mods)
     self:_with_saved_mode(function()
       self:_with_saved_win(false, function()
         self:_ensure_jump_window()
-        if self.jump_win ~= vim.api.nvim_get_current_win() then
-          vim.api.nvim_set_current_win(self.jump_win)
-        end
-        vim.fn.setloclist(self.jump_win, {}, ' ', {lines = llist})
-        vim.api.nvim_command("exe 'normal <c-o>' | " .. mods .. " lopen")
+        vim.api.nvim_win_call(self.jump_win, function()
+          local efmmgr = require 'nvimgdb.efmmgr'
+          local backend = NvimGdb.here.backend
+          -- Setup 'errorformat' for the given backend. Do it locally because 'efm' can change be reset when editing files.
+          efmmgr.setup(backend.get_error_formats())
+          log.debug({llist = llist})
+          log.debug({efm = backend.get_error_formats()})
+          vim.fn.setloclist(0, {}, ' ', {lines = llist})
+          vim.cmd(mods .. ' lopen')
+          efmmgr.teardown()
+        end)
       end)
     end)
   end))
