@@ -12,10 +12,9 @@ local function fts_from_ts_lang(lang)
 end
 
 local function from_cursor_pos()
-	-- get_parser errors if parser not present (no grammar for language).
-	local has_parser, parser = pcall(vim.treesitter.get_parser)
+	local parser = require("luasnip.extras._treesitter").get_parser()
 
-	if has_parser then
+	if parser then
 		local cursor = require("luasnip.util.util").get_cursor_0ind()
 		-- assumption: languagetree uses 0-indexed byte-ranges.
 		local lang = parser
@@ -48,7 +47,11 @@ local function from_pos_or_filetype()
 end
 
 local function from_filetype_load(bufnr)
-	return vim.split(vim.api.nvim_buf_get_option(bufnr, "filetype"), ".", true)
+	return vim.split(
+		vim.api.nvim_get_option_value("filetype", { buf = bufnr }),
+		".",
+		true
+	)
 end
 
 local function extend_load_ft(extend_fts)
@@ -68,8 +71,11 @@ local function extend_load_ft(extend_fts)
 	end
 
 	return function(bufnr)
-		local fts =
-			vim.split(vim.api.nvim_buf_get_option(bufnr, "filetype"), ".", true)
+		local fts = vim.split(
+			vim.api.nvim_get_option_value("filetype", { buf = bufnr }),
+			".",
+			true
+		)
 		local res = {}
 
 		for _, ft in ipairs(fts) do

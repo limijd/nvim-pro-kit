@@ -859,28 +859,8 @@ function Snippet:matches(line_to_cursor, opts)
 	return expand_params
 end
 
--- https://gist.github.com/tylerneylon/81333721109155b2d244
-local function copy3(obj, seen)
-	-- Handle non-tables and previously-seen tables.
-	if type(obj) ~= "table" then
-		return obj
-	end
-	if seen and seen[obj] then
-		return seen[obj]
-	end
-
-	-- New table; mark it as seen an copy recursively.
-	local s = seen or {}
-	local res = {}
-	s[obj] = res
-	for k, v in next, obj do
-		res[copy3(k, s)] = copy3(v, s)
-	end
-	return setmetatable(res, getmetatable(obj))
-end
-
 function Snippet:copy()
-	return copy3(self)
+	return util.copy3(self)
 end
 
 function Snippet:del_marks()
@@ -1232,7 +1212,7 @@ function Snippet:event(event, event_args)
 		modeline = false,
 	})
 
-	return vim.F.if_nil(cb_res, m1_cb_res, parent_cb_res)
+	return util.if_nil(cb_res, m1_cb_res, parent_cb_res)
 end
 
 local function nodes_from_pattern(pattern)
