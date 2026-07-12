@@ -73,6 +73,14 @@ Last Updated On: 18-04-2022
 
 ## Installation
 
+### [vim.pack](https://neovim.io/doc/user/pack/#vim.pack) (Only for neovim 0.12)
+
+```lua
+vim.pack.add({
+    'https://github.com/nvim-tree/nvim-web-devicons',
+    'https://github.com/nvim-lualine/lualine.nvim'
+})
+```
 ### [vim-plug](https://github.com/junegunn/vim-plug)
 
 ```vim
@@ -680,6 +688,8 @@ sections = {
 
       shorting_target = 40,    -- Shortens path to leave 40 spaces in the window
                                -- for other components. (terrible name, any suggestions?)
+                               -- It can also be a function that returns
+                               -- the value of `shorting_target` dynamically.
       symbols = {
         modified = '[+]',      -- Text to show when the file is modified.
         readonly = '[-]',      -- Text to show when the file is non-modifiable or readonly.
