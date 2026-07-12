@@ -5,7 +5,6 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('files', config) end
 local unload_module = function() child.mini_unload('files') end
 local set_cursor = function(...) return child.set_cursor(...) end
@@ -14,14 +13,19 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 
 -- Test paths helpers
 local test_dir = 'tests/dir-files'
 
+local normalize_path = function(p) return (p:gsub('\\', '/'):gsub('(.)/$', '%1')) end
+if helpers.is_windows() then
+  normalize_path = function(p) return (p:gsub('\\', '/'):gsub('(.)/$', '%1'):gsub('^(%a):/+([^/])', '%1://%2')) end
+end
+
 local join_path = function(...) return table.concat({ ... }, '/') end
-local full_path = function(...) return (vim.fn.fnamemodify(join_path(...), ':p'):gsub('\\', '/'):gsub('(.)/$', '%1')) end
-local short_path = function(...) return (vim.fn.fnamemodify(join_path(...), ':~'):gsub('\\', '/'):gsub('(.)/$', '%1')) end
+local full_path = function(...) return normalize_path(vim.fn.fnamemodify(join_path(...), ':p')) end
+local short_path = function(...) return normalize_path(vim.fn.fnamemodify(join_path(...), ':~')) end
 
 local make_test_path = function(...) return full_path(join_path(test_dir, ...)) end
 
@@ -98,17 +102,14 @@ end
 local make_plain_pattern = function(...) return table.concat(vim.tbl_map(vim.pesc, { ... }), '.*') end
 
 local is_file_in_buffer = function(buf_id, path)
-  return string.find(child.api.nvim_buf_get_name(buf_id):gsub('\\', '/'), vim.pesc(path:gsub('\\', '/')) .. '$') ~= nil
+  local buf_name = normalize_path(child.api.nvim_buf_get_name(buf_id))
+  local path_pattern = vim.pesc(normalize_path(path)) .. '$'
+  return string.find(buf_name, path_pattern) ~= nil
 end
 
 local is_file_in_window = function(win_id, path) return is_file_in_buffer(child.api.nvim_win_get_buf(win_id), path) end
 
 -- Common test wrappers
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
 local open = forward_lua('MiniFiles.open')
 local close = forward_lua('MiniFiles.close')
 local go_in = forward_lua('MiniFiles.go_in')
@@ -116,6 +117,7 @@ local go_out = forward_lua('MiniFiles.go_out')
 local trim_left = forward_lua('MiniFiles.trim_left')
 local trim_right = forward_lua('MiniFiles.trim_right')
 local get_explorer_state = forward_lua('MiniFiles.get_explorer_state')
+local set_target_window = forward_lua('MiniFiles.set_target_window')
 local set_bookmark = forward_lua('MiniFiles.set_bookmark')
 
 local get_visible_paths = function()
@@ -147,7 +149,7 @@ local mock_stdpath_data = function()
   local data_dir = make_test_path('data')
   local lua_cmd = string.format(
     [[
-    _G.stdpath_orig = vim.fn.stpath
+    _G.stdpath_orig = vim.fn.stdpath
     vim.fn.stdpath = function(what)
       if what == 'data' then return %s end
       return _G.stdpath_orig(what)
@@ -256,6 +258,7 @@ T['setup()']['creates `config` field'] = function()
 
   expect_config('options.use_as_default_explorer', true)
   expect_config('options.permanent_delete', true)
+  expect_config('options.lsp_timeout', 1000)
 
   expect_config('windows.max_number', math.huge)
   expect_config('windows.preview', false)
@@ -274,7 +277,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -300,6 +303,7 @@ T['setup()']['validates `config` argument'] = function()
   expect_config_error({ options = 'a' }, 'options', 'table')
   expect_config_error({ options = { use_as_default_explorer = 1 } }, 'options.use_as_default_explorer', 'boolean')
   expect_config_error({ options = { permanent_delete = 1 } }, 'options.permanent_delete', 'boolean')
+  expect_config_error({ options = { lsp_timeout = 'a' } }, 'options.lsp_timeout', 'number')
 
   expect_config_error({ windows = 'a' }, 'windows', 'table')
   expect_config_error({ windows = { max_number = 'a' } }, 'windows.max_number', 'number')
@@ -358,6 +362,30 @@ T['open()']['works per tabpage'] = function()
   child.expect_screenshot()
 end
 
+T['open()']['works after setting target window in another tabpage'] = function()
+  local validate = function(use_latest)
+    local initial_tabpage_id = child.api.nvim_get_current_tabpage()
+    child.cmd('tab split')
+    local tab_win_id = child.api.nvim_get_current_win()
+
+    child.cmd('tabprev')
+    open(test_dir_path)
+    set_target_window(tab_win_id)
+    close()
+    eq(child.api.nvim_get_current_win(), tab_win_id)
+
+    child.cmd('tabprev')
+    open(test_dir_path, use_latest)
+    eq(child.api.nvim_get_current_tabpage(), initial_tabpage_id)
+    eq(#child.api.nvim_tabpage_list_wins(0), 2)
+
+    close()
+  end
+
+  validate(true)
+  validate(false)
+end
+
 T['open()']['handles problematic entry names'] = function()
   local temp_dir = make_temp_dir('temp', { '%a bad-file-name', 'a bad-dir.name/' })
 
@@ -397,6 +425,7 @@ T['open()']['uses icon provider'] = function()
   go_out()
   --stylua: ignore
   eq(get_extmarks_hl(), {
+    'MiniIconsAzure', 'MiniFilesDirectory',
     'MiniIconsAzure', 'MiniFilesDirectory',
     -- 'lua' directory has special highlighting
     'MiniIconsBlue', 'MiniFilesDirectory',
@@ -658,8 +687,14 @@ T['open()']['respects `content.highlight`'] = function()
     end
   ]])
 
+  local expect_screenshot = function()
+    -- Test only on Neovim>=0.12 because there window-local `Normal` (which is
+    -- `MiniFilesNormal` here) blends background with cursorline
+    if child.fn.has('nvim-0.12') == 1 then child.expect_screenshot() end
+  end
+
   open(test_dir_path)
-  child.expect_screenshot()
+  expect_screenshot()
   validate_fs_entry(child.lua_get('_G.highlight_arg'))
 
   -- Local value from argument should take precedence
@@ -672,7 +707,7 @@ T['open()']['respects `content.highlight`'] = function()
     vim.inspect(test_dir_path)
   )
   child.lua(lua_cmd)
-  child.expect_screenshot()
+  expect_screenshot()
 end
 
 T['open()']['respects `content.prefix`'] = function()
@@ -993,6 +1028,113 @@ T['open()']['tracks lost focus'] = function()
   eq(is_explorer_active(), true)
 end
 
+T['open()']['does not track lost focus during `vim.ui.select()`'] = function()
+  child.lua([[
+    require('mini.pick').setup()
+
+    _G.log = {}
+    vim.ui.select = function(items, opts, on_choice)
+      -- Check that exactly this `vim.ui.select` function is called
+      table.insert(_G.log, 'vim.ui.select is called')
+      return MiniPick.ui_select(items, opts, on_choice)
+    end
+  ]])
+
+  local ui_select = function()
+    child.lua_notify('vim.ui.select({ "a", "b" }, {}, function(item) table.insert(_G.log, vim.inspect(item)) end)')
+  end
+
+  open(test_dir_path)
+  ui_select()
+  sleep(track_lost_focus_delay + small_time)
+  child.expect_screenshot()
+  eq(child.lua_get('_G.log'), { 'vim.ui.select is called' })
+
+  type_keys('<CR>')
+  child.expect_screenshot()
+  eq(child.lua_get('_G.log'), { 'vim.ui.select is called', '"a"' })
+
+  -- Should be possible to do several times
+  open(test_dir_path)
+  ui_select()
+  sleep(track_lost_focus_delay + small_time)
+  eq(is_explorer_active(), true)
+
+  type_keys('<Esc>')
+  eq(is_explorer_active(), true)
+
+  -- Should have no side effects after closing
+  close()
+  child.lua('_G.log = {}')
+  ui_select()
+  eq(child.lua_get('MiniPick.is_picker_active()'), true)
+  type_keys('<CR>')
+  eq(child.lua_get('_G.log'), { 'vim.ui.select is called', '"a"' })
+end
+
+T['open()']['does not track lost focus during `vim.ui.input()`'] = function()
+  child.lua([[
+    -- Custom implementation of `vim.ui.input()`.
+    -- TODO: Replace with 'mini.input' after it is a thing
+    _G.log = {}
+    vim.ui.input = function(opts, on_confirm)
+      -- Check that exactly this `vim.ui.input` function is called
+      table.insert(_G.log, 'vim.ui.input is called')
+
+      local buf_id = vim.api.nvim_create_buf(false, true)
+      local win_opts = { relative = 'editor', row = vim.o.lines - 2, col = 0, height = 1, width = 10 }
+      win_opts.title = opts.prompt or ' Prompt '
+      win_opts.border = 'single'
+      local win_id = vim.api.nvim_open_win(buf_id, true, win_opts)
+
+      -- Confirm and cancel
+      local close = function(input)
+        vim.api.nvim_win_close(win_id, true)
+        vim.api.nvim_buf_delete(buf_id, { force = true })
+        if vim.fn.mode() == 'i' then vim.cmd('stopinsert') end
+        on_confirm(input)
+      end
+
+      vim.keymap.set('i', '<CR>', function() close(vim.fn.getline('.')) end, { buffer = buf_id })
+      vim.keymap.set('i', '<Esc>', function() close() end, { buffer = buf_id })
+
+      -- Start Insert mode
+      vim.cmd('startinsert')
+    end
+  ]])
+
+  local ui_input = function()
+    child.lua_notify('vim.ui.input({ prompt = "Hello?" }, function(inp) table.insert(_G.log, vim.inspect(inp)) end)')
+  end
+
+  open(test_dir_path)
+  ui_input()
+  sleep(track_lost_focus_delay + small_time)
+  child.expect_screenshot()
+  eq(child.lua_get('_G.log'), { 'vim.ui.input is called' })
+
+  type_keys('World!', '<CR>')
+  child.expect_screenshot()
+  eq(child.lua_get('_G.log'), { 'vim.ui.input is called', '"World!"' })
+
+  -- Should be possible to do several times
+  open(test_dir_path)
+  ui_input()
+  sleep(track_lost_focus_delay + small_time)
+  eq(is_explorer_active(), true)
+
+  type_keys('<Esc>')
+  eq(is_explorer_active(), true)
+
+  -- Should have no side effects after closing
+  close()
+  child.lua('_G.log = {}')
+  ui_input()
+  eq(child.fn.mode(), 'i')
+  type_keys('<CR>')
+  eq(child.lua_get('_G.log'), { 'vim.ui.input is called', '""' })
+end
+
 T['open()']['can display entries with newline character'] = function()
   if helpers.is_windows() then MiniTest.skip('Newline characters in names are not supported on Windows') end
   local temp_dir = make_temp_dir('temp', { 'di\nr/', 'fi\nl\ne' })
@@ -1103,11 +1245,11 @@ T['refresh()']['handles presence of pending file system actions'] = function()
 
   -- On no confirm should not update buffers, but still apply other changes
   type_keys('o', 'new-file-2', '<Esc>')
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   mock_confirm(2)
   child.lua('MiniFiles.refresh({ content = { filter = function() return true end }, windows = { width_focus = 15 } })')
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   mock_confirm(1)
   close()
@@ -1235,7 +1377,7 @@ T['reset()']['works when anchor is not in branch'] = function()
   child.expect_screenshot()
 
   reset()
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 end
 
 T['reset()']['resets all cursors'] = function()
@@ -1285,6 +1427,22 @@ T['close()']['works per tabpage'] = function()
   -- On different tabpage explorer should still be present
   child.cmd('tabnext')
   child.expect_screenshot()
+end
+
+T['close()']['works after setting target window in another tabpage'] = function()
+  local initial_tabpage_id = child.api.nvim_get_current_tabpage()
+  child.cmd('tab split')
+  local tab_win_id = child.api.nvim_get_current_win()
+
+  child.cmd('tabprev')
+  open(test_dir_path)
+  set_target_window(tab_win_id)
+  close()
+  eq(child.api.nvim_get_current_win(), tab_win_id)
+
+  child.cmd('tabprev')
+  eq(close(), vim.NIL)
+  eq(child.api.nvim_get_current_tabpage(), initial_tabpage_id)
 end
 
 T['close()']['checks for pending file system actions'] = function()
@@ -1697,6 +1855,20 @@ T['reveal_cwd()']['works when root is already cwd'] = function()
   child.expect_screenshot()
 end
 
+T['reveal_cwd()']['works when cwd is `/`'] = function()
+  if not helpers.is_linux() then MiniTest.skip('Test is only for Linux.') end
+
+  child.fn.chdir('/')
+  open('/usr')
+  eq(get_explorer_state().branch, { '/usr' })
+  eq(get_explorer_state().depth_focus, 1)
+
+  reveal_cwd()
+  eq(get_explorer_state().branch, { '/', '/usr' })
+  eq(#get_explorer_state().windows, 2)
+  eq(get_explorer_state().depth_focus, 2)
+end
+
 T['reveal_cwd()']['properly places cursors'] = function()
   child.lua('MiniFiles.config.windows.width_focus = 20')
   local temp_dir =
@@ -2002,9 +2174,26 @@ T['get_explorer_state()']['ensures valid target window'] = function()
   eq(get_explorer_state().target_window, init_win_id)
 end
 
-T['set_target_window()'] = new_set()
+T['get_explorer_state()']['can be used in events'] = function()
+  child.lua('MiniFiles.config.windows.preview = true')
+  child.lua([[
+    local cb = function() MiniFiles.get_explorer_state() end
+    local pattern = {
+      'MiniFilesExplorerOpen', 'MiniFilesExplorerClose',
+      'MiniFilesBufferCreate', 'MiniFilesBufferUpdate',
+      'MiniFilesWindowOpen',   'MiniFilesWindowUpdate',
+    }
+    vim.api.nvim_create_autocmd('User', { pattern = pattern, callback = cb })
+  ]])
+  open(test_dir_path)
 
-local set_target_window = forward_lua('MiniFiles.set_target_window')
+  -- Trigger events in a way that in the past resulted in errors due explorer
+  -- windows being not fully refreshed (like it contained not valid windows)
+  type_keys('o', '<Up>')
+  eq(#get_explorer_state().windows, 2)
+end
+
+T['set_target_window()'] = new_set()
 
 T['set_target_window()']['works'] = function()
   local init_win_id = child.api.nvim_get_current_win()
@@ -2119,11 +2308,18 @@ T['set_branch()']['works with not absolute paths'] = function()
   set_branch({ '.', './dir-1' })
   eq(get_explorer_state().branch, { nested, nested .. '/dir-1' })
 
-  -- The ".." should also be resolved (but supported only on Neovim>=0.10)
-  if child.fn.has('nvim-0.10') == 1 then
-    set_branch({ '..' })
-    eq(get_explorer_state().branch, { full_path(test_dir) })
-  end
+  -- The ".." should also be resolved
+  set_branch({ '..' })
+  eq(get_explorer_state().branch, { full_path(test_dir) })
+end
+
+T['set_branch()']['works with `/` in branch'] = function()
+  if not helpers.is_linux() then MiniTest.skip('Test is only for Linux.') end
+
+  open(test_dir_path)
+  set_branch({ '/', '/usr' })
+  eq(get_explorer_state().branch, { '/', '/usr' })
+  eq(#get_explorer_state().windows, 2)
 end
 
 T['set_branch()']['sets cursors on child entries'] = function()
@@ -2244,7 +2440,9 @@ T['set_bookmark()']['works'] = function()
   local res = child.lua([[
     local bookmarks = MiniFiles.get_explorer_state().bookmarks
     for k, v in pairs(bookmarks) do
-      if vim.is_callable(v.path) then v.path = { 'Callable', (v.path():gsub('\\', '/')) } end
+      if vim.is_callable(v.path) then
+        v.path = { 'Callable', (v.path():gsub('\\', '/'):gsub('^(%a):/+([^/])', '%1://%2')) }
+      end
     end
     return bookmarks
   ]])
@@ -2644,7 +2842,6 @@ T['Windows']['never shows past end of buffer'] = function()
 end
 
 T['Windows']['restricts manual buffer navigation'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Window and buffer pairing is available on Neovim>=0.10') end
   child.api.nvim_create_buf(true, false)
   open(test_dir_path)
   validate_n_wins(2)
@@ -2654,8 +2851,6 @@ T['Windows']['restricts manual buffer navigation'] = function()
 end
 
 T['Windows']["do not evaluate 'foldexpr' too much"] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Correct behavior is only on Neovim>=0.10') end
-
   child.lua('MiniFiles.config.windows.preview = true')
   child.lua([[
     _G.n = 0
@@ -2732,20 +2927,15 @@ T['Preview']['works for directories'] = function()
 end
 
 T['Preview']['works for files'] = function()
-  local expect_screenshot = function()
-    -- Test only on Neovim>=0.10 because there was major tree-sitter update
-    if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
-  end
-
   open(make_test_path('real'))
 
   -- Should preview Lua file with highlighting
-  expect_screenshot()
+  child.expect_screenshot()
 
   -- Should preview text file (also with enabled highlighting but as there is
   -- none defined, non should be visible)
   type_keys('j')
-  expect_screenshot()
+  child.expect_screenshot()
 
   -- Should read only maximum necessary amount of lines
   local buffers = child.api.nvim_list_bufs()
@@ -2757,21 +2947,21 @@ T['Preview']['works for files'] = function()
 
   -- Should recognize binary files and show placeholder preview
   type_keys('j')
-  expect_screenshot()
+  child.expect_screenshot()
 
   -- Should work for empty files
   type_keys('j')
-  expect_screenshot()
+  child.expect_screenshot()
 
   -- Should fall back to built-in syntax highlighting in case of no tree-sitter
   type_keys('j')
-  expect_screenshot()
+  child.expect_screenshot()
 
   -- Should not error on files which failed to read (looks like on Windows it
   -- can be different from "non-readable" files)
   child.lua('vim.loop.fs_open = function() return nil end')
   type_keys('j')
-  expect_screenshot()
+  child.expect_screenshot()
 end
 
 T['Preview']['works with imaginary paths'] = function()
@@ -2827,6 +3017,31 @@ T['Preview']['does not highlight big files'] = function()
 
   -- It also should have total limit, but it is not tested to not overuse file
   -- system accesses during test
+end
+
+T['Preview']['does not trigger unnecessary events'] = function()
+  child.lua('_G.log = {}')
+  child.cmd('au BufEnter,BufLeave * lua table.insert(_G.log, "unnecessary")')
+
+  open(test_dir_path)
+  child.lua('_G.log = {}')
+
+  type_keys('j')
+  eq(#get_visible_paths(), 2)
+  eq(get_fs_entry().fs_type, 'directory')
+
+  type_keys('G')
+  eq(#get_visible_paths(), 2)
+  eq(get_fs_entry().fs_type, 'file')
+
+  -- Should not trigger buffer-related events when only moving up-down
+  eq(child.lua_get('#_G.log'), 0)
+
+  -- But should still trigger when changing windows/buffers
+  type_keys('gg')
+  go_in()
+  eq(#get_visible_paths(), 3)
+  eq(child.lua_get('#_G.log') > 0, true)
 end
 
 T['Preview']['is not removed when going out'] = function()
@@ -2946,6 +3161,29 @@ T['Preview']['can work after renaming with small overall width'] = function()
   mock_confirm(1)
   synchronize()
   child.expect_screenshot()
+end
+
+T['Preview']["respects global value of 'list' and 'listchars' option"] = function()
+  child.lua('MiniFiles.config.windows.width_focus = 10')
+  child.lua('MiniFiles.config.windows.width_preview = 8')
+
+  local temp_dir = make_temp_dir('temp', { 'long-directory-name/', 'long-directory-name/subfile', 'file' })
+  child.fn.writefile({ '\tTabs', '    Spaces' }, join_path(temp_dir, 'file'))
+
+  child.o.listchars = 'tab:+ ,extends:>'
+  child.o.tabstop = 4
+
+  local validate = function(list)
+    child.o.list = list
+    open(temp_dir)
+    child.expect_screenshot()
+    type_keys('<Down>')
+    child.expect_screenshot()
+    close()
+  end
+
+  validate(true)
+  validate(false)
 end
 
 T['Mappings'] = new_set()
@@ -3250,6 +3488,8 @@ T['Mappings']['`mark_goto` works'] = function()
   type_keys("'", '<Esc>')
   eq(get_branch(), ref_branch)
   validate_log({})
+  -- - <C-c> should stop even if it doesn't make `getcharstr` error
+  child.cmd('nnoremap <C-c> <C-\\><C-n>')
   type_keys("'", '<C-c>')
   eq(get_branch(), ref_branch)
   validate_log({})
@@ -3300,7 +3540,7 @@ T['Mappings']['`mark_goto` works with special paths'] = function()
     child.lua('_G.notify_log = {}')
   end
   local warn_level = child.lua_get('vim.log.levels.WARN')
-  local cwd = child.fn.getcwd():gsub('\\', '/')
+  local cwd = normalize_path(child.fn.getcwd())
 
   local path = full_path(test_dir_path)
   open(path)
@@ -3352,6 +3592,8 @@ T['Mappings']['`mark_set` works'] = function()
   -- Does nothing after `<Esc>` or `<C-c>`
   type_keys('m', '<Esc>')
   eq(get_explorer_state().bookmarks, ref_bookmarks)
+  -- - <C-c> should stop even if it doesn't make `getcharstr` error
+  child.cmd('nnoremap <C-c> <C-\\><C-n>')
   type_keys('m', '<C-c>')
   eq(get_explorer_state().bookmarks, ref_bookmarks)
 
@@ -4098,8 +4340,7 @@ T['File manipulation']['move works again after undo'] = function()
   type_keys('u', 'u')
   -- - Clear command line
   type_keys(':', '<Esc>')
-  -- - Highlighting is different on Neovim>=0.10
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   mock_confirm(1)
   synchronize()
@@ -4369,11 +4610,11 @@ T['File manipulation']['works with problematic names'] = function()
   type_keys('C', 'c file', '<Esc>')
   -- - Create
   type_keys('o', 'd file', '<Esc>')
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   mock_confirm(1)
   synchronize()
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   validate_tree(temp_dir, { 'c file', 'd file' })
 end
@@ -4391,11 +4632,11 @@ T['File manipulation']['handles backslash on Unix'] = function()
   type_keys('C', 'new-hello', '<Esc>')
   -- - Create
   type_keys('o', 'bad\\file', '<Esc>')
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   mock_confirm(1)
   synchronize()
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   validate_tree(temp_dir, { 'bad\\file', 'new-hello', 'wo\\rld' })
 end
@@ -5404,7 +5645,7 @@ T['Events']['`MiniFilesWindowUpdate` triggers'] = function()
 
   open(test_dir_path)
   local buf_id_1, win_id_1 = child.api.nvim_get_current_buf(), child.api.nvim_get_current_win()
-  -- Triggered several times because `CursorMoved` also triggeres it.
+  -- Triggered several times because `CursorMoved` also triggers it.
   -- Should provide both `buf_id` and `win_id`.
   validate_event_track({ { buf_id = buf_id_1, win_id = win_id_1 }, { buf_id = buf_id_1, win_id = win_id_1 } })
   clear_event_track()
@@ -5462,11 +5703,6 @@ T['Events']['`MiniFilesWindowUpdate` is triggered after current buffer is set'] 
 end
 
 T['Events']['`MiniFilesWindowUpdate` can customize internally set window config parts'] = function()
-  local expect_screenshot = child.expect_screenshot
-  if child.fn.has('nvim-0.10') == 0 then
-    local expect_orig = expect_screenshot
-    expect_screenshot = function() child.expect_screenshot({ ignore_attr = true }) end
-  end
   child.set_size(15, 80)
 
   load_module({
@@ -5496,27 +5732,27 @@ T['Events']['`MiniFilesWindowUpdate` can customize internally set window config 
 
   open(test_dir_path)
   go_in()
-  expect_screenshot()
+  child.expect_screenshot()
 
   -- Works in Insert mode when number of entries is less than height
   type_keys('o', 'a', 'b', 'c')
-  expect_screenshot()
+  child.expect_screenshot()
   child.ensure_normal_mode()
 
   -- Works in Insert mode when number of entries is more than height
   go_out()
   type_keys('o', 'd', 'e', 'f')
-  expect_screenshot()
+  child.expect_screenshot()
   child.ensure_normal_mode()
 
   -- Works when modifying below last visible line
   type_keys('3j', 'o', 'a')
-  expect_screenshot()
+  child.expect_screenshot()
 
   -- Works even if completion menu (like from 'mini.completion') is triggered
   child.cmd('set iskeyword+=-')
   type_keys('<C-n>')
-  expect_screenshot()
+  child.expect_screenshot()
 end
 
 T['Events']['`MiniFilesActionCreate` triggers'] = function()
@@ -5715,7 +5951,353 @@ T['Events']['`MiniFilesActionMove` triggers'] = function()
   validate('dir/', true)
 end
 
-T['Default explorer'] = new_set()
+T['LSP'] = new_set({
+  hooks = {
+    pre_case = function()
+      if child.fn.has('nvim-0.11') == 0 then MiniTest.skip('LSP integration requires Neovim>=0.11') end
+    end,
+  },
+})
+
+local setup_lsp = function(skip_file_open)
+  -- Set up file
+  if not skip_file_open then
+    local file_path = make_test_path('lsp-files', 'main.lua')
+    child.cmd('edit ' .. file_path)
+  end
+
+  -- Mock server
+  child.cmd('luafile tests/mock-lsp/file-ops.lua')
+end
+
+local validate_lsp_will = function(method, files, lines)
+  eq(child.lua_get('_G.lsp_requests["file-methods-lsp"]'), { { method, { files = files } } })
+  eq(get_lines(), lines)
+  child.lua('_G.lsp_requests = {}')
+end
+
+local make_test_lsp_uri = function(...) return vim.uri_from_fname(make_test_path(...)) end
+if helpers.is_windows() then
+  make_test_lsp_uri = function(...) return vim.uri_from_fname((make_test_path(...):gsub('^(%a)://([^/])', '%1:/%2'))) end
+end
+
+T['LSP']['works with `willCreateFiles`'] = function()
+  child.lua([[
+    local edit_range = { start = { line = 0, character = 0 }, ['end'] = { line = 0, character = 0 } }
+    local path = vim.fn.fnamemodify('tests/dir-files/lsp-files/main.lua', ':p')
+    local uri = vim.uri_from_fname(path)
+    _G.workspace_edit_response = { changes = { [uri] = { { range = edit_range, newText = '-- willCreate\n' } } } }
+  ]])
+  setup_lsp()
+  local temp_dir = make_temp_dir('temp', {})
+
+  open(temp_dir)
+  local file_name = 'something.lua'
+  type_keys('C', file_name, '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  close()
+  local uri = make_test_lsp_uri('temp', file_name)
+  validate_lsp_will('workspace/willCreateFiles', { { uri = uri } }, { '-- willCreate', "require('something')" })
+end
+
+T['LSP']['works with `willRenameFiles`'] = function()
+  child.lua([[
+    local edit_range = { start = { line = 0, character = 9 }, ['end'] = { line = 0, character = 18 } }
+    local path = vim.fn.fnamemodify('tests/dir-files/lsp-files/main.lua', ':p')
+    local uri = vim.uri_from_fname(path)
+    _G.workspace_edit_response = { changes = { [uri] = { { range = edit_range, newText = 'something_else' } } } }
+  ]])
+  setup_lsp()
+  local file_name = 'something.lua'
+  local temp_dir = make_temp_dir('temp', { file_name })
+
+  open(temp_dir)
+  type_keys('C', 'something_else.lua', '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  close()
+  local old_uri = make_test_lsp_uri('temp', file_name)
+  local new_uri = make_test_lsp_uri('temp', 'something_else.lua')
+  local ref_files = { { oldUri = old_uri, newUri = new_uri } }
+  validate_lsp_will('workspace/willRenameFiles', ref_files, { "require('something_else')" })
+end
+
+T['LSP']['works with `willDeleteFiles`'] = function()
+  child.lua([[
+    local edit_range = { start = { line = 0, character = 0 }, ['end'] = { line = 0, character = 0 } }
+    local path = vim.fn.fnamemodify('tests/dir-files/lsp-files/main.lua', ':p')
+    local uri = vim.uri_from_fname(path)
+    _G.workspace_edit_response = { changes = { [uri] = { { range = edit_range, newText = '-- willDelete\n' } } } }
+  ]])
+  setup_lsp()
+  local file_name = 'something.lua'
+  local temp_dir = make_temp_dir('temp', { file_name })
+
+  open(temp_dir)
+  type_keys('dd')
+  mock_confirm(1)
+  synchronize()
+  close()
+  local uri = make_test_lsp_uri('temp', file_name)
+  validate_lsp_will('workspace/willDeleteFiles', { { uri = uri } }, { '-- willDelete', "require('something')" })
+end
+
+local validate_lsp_did = function(method, files, lines)
+  eq(child.lua_get('_G.lsp_notifications["file-methods-lsp"]'), { { method, { files = files } } })
+  if lines ~= nil then eq(get_lines(), lines) end
+  child.lua('_G.lsp_notifications = {}')
+end
+
+T['LSP']['works with `didCreateFiles`'] = function()
+  setup_lsp()
+  local temp_dir = make_temp_dir('temp', {})
+
+  open(temp_dir)
+  local file_name = 'something.lua'
+  type_keys('C', file_name, '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  close()
+
+  local uri = make_test_lsp_uri('temp', file_name)
+  validate_lsp_did('workspace/didCreateFiles', { { uri = uri } })
+end
+
+T['LSP']['works with `didRenameFiles`'] = function()
+  setup_lsp()
+  local file_name = 'something.lua'
+  local temp_dir = make_temp_dir('temp', { file_name })
+
+  open(temp_dir)
+  type_keys('C', 'something_else.lua', '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  close()
+
+  local old_uri = make_test_lsp_uri('temp', file_name)
+  local new_uri = make_test_lsp_uri('temp', 'something_else.lua')
+  validate_lsp_did('workspace/didRenameFiles', { { oldUri = old_uri, newUri = new_uri } })
+end
+
+T['LSP']['works with `didRenameFiles` that applies workspace edit'] = function()
+  child.lua([[
+    _G.did_callback = function(_, dispatchers)
+      local path = vim.fn.fnamemodify('tests/dir-files/lsp-files/main.lua', ':p')
+      local uri = vim.uri_from_fname(path)
+      local edit_range = { start = { line = 0, character = 9 }, ['end'] = { line = 0, character = 18 } }
+      local text_edit = { range = edit_range, newText = 'something_else' }
+      dispatchers.server_request('workspace/applyEdit', { edit = { changes = { [uri] = { text_edit } } } })
+    end
+  ]])
+  setup_lsp()
+  local file_name = 'something.lua'
+  local temp_dir = make_temp_dir('temp', { file_name })
+
+  open(temp_dir)
+  type_keys('C', 'something_else.lua', '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  close()
+
+  local old_uri = make_test_lsp_uri('temp', file_name)
+  local new_uri = make_test_lsp_uri('temp', 'something_else.lua')
+  local ref_files = { { oldUri = old_uri, newUri = new_uri } }
+  validate_lsp_did('workspace/didRenameFiles', ref_files, { "require('something_else')" })
+end
+
+T['LSP']['works with `didRenameFiles` that applies workspace edit after confirmation'] = function()
+  child.lua([[
+    _G.did_callback = function(_, dispatchers)
+      local msg = 'Do you want to modify the require path?'
+      local show_msg_params = { type = 'info', message = msg, actions = { { title = 'Confirm' } } }
+      local selected = dispatchers.server_request('window/showMessageRequest', show_msg_params)
+      if selected.title ~= 'Confirm' then return end
+
+      local path = 'tests/dir-files/lsp-files/main.lua'
+      local uri = vim.uri_from_fname(vim.fn.fnamemodify(path, ':p'))
+      local edit_range = { start = { line = 0, character = 9 }, ['end'] = { line = 0, character = 18 } }
+      local text_edit = { range = edit_range, newText = 'something_else' }
+      dispatchers.server_request('workspace/applyEdit', { edit = { changes = { [uri] = { text_edit } } } })
+    end
+  ]])
+  setup_lsp()
+  local file_name = 'something.lua'
+  local temp_dir = make_temp_dir('temp', { file_name })
+
+  open(temp_dir)
+  type_keys('C', 'something_else.lua', '<Esc>')
+  mock_confirm(1)
+  -- NOTE: Neovim's implementation of 'window/showMessageRequest' seems to use
+  -- `vim.fn.inputlist` directly here instead of `vim.ui.select`
+  child.lua('vim.fn.inputlist = function() return 1 end')
+  synchronize()
+  close()
+
+  local old_uri = make_test_lsp_uri('temp', file_name)
+  local new_uri = make_test_lsp_uri('temp', 'something_else.lua')
+  local ref_files = { { oldUri = old_uri, newUri = new_uri } }
+  validate_lsp_did('workspace/didRenameFiles', ref_files, { "require('something_else')" })
+end
+
+T['LSP']['works with `didDeleteFiles`'] = function()
+  setup_lsp()
+  local file_name = 'something.lua'
+  local temp_dir = make_temp_dir('temp', { file_name })
+
+  open(temp_dir)
+  type_keys('dd')
+  mock_confirm(1)
+  synchronize()
+  close()
+
+  local uri = make_test_lsp_uri('temp', file_name)
+  validate_lsp_did('workspace/didDeleteFiles', { { uri = uri } })
+end
+
+T['LSP']['works with filters'] = function()
+  child.lua([[
+    _G.filter_configs = {
+      filters = {
+        { pattern = { matches = 'file', glob = '**/*.lua' }, scheme = 'file' },
+        { pattern = { matches = 'folder', glob = '**' }, scheme = 'file' },
+        { pattern = { matches = 'file', glob = '**/{aaa,bbb}' }, scheme = 'file' },
+        { pattern = { matches = 'file', glob = '**/C' }, scheme = 'file' },
+        { pattern = { matches = 'file', glob = '**/D', options = { ignoreCase = true } }, scheme = 'file' },
+      },
+    }
+  ]])
+  setup_lsp()
+  local temp_dir = make_temp_dir('temp', {})
+
+  local validate = function(file_name, should_match)
+    open(temp_dir)
+    type_keys('o', file_name, '<Esc>')
+    mock_confirm(1)
+    synchronize()
+    close()
+
+    local new_file_uri = make_test_lsp_uri('temp', file_name)
+    if file_name:match('/$') then new_file_uri = new_file_uri .. '/' end
+    local files = should_match and { { uri = new_file_uri } } or {}
+
+    eq(child.lua_get('_G.lsp_requests["file-methods-lsp"]'), { { 'workspace/willCreateFiles', { files = files } } })
+    child.lua('_G.lsp_requests = {}')
+  end
+
+  validate('something.lua', true)
+  validate('something.py', false)
+  validate('some_dir/', true)
+  validate('aaa', true)
+  validate('bbb', true)
+  validate('c', false)
+  validate('d', true)
+
+  if child.fn.has('fname_case') == 1 then
+    validate('BBB', false)
+    validate('D', true)
+  end
+end
+
+T['LSP']['correctly identifies "folder" type for filters'] = function()
+  child.lua([[
+    _G.filter_configs = { filters = { { pattern = { matches = 'folder', glob = '**' }, scheme = 'file' } } }
+  ]])
+  setup_lsp()
+  local temp_dir = make_temp_dir('temp', {})
+  local make_test_uri = function(name) return make_test_lsp_uri('temp', name) .. (vim.endswith(name, '/') and '/' or '') end
+
+  local validate = function(method, files)
+    local ref_lsp_requests = { { 'workspace/will' .. method .. 'Files', { files = files } } }
+    eq(child.lua_get('_G.lsp_requests["file-methods-lsp"]'), ref_lsp_requests)
+
+    local ref_lsp_notifications = { { 'workspace/did' .. method .. 'Files', { files = files } } }
+    eq(child.lua_get('_G.lsp_notifications["file-methods-lsp"]'), ref_lsp_notifications)
+
+    child.lua('_G.lsp_requests, _G.lsp_notifications = {}, {}')
+  end
+
+  open(temp_dir)
+
+  -- Create
+  type_keys('o', 'aaa/', '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  validate('Create', { { uri = make_test_uri('aaa/') } })
+
+  -- Rename
+  type_keys('C', 'bbb', '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  validate('Rename', { { oldUri = make_test_uri('aaa'), newUri = make_test_uri('bbb') } })
+
+  -- Delete
+  type_keys('dd')
+  mock_confirm(1)
+  synchronize()
+  validate('Delete', { { uri = make_test_uri('bbb') } })
+end
+
+T['LSP']['works with multiple language servers'] = function()
+  setup_lsp()
+
+  child.lua([[
+    _G.server_name = 'only-will-rename-lsp'
+    _G.file_operations_config = { willRename = { filters = { { pattern = { glob = '**' } } } } }
+  ]])
+  setup_lsp(true)
+
+  child.lua([[
+    _G.server_name = 'only-did-rename-lsp'
+    _G.file_operations_config = { didRename = { filters = { { pattern = { glob = '**' } } } } }
+  ]])
+  setup_lsp(true)
+  local file_name = 'something.lua'
+  local temp_dir = make_temp_dir('temp', { file_name })
+
+  open(temp_dir)
+  type_keys('C', 'something_else.lua', '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  close()
+
+  local old_uri = make_test_lsp_uri('temp', file_name)
+  local new_uri = make_test_lsp_uri('temp', 'something_else.lua')
+  local params = { files = { { oldUri = old_uri, newUri = new_uri } } }
+
+  eq(child.lua_get('_G.lsp_requests["file-methods-lsp"]'), { { 'workspace/willRenameFiles', params } })
+  eq(child.lua_get('_G.lsp_notifications["file-methods-lsp"]'), { { 'workspace/didRenameFiles', params } })
+
+  eq(child.lua_get('_G.lsp_requests["only-will-rename-lsp"]'), { { 'workspace/willRenameFiles', params } })
+  eq(child.lua_get('_G.lsp_notifications["only-will-rename-lsp"]'), vim.NIL)
+
+  eq(child.lua_get('_G.lsp_requests["only-did-rename-lsp"]'), vim.NIL)
+  eq(child.lua_get('_G.lsp_notifications["only-did-rename-lsp"]'), { { 'workspace/didRenameFiles', params } })
+end
+
+T['LSP']['respects `options.lsp_timeout`'] = function()
+  child.lua('MiniFiles.config.options.lsp_timeout = 0')
+  setup_lsp()
+  local temp_dir = make_temp_dir('temp', {})
+
+  open(temp_dir)
+  local file_name = 'something.lua'
+  type_keys('C', file_name, '<Esc>')
+  mock_confirm(1)
+  synchronize()
+  close()
+  eq(child.lua_get('_G.lsp_requests'), {})
+end
+
+T['Default explorer'] = new_set({
+  hooks = {
+    pre_case = function()
+      if child.fn.has('nvim-0.13') == 1 then
+        MiniTest.skip('Default explorer is being reworked on Nightly, so tests are not stable')
+      end
+    end,
+  },
+})
 
 T['Default explorer']['works on startup'] = function()
   vim.loop.os_setenv('USE_AS_DEFAULT_EXPLORER', 'true')
@@ -5732,7 +6314,9 @@ end
 T['Default explorer']['respects `options.use_as_default_explorer`'] = function()
   vim.loop.os_setenv('USE_AS_DEFAULT_EXPLORER', 'false')
   child.restart({ '-u', make_test_path('init-default-explorer.lua'), '--', test_dir_path })
-  eq(child.bo.filetype, 'netrw')
+
+  local directory_filetype = child.fn.has('nvim-0.13') == 0 and 'netrw' or 'directory'
+  eq(child.bo.filetype, directory_filetype)
 end
 
 T['Default explorer']['works in `:edit .`'] = function()
@@ -5769,15 +6353,121 @@ T['Default explorer']['works in `:tabfind .`'] = function()
 end
 
 T['Default explorer']['handles close without opening file'] = function()
-  child.cmd('wincmd v')
-  child.cmd('edit ' .. test_dir_path)
-  child.expect_screenshot()
+  child.lua([[
+    _G.log = {}
+    vim.api.nvim_create_autocmd('BufWinEnter', {
+      callback = function(data) table.insert(_G.log, data.buf) end,
+    })
+  ]])
 
-  -- Should close and smartly (preserving layout) delete "directory buffer"
-  close()
-  child.expect_screenshot()
-  eq(child.api.nvim_buf_get_name(0), '')
-  eq(#child.api.nvim_list_bufs(), 1)
+  local validate = function()
+    local buf_name = child.api.nvim_buf_get_name(0)
+    child.cmd('edit ' .. test_dir_path)
+    eq(is_explorer_active(), true)
+    child.lua('_G.log = {}')
+    close()
+    eq(is_explorer_active(), false)
+    eq(child.api.nvim_buf_get_name(0), buf_name)
+    eq(#child.api.nvim_list_bufs(), 1)
+
+    -- Expect `BufWinEnter` on the buffer replacing "directory buffer"
+    -- This is needed for 'mini.clue' to attach
+    eq(child.lua_get('_G.log'), { child.api.nvim_get_current_buf() })
+  end
+
+  -- Should delete "directory buffer" if there is no alternative buffer
+  validate()
+
+  -- Should smartly (preserving layout) delete "directory buffer"
+  local win_id_other = child.api.nvim_get_current_win()
+  child.cmd('wincmd v')
+  local win_id = child.api.nvim_get_current_win()
+  local buf_id = child.api.nvim_get_current_buf()
+
+  eq(child.fn.win_findbuf(buf_id), { win_id, win_id_other })
+  validate()
+  eq(child.fn.win_findbuf(buf_id), { win_id, win_id_other })
+end
+
+T['Default explorer']['handles forcing other window as current'] = function()
+  child.cmd('edit ' .. test_file_path)
+  local init_win_id = child.api.nvim_get_current_win()
+
+  child.cmd('edit ' .. test_dir_path)
+  expect.no_error(function() child.api.nvim_set_current_win(init_win_id) end)
+  eq(child.api.nvim_get_current_win(), init_win_id)
+end
+
+T['Default explorer']['keeps directory buffer open when number of windows decreases'] = function()
+  child.set_size(5, 90)
+  local validate = function(fn_str)
+    local test_path = make_test_path('nested')
+    child.cmd('edit ' .. test_path)
+    local dir_buf_id = child.fn.bufnr(test_path)
+
+    go_in()
+    go_in()
+    child.lua(fn_str)
+
+    -- Directory buffer should still present
+    eq(child.api.nvim_buf_is_valid(dir_buf_id), true)
+
+    -- Closing explorer should always wipeout directory buffer
+    close()
+    eq(child.api.nvim_buf_is_valid(dir_buf_id), false)
+  end
+
+  validate('MiniFiles.refresh({ windows = { max_number = 1 } })')
+  validate('MiniFiles.trim_left()')
+end
+
+T['Internal helpers'] = new_set()
+
+T['Internal helpers']['path normalization works'] = function()
+  child.lua([[
+    local name, helpers = debug.getupvalue(MiniFiles.open, 1)
+    if name ~= 'H' then error('Something went wrong when trying to get local `H` table') end
+    _G.fs_normalize_path = helpers.fs_normalize_path
+  ]])
+  local validate = function(path, ref) eq(child.lua_get('_G.fs_normalize_path(...)', { path }), ref) end
+
+  if helpers.is_windows() then
+    validate('C://dir//file/', 'C://dir/file')
+    validate([[C:\\dir\\file\]], 'C://dir/file')
+
+    -- Normalizing pure drive prefix as `C:/` while inside full path as `C://`
+    -- makes it aligned as `C:/` + `/` + <relative path>. It also fixes issues
+    -- with some system files (`C://swapfile.sys`) work only in the "double
+    -- slash" form. The `vim.uv.fs_stat('C:/swapfile.sys')` returns `nil`,
+    -- while `C://swapfile.sys` works.
+    validate('C:///', 'C:/')
+    validate('C://', 'C:/')
+    validate('C:/', 'C:/')
+    validate([[C:\\\]], 'C:/')
+    validate([[C:\\]], 'C:/')
+    validate([[C:\]], 'C:/')
+
+    validate('C:///file', 'C://file')
+    validate('C://file', 'C://file')
+    validate('C:/file', 'C://file')
+    validate([[C:\\\file]], 'C://file')
+    validate([[C:\\file]], 'C://file')
+    validate([[C:\file]], 'C://file')
+
+    -- UNC paths
+    validate('//?/wow', '//?/wow')
+    validate('//?/wow/', '//?/wow')
+    validate([[\\?\wow]], '//?/wow')
+    validate([[\\?\wow\]], '//?/wow')
+    validate('//server/share', '//server/share')
+    validate([[\server\share]], '/server/share')
+    validate([[\\system07\C$\]], '//system07/C$')
+    validate([[\\.\C:\Test\Foo.txt]], '//./C:/Test/Foo.txt')
+  else
+    validate('//many///slashes/', '/many/slashes')
+    validate('//', '/')
+    validate('/', '/')
+  end
 end
 
 return T

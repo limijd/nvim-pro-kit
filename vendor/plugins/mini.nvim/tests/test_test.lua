@@ -7,16 +7,11 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set, finally = MiniTest.new_set, MiniTest.finally
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('test', config) end
 local unload_module = function() child.mini_unload('test') end
 local set_cursor = function(...) return child.set_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
---stylua: ignore end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-local islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 local get_latest_message = function() return child.cmd_capture('1messages') end
 
@@ -51,6 +46,10 @@ local get_current_all_cases = function()
   })
 end
 
+local wait_till_not_executing = function()
+  child.lua('vim.wait(100000, function() return not MiniTest.is_executing() end, 20)')
+end
+
 local testrun_ref_file = function(name)
   local find_files_command = string.format([[_G.find_files = function() return { '%s' } end]], get_ref_path(name))
   child.lua(find_files_command)
@@ -65,6 +64,7 @@ local testrun_ref_file = function(name)
     }
   ]])
   child.lua([[MiniTest.run({ collect = { find_files = _G.find_files }, execute = { reporter = _G.report_in_log } })]])
+  wait_till_not_executing()
   return get_current_all_cases()
 end
 
@@ -83,6 +83,7 @@ end
 
 -- Time constants
 local terminal_wait = helpers.get_time_const(500)
+local wait_time = helpers.get_time_const(100)
 
 -- Output test set
 local T = new_set({
@@ -141,8 +142,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    local pattern = vim.pesc(name) .. '.*' .. vim.pesc(target_type)
-    expect.error(load_module, pattern, config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -256,6 +256,7 @@ T['run()']['tries to execute script if no arguments are supplied'] = function()
   validate()
 end
 
+--stylua: ignore
 T['run()']['handles `parametrize`'] = function()
   local res = testrun_ref_file('testref_run-parametrize.lua')
   eq(#res, 10)
@@ -273,12 +274,10 @@ T['run()']['handles `parametrize`'] = function()
   eq(short_res[5], { args = { 'b', 1 }, desc = { 'parametrize', 'nested', 'test' }, passed_args = '"b", 1' })
   eq(short_res[6], { args = { 'b', 2 }, desc = { 'parametrize', 'nested', 'test' }, passed_args = '"b", 2' })
 
-  --stylua: ignore start
   eq(short_res[7],  { args = { 'a', 'a', 1, 1 }, desc = { 'multiple args', 'nested', 'test' }, passed_args = '"a", "a", 1, 1' })
   eq(short_res[8],  { args = { 'a', 'a', 2, 2 }, desc = { 'multiple args', 'nested', 'test' }, passed_args = '"a", "a", 2, 2' })
   eq(short_res[9],  { args = { 'b', 'b', 1, 1 }, desc = { 'multiple args', 'nested', 'test' }, passed_args = '"b", "b", 1, 1' })
   eq(short_res[10], { args = { 'b', 'b', 2, 2 }, desc = { 'multiple args', 'nested', 'test' }, passed_args = '"b", "b", 2, 2' })
-  --stylua: ignore end
 end
 
 T['run()']['validates `parametrize`'] = function()
@@ -478,11 +477,8 @@ T['collect()'] = new_set()
 T['collect()']['works'] = function()
   child.lua('_G.cases = MiniTest.collect()')
 
-  -- TODO: Remove after compatibility with Neovim=0.9 is dropped
-  child.lua([[_G.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist]])
-
   -- Should return array of cases
-  eq(child.lua_get('_G.islist(_G.cases)'), true)
+  eq(child.lua_get('vim.islist(_G.cases)'), true)
 
   local keys = child.lua_get('vim.tbl_keys(_G.cases[1])')
   table.sort(keys)
@@ -637,6 +633,27 @@ T['execute()']['handles no cases'] = function()
   eq(get_latest_message(), '(mini.test) No cases to execute.')
 end
 
+T['execute()']['handles async-adjacent functions'] = function()
+  child.lua('_G.file_path = ' .. vim.inspect(get_ref_path('testref_asynclike.lua')))
+  child.lua('_G.wait_time = ' .. wait_time)
+  child.lua([[
+    local cases = MiniTest.collect({ find_files = function() return { _G.file_path } end })
+    _G.reporter_log = {}
+    local report_in_log = {
+      start = function() table.insert(_G.reporter_log, 'start') end,
+      update = function() table.insert(_G.reporter_log, 'update: ' .. MiniTest.current.case.exec.state) end,
+      finish = function() table.insert(_G.reporter_log, 'finish') end,
+    }
+    MiniTest.execute(cases, { reporter = report_in_log })
+  ]])
+  vim.loop.sleep(2 * wait_time)
+
+  -- Should execute all steps in order, despite of test case forces other
+  -- scheduled to be executed first
+  eq(child.lua_get('_G.reporter_log'), { 'start', 'update: Executing test', 'update: Fail', 'finish' })
+  eq(child.lua_get('#MiniTest.current.all_cases[1].exec.fails > 0'), true)
+end
+
 T['execute()']['respects `config.silent`'] = function()
   child.lua('MiniTest.config.silent = true')
   child.lua('MiniTest.execute({})')
@@ -704,52 +721,181 @@ end
 
 T['expect'] = new_set()
 
-T['expect']['equality()/no_equality()'] = new_set()
+local validate_fail_reason = function(expectation, reason, args)
+  table.insert(args, { fail_reason = reason })
+  local ok, err = pcall(expectation, unpack(args))
 
-T['expect']['equality()/no_equality()']['work when equal'] = function()
+  -- Should error with specific pattern
+  eq(ok, false)
+  if vim.is_callable(reason) then reason = reason() end
+  expect.match(err, vim.pesc(reason))
+
+  -- Should not show default "Failed expectation ..." text
+  expect.no_match(err, 'Failed expectation')
+end
+
+T['expect']['equality()'] = new_set()
+
+T['expect']['equality()']['works'] = function()
   local f, empty_tbl = function() end, {}
 
-  local validate = function(x, y)
-    expect.no_error(MiniTest.expect.equality, x, y)
-    expect.error(MiniTest.expect.no_equality, '%*no%* equality.*Object:', x, y)
+  -- Pass
+  local validate_pass = function(x, y) eq(MiniTest.expect.equality(x, y), true) end
+
+  validate_pass(1, 1)
+  validate_pass('a', 'a')
+  validate_pass(f, f)
+  validate_pass(empty_tbl, empty_tbl)
+
+  -- - Tables should be compared "deeply per elements"
+  validate_pass(empty_tbl, {})
+  validate_pass({ 1 }, { 1 })
+  validate_pass({ a = 1 }, { a = 1 })
+  validate_pass({ { b = 2 } }, { { b = 2 } })
+
+  -- Fail
+  local validate_fail = function(x, y)
+    expect.error(function() MiniTest.expect.equality(x, y) end, 'equality.*Left:  .*Right: ')
   end
 
-  validate(1, 1)
-  validate('a', 'a')
-  validate(f, f)
-  validate(empty_tbl, empty_tbl)
+  validate_fail(1, 2)
+  validate_fail(1, '1')
+  validate_fail('a', 'b')
+  validate_fail(f, function() end)
 
-  -- Tables should be compared "deeply per elements"
-  validate(empty_tbl, {})
-  validate({ 1 }, { 1 })
-  validate({ a = 1 }, { a = 1 })
-  validate({ { b = 2 } }, { { b = 2 } })
+  -- - Tables should be compared "deeply per elements"
+  validate_fail({ 1 }, { 2 })
+  validate_fail({ a = 1 }, { a = 2 })
+  validate_fail({ a = 1 }, { b = 1 })
+  validate_fail({ a = 1 }, { { a = 1 } })
+  validate_fail({ { b = 2 } }, { { b = 3 } })
+  validate_fail({ { b = 2 } }, { { c = 2 } })
 end
 
-T['expect']['equality()/no_equality()']['work when not equal'] = function()
-  local f = function() end
-  local validate = function(x, y)
-    expect.error(MiniTest.expect.equality, 'equality.*Left:  .*Right: ', x, y)
-    expect.no_error(MiniTest.expect.no_equality, x, y)
+T['expect']['equality()']['provides proper cause'] = function()
+  local validate = function(a, b, cause)
+    expect.error(function() MiniTest.expect.equality(a, b) end, 'Cause: ' .. vim.pesc(cause) .. '\n')
   end
 
-  validate(1, 2)
-  validate(1, '1')
-  validate('a', 'b')
-  validate(f, function() end)
+  -- Different types
+  validate({ 1 }, 1, 'different types')
+  validate({ 1 }, 'a', 'different types')
+  validate(1, nil, 'different types')
+  validate(nil, 1, 'different types')
 
-  -- Tables should be compared "deeply per elements"
-  validate({ 1 }, { 2 })
-  validate({ a = 1 }, { a = 2 })
-  validate({ a = 1 }, { b = 1 })
-  validate({ a = 1 }, { { a = 1 } })
-  validate({ { b = 2 } }, { { b = 3 } })
-  validate({ { b = 2 } }, { { c = 2 } })
+  -- Strings
+  validate('a', 'bc', 'different string length')
+  validate('a', 'ab', 'different string length')
+  validate('ab', 'abc', 'different string length')
+  validate('', 'a', 'different string length')
+
+  validate('a', 'b', 'different character at position 1, left = "a", right = "b"')
+  validate('aa', 'ab', 'different character at position 2, left = "a", right = "b"')
+  validate('aac', 'abc', 'different character at position 2, left = "a", right = "b"')
+  validate('aa', 'bb', 'different character at position 1, left = "a", right = "b"')
+  validate('aaaa', 'abba', 'different character at position 2, left = "a", right = "b"')
+
+  -- Tables
+  validate({ 1 }, {}, 'different values at key 1, left = 1, right = nil')
+  validate({}, { 1 }, 'different values at key 1, left = nil, right = 1')
+  validate({ a = 1 }, {}, 'different values at key "a", left = 1, right = nil')
+  validate({}, { a = 1 }, 'different values at key "a", left = nil, right = 1')
+  validate({ 1, 2 }, { 1 }, 'different values at key 2, left = 2, right = nil')
+  validate({ 1 }, { 1, 2 }, 'different values at key 2, left = nil, right = 2')
+  validate({ a = 1, b = 2 }, { a = 1 }, 'different values at key "b", left = 2, right = nil')
+  validate({ a = 1 }, { a = 1, b = 2 }, 'different values at key "b", left = nil, right = 2')
+
+  validate({ 1 }, { 2 }, 'different values at key 1, left = 1, right = 2')
+  validate({ a = 1 }, { a = 2 }, 'different values at key "a", left = 1, right = 2')
+  validate({ 1, 2 }, { 1, 3 }, 'different values at key 2, left = 2, right = 3')
+  validate({ a = 1, b = 2 }, { a = 1, b = 3 }, 'different values at key "b", left = 2, right = 3')
+
+  validate({ 1, a = 3 }, { 2, a = 3 }, 'different values at key 1, left = 1, right = 2')
+  validate({ 1, a = 3 }, { 1, a = 4 }, 'different values at key "a", left = 3, right = 4')
+
+  validate({ { 1 } }, { {} }, 'different values at key branch 1->1, left = 1, right = nil')
+  validate({ {} }, { { 1 } }, 'different values at key branch 1->1, left = nil, right = 1')
+  validate({ { a = 1 } }, { {} }, 'different values at key branch 1->"a", left = 1, right = nil')
+  validate({ {} }, { { a = 1 } }, 'different values at key branch 1->"a", left = nil, right = 1')
+  validate({ a = { 1 } }, { a = {} }, 'different values at key branch "a"->1, left = 1, right = nil')
+  validate({ a = {} }, { a = { 1 } }, 'different values at key branch "a"->1, left = nil, right = 1')
+  validate({ a = { b = 1 } }, { a = {} }, 'different values at key branch "a"->"b", left = 1, right = nil')
+  validate({ a = {} }, { a = { b = 1 } }, 'different values at key branch "a"->"b", left = nil, right = 1')
+
+  validate({ 1, { 2 } }, { 1, 2 }, 'different values at key 2, left = { 2 }, right = 2')
+  validate({ 1, 2 }, { 1, { 2 } }, 'different values at key 2, left = 2, right = { 2 }')
+  validate({ 1, { a = 1 } }, { 1, 2 }, 'different values at key 2, left = { a = 1 }, right = 2')
+  validate({ 1, 2 }, { 1, { a = 1 } }, 'different values at key 2, left = 2, right = { a = 1 }')
+
+  validate({ { { { 1 } } } }, { { { { 2 } } } }, 'different values at key branch 1->1->1->1, left = 1, right = 2')
+
+  validate({ { 1, 2 } }, { { 1, 3 } }, 'different values at key branch 1->2, left = 2, right = 3')
+  validate({ 1, { 2 } }, { 1, { 3 } }, 'different values at key branch 2->1, left = 2, right = 3')
+
+  --->Should prefer consistent/deterministic different key
+  validate({ 1, 2, 3 }, { 1, 3, 4 }, 'different values at key 2, left = 2, right = 3')
+  validate({ 1, { 2 }, 3 }, { 1, { 3 }, 4 }, 'different values at key branch 2->1, left = 2, right = 3')
+  validate({ a = 1, b = 2, c = 3 }, { a = 1, b = 3, c = 4 }, 'different values at key "b", left = 2, right = 3')
+  validate(
+    { a = 1, b = { 2 }, c = 3 },
+    { a = 1, b = { 3 }, c = 4 },
+    'different values at key branch "b"->1, left = 2, right = 3'
+  )
+  validate({ 1, a = 3 }, { 2, a = 4 }, 'different values at key 1, left = 1, right = 2')
+
+  -- Fallback response for other types
+  validate(false, true, 'different values')
+  validate(1, 2, 'different values')
+  -- - Can not compare functions other than by their id (always different)
+  validate(function() end, function() end, 'different values')
 end
 
-T['expect']['equality()/no_equality()']['return `true` on success'] = function()
-  eq(MiniTest.expect.equality(1, 1), true)
-  eq(MiniTest.expect.no_equality(1, 2), true)
+T['expect']['equality()']['respects `opts.fail_reason`'] = function()
+  validate_fail_reason(MiniTest.expect.equality, 'This is test 1', { 1, 2 })
+  validate_fail_reason(MiniTest.expect.equality, function() return 'This is test 2' end, { 2, 3 })
+end
+
+T['expect']['no_equality()'] = new_set()
+
+T['expect']['no_equality()']['works'] = function()
+  local f, empty_tbl = function() end, {}
+
+  -- Pass
+  local validate_pass = function(x, y) eq(MiniTest.expect.no_equality(x, y), true) end
+
+  validate_pass(1, 2)
+  validate_pass(1, '1')
+  validate_pass('a', 'b')
+  validate_pass(f, function() end)
+
+  -- - Tables should be compared "deeply per elements"
+  validate_pass({ 1 }, { 2 })
+  validate_pass({ a = 1 }, { a = 2 })
+  validate_pass({ a = 1 }, { b = 1 })
+  validate_pass({ a = 1 }, { { a = 1 } })
+  validate_pass({ { b = 2 } }, { { b = 3 } })
+  validate_pass({ { b = 2 } }, { { c = 2 } })
+
+  -- Fail
+  local validate_fail = function(x, y)
+    expect.error(function() MiniTest.expect.no_equality(x, y) end, '%*no%* equality.*Object:')
+  end
+
+  validate_fail(1, 1)
+  validate_fail('a', 'a')
+  validate_fail(f, f)
+  validate_fail(empty_tbl, empty_tbl)
+
+  -- - Tables should be compared "deeply per elements"
+  validate_fail(empty_tbl, {})
+  validate_fail({ 1 }, { 1 })
+  validate_fail({ a = 1 }, { a = 1 })
+  validate_fail({ { b = 2 } }, { { b = 2 } })
+end
+
+T['expect']['no_equality()']['respects `opts.fail_reason`'] = function()
+  validate_fail_reason(MiniTest.expect.no_equality, 'This is test 3', { 1, 1 })
+  validate_fail_reason(MiniTest.expect.no_equality, function() return 'This is test 4' end, { 2, 2 })
 end
 
 T['expect']['error()'] = new_set()
@@ -757,13 +903,13 @@ T['expect']['error()'] = new_set()
 T['expect']['error()']['works'] = function()
   expect.error(function()
     MiniTest.expect.error(function() end)
-  end, 'error%..*Observed no error')
+  end, 'error.*Observed no error')
 
   expect.error(function()
     MiniTest.expect.error(function() end, 'aa')
-  end, 'error matching pattern "aa"%..*Observed no error')
+  end, 'error matching pattern "aa".*Observed no error')
 
-  expect.error(function() MiniTest.expect.error(error, 'bb') end, 'error matching pattern "bb"%..*Observed error:')
+  expect.error(function() MiniTest.expect.error(error, 'bb') end, 'error matching pattern "bb".*Observed error:')
 end
 
 T['expect']['error()']['respects `pattern` argument'] = function()
@@ -775,40 +921,82 @@ T['expect']['error()']['respects `pattern` argument'] = function()
   expect.no_error(function() MiniTest.expect.error(error, nil) end)
 end
 
-T['expect']['error()']['accepts function arguments'] = function()
-  --stylua: ignore
+-- TODO: Remove after releasing 'mini.nvim' 0.18.0
+T['expect']['error()']['provides backward compatibility for vararg function arguments'] = function()
+  local notify_log = {}
+  local notify_orig = vim.notify
+  vim.notify = function(msg, level)
+    local level_name
+    for k, v in pairs(vim.log.levels) do
+      if v == level then level_name = k end
+    end
+    table.insert(notify_log, { msg, level_name })
+  end
+  MiniTest.finally(function() vim.notify = notify_orig end)
+
   local f = function(x, y)
     if x ~= y then error('`x` and `y` are not equal') end
   end
 
   expect.no_error(function() MiniTest.expect.error(f, 'not equal', 1, 2) end)
   expect.error(function() MiniTest.expect.error(f, 'not equal', 1, 1) end)
+
+  eq(#notify_log, 2)
 end
 
 T['expect']['error()']['returns `true` on success'] = function() eq(MiniTest.expect.error(error), true) end
 
+T['expect']['error()']['respects `opts.fail_reason`'] = function()
+  local f = function() return 1 end
+  validate_fail_reason(MiniTest.expect.error, 'This is test 1', { f, '' })
+  validate_fail_reason(MiniTest.expect.error, function() return 'This is test 2' end, { f, '' })
+
+  local g = function() error('xxx') end
+  validate_fail_reason(MiniTest.expect.error, 'This is test 3', { g, 'yyy' })
+  validate_fail_reason(MiniTest.expect.error, function() return 'This is test 4' end, { g, 'yyy' })
+end
+
 T['expect']['no_error()'] = new_set()
 
 T['expect']['no_error()']['works'] = function()
-  expect.error(function() MiniTest.expect.no_error(error) end, '%*no%* error%..*Observed error:')
+  expect.error(function() MiniTest.expect.no_error(error) end, '%*no%* error.*Observed error:')
 
   expect.no_error(function()
     MiniTest.expect.no_error(function() end)
   end)
 end
 
-T['expect']['no_error()']['accepts function arguments'] = function()
-  --stylua: ignore
+-- TODO: Remove after releasing 'mini.nvim' 0.18.0
+T['expect']['no_error()']['provides backward compatibility for vararg function arguments'] = function()
+  local notify_log = {}
+  local notify_orig = vim.notify
+  vim.notify = function(msg, level)
+    local level_name
+    for k, v in pairs(vim.log.levels) do
+      if v == level then level_name = k end
+    end
+    table.insert(notify_log, { msg, level_name })
+  end
+  MiniTest.finally(function() vim.notify = notify_orig end)
+
   local f = function(x, y)
     if x ~= y then error('`x` and `y` are not equal') end
   end
 
   expect.error(function() MiniTest.expect.no_error(f, 1, 2) end)
   expect.no_error(function() MiniTest.expect.no_error(f, 1, 1) end)
+
+  eq(#notify_log, 2)
 end
 
 T['expect']['no_error()']['returns `true` on success'] = function()
   eq(MiniTest.expect.no_error(function() end), true)
+end
+
+T['expect']['no_error()']['respects `opts.fail_reason`'] = function()
+  local f = function() error('Error msg') end
+  validate_fail_reason(MiniTest.expect.no_error, 'This is test 1', { f })
+  validate_fail_reason(MiniTest.expect.no_error, function() return 'This is test 2' end, { f })
 end
 
 T['expect']['reference_screenshot()'] = new_set()
@@ -830,6 +1018,17 @@ T['expect']['reference_screenshot()']['works'] = function()
   eq(MiniTest.expect.reference_screenshot(nil), true)
 end
 
+T['expect']['reference_screenshot()']['works with double width characters'] = function()
+  local path = get_ref_path('reference-screenshot-double-width')
+  child.set_size(5, 20)
+  set_lines({ '「」' })
+  eq(MiniTest.expect.reference_screenshot(child.get_screenshot(), path), true)
+
+  set_lines({ '「「' })
+  local pattern = 'different `text` cell at line 1 column 3, reference = "」", observed = "「"'
+  expect.error(function() MiniTest.expect.reference_screenshot(child.get_screenshot(), path) end, pattern)
+end
+
 T['expect']['reference_screenshot()']['locates problem'] = function()
   local path = get_ref_path('reference-screenshot')
   local validate = function(screen, pattern)
@@ -843,29 +1042,29 @@ T['expect']['reference_screenshot()']['locates problem'] = function()
   -- Number of lines
   local screen_text_lines = vim.deepcopy(screen)
   table.remove(screen_text_lines.text, 1)
-  validate(screen_text_lines, 'Different number of `text` lines%. Reference: 5%. Observed: 4%.')
+  validate(screen_text_lines, 'different number of `text` lines%, reference = 5, observed = 4')
 
   local screen_attr_lines = vim.deepcopy(screen)
   table.remove(screen_attr_lines.attr, 1)
-  validate(screen_attr_lines, 'Different number of `attr` lines%. Reference: 5%. Observed: 4%.')
+  validate(screen_attr_lines, 'different number of `attr` lines, reference = 5, observed = 4')
 
   -- Number of columns
   local screen_text_columns = vim.deepcopy(screen)
   table.remove(screen_text_columns.text[1], 1)
-  validate(screen_text_columns, 'Different number of columns in `text` line 1%. Reference: 12%. Observed: 11%.')
+  validate(screen_text_columns, 'different number of columns in `text` line 1%, reference = 12, observed = 11')
 
   local screen_attr_columns = vim.deepcopy(screen)
   table.remove(screen_attr_columns.attr[1], 1)
-  validate(screen_attr_columns, 'Different number of columns in `attr` line 1%. Reference: 12%. Observed: 11%.')
+  validate(screen_attr_columns, 'different number of columns in `attr` line 1%, reference = 12, observed = 11')
 
   -- Cells
   local screen_text_cell = vim.deepcopy(screen)
   screen_text_cell.text[1][2] = 'X'
-  validate(screen_text_cell, 'Different `text` cell at line 1 column 2%. Reference: "a"%. Observed: "X"%.')
+  validate(screen_text_cell, 'different `text` cell at line 1 column 2, reference = "a", observed = "X"')
 
   local screen_attr_cell = vim.deepcopy(screen)
   screen_attr_cell.attr[1][2] = 'X'
-  validate(screen_attr_cell, 'Different `attr` cell at line 1 column 2%. Reference: "0"%. Observed: "X"%.')
+  validate(screen_attr_cell, 'different `attr` cell at line 1 column 2, reference = "0", observed = "X"')
 end
 
 T['expect']['reference_screenshot()']['correctly infers reference path'] = function()
@@ -968,32 +1167,6 @@ T['expect']['reference_screenshot()']['respects `opts.force` argument'] = functi
   eq(MiniTest.current.case.exec.notes, notes)
 end
 
-T['expect']['reference_screenshot()']['respects `opts.ignore_lines`'] = function()
-  -- Do not show soft deprecation message
-  local notify_orig = vim.notify
-  vim.notify = function() end
-  MiniTest.finally(function() vim.notify = notify_orig end)
-
-  local path = get_ref_path('reference-screenshot')
-  child.set_size(5, 12)
-  local validate = function(ignore_lines, ref)
-    eq(MiniTest.expect.reference_screenshot(child.get_screenshot(), path, { ignore_lines = ignore_lines }), ref)
-  end
-
-  set_lines({ 'aaa' })
-  validate(nil, true)
-
-  set_lines({ 'aaa', 'bbb' })
-  validate({ 2 }, true)
-  validate({ 1, 2, 3 }, true)
-
-  set_lines({ 'ccc', 'bbb' })
-  expect.error(
-    function() MiniTest.expect.reference_screenshot(child.get_screenshot(), path, { ignore_lines = { 2 } }) end,
-    'screenshot equality to reference at ' .. vim.pesc(vim.inspect(path)) .. '.*Reference:.*Observed:'
-  )
-end
-
 T['expect']['reference_screenshot()']['respects `opts.ignore_text`'] = function()
   local path = get_ref_path('reference-screenshot')
   child.set_size(5, 12)
@@ -1018,7 +1191,7 @@ T['expect']['reference_screenshot()']['respects `opts.ignore_text`'] = function(
     function() MiniTest.expect.reference_screenshot(child.get_screenshot(), path, { ignore_text = { 2 } }) end,
     'screenshot equality to reference at '
       .. vim.pesc(vim.inspect(path))
-      .. '.*Different `text` cell at line 1 column 1%. Reference: "a"%. Observed: "c"%.'
+      .. '.*different `text` cell at line 1 column 1, reference = "a", observed = "c"'
   )
 end
 
@@ -1044,7 +1217,7 @@ T['expect']['reference_screenshot()']['respects `opts.ignore_attr`'] = function(
     function() MiniTest.expect.reference_screenshot(child.get_screenshot(), path, { ignore_text = { 2 } }) end,
     'screenshot equality to reference at '
       .. vim.pesc(vim.inspect(path))
-      .. '.*Different `attr` cell at line 1 column 2%. Reference: "0"%. Observed: "1"%.'
+      .. '.*different `attr` cell at line 1 column 2, reference = "0", observed = "1"'
   )
 end
 
@@ -1053,6 +1226,15 @@ T['expect']['reference_screenshot()']['respects `opts.directory`'] = function()
   set_lines({ 'opts.directory' })
   eq(MiniTest.expect.reference_screenshot(child.get_screenshot(), nil, { directory = 'tests/dir-test' }), true)
   eq(MiniTest.expect.reference_screenshot(child.get_screenshot(), nil, { directory = 'tests/dir-test/' }), true)
+end
+
+T['expect']['reference_screenshot()']['respects `opts.fail_reason`'] = function()
+  local path = get_ref_path('reference-screenshot')
+  child.set_size(5, 12)
+  set_lines({ 'bbb' })
+  local screen = child.get_screenshot()
+  validate_fail_reason(MiniTest.expect.reference_screenshot, 'This is test 1', { screen, path })
+  validate_fail_reason(MiniTest.expect.reference_screenshot, function() return 'This is test 2' end, { screen, path })
 end
 
 T['expect']['reference_screenshot()']['works with multibyte characters'] = function()
@@ -1070,8 +1252,8 @@ T['new_expectation()']['works'] = function()
     function(x) return 'Object: ' .. vim.inspect(x) end
   )
 
-  expect.error(expect_truthy, 'truthy%..*Object:', false)
-  expect.no_error(expect_truthy, 1)
+  expect.error(function() expect_truthy(false) end, 'truthy.*Object:')
+  expect.no_error(function() expect_truthy(1) end)
 end
 
 T['new_expectation()']['allows string or function arguments'] = function()
@@ -1081,8 +1263,8 @@ T['new_expectation()']['allows string or function arguments'] = function()
     'Not truthy'
   )
 
-  expect.error(expect_truthy, 'func_truthy%..*Not truthy', false)
-  expect.no_error(expect_truthy, 1)
+  expect.error(function() expect_truthy(false) end, 'func_truthy.*Not truthy')
+  expect.no_error(function() expect_truthy(1) end)
 end
 
 T['new_child_neovim()'] = new_set()
@@ -1194,8 +1376,9 @@ T['child']['redirected method tables'] = new_set({
     { 'hl', 'range', { 0, 1, 'Comment', { 0, 1 }, { 0, 2 } } },
     { 'json', 'encode', { { a = 1 } } },
     { 'loop', 'hrtime', {} },
-    { 'lsp', 'get_active_clients', {} },
+    { 'lsp', 'get_clients', {} },
     { 'mpack', 'encode', { { a = 1 } } },
+    --typos: ignore
     { 'spell', 'check', { 'thouht' } },
     { 'treesitter', 'get_parser', {} },
     { 'ui', 'select', {} },
@@ -1264,12 +1447,12 @@ end
 T['child']['type_keys()']['validates input'] = function()
   local pattern = 'type_keys.*string'
 
-  expect.error(child.type_keys, pattern, 'a', 1)
-  expect.error(child.type_keys, pattern, 'a', { 'a', 1 })
+  expect.error(function() child.type_keys('a', 1) end, pattern)
+  expect.error(function() child.type_keys('a', { 'a', 1 }) end, pattern)
 end
 
 T['child']['type_keys()']['throws error explicitly'] = function()
-  expect.error(child.type_keys, 'E492: Not an editor command: aaa', ':aaa<CR>')
+  expect.error(function() child.type_keys(':aaa<CR>') end, 'E492: Not an editor command: aaa')
 end
 
 T['child']['type_keys()']['respects `wait` argument'] = function()
@@ -1396,8 +1579,8 @@ T['child']['get_screenshot()']['works'] = function()
 
   -- Structure
   eq(type(screenshot), 'table')
-  eq(islist(screenshot.text), true)
-  eq(islist(screenshot.attr), true)
+  eq(vim.islist(screenshot.text), true)
+  eq(vim.islist(screenshot.attr), true)
 
   local n_lines, n_cols = child.o.lines, child.o.columns
 
@@ -1405,8 +1588,8 @@ T['child']['get_screenshot()']['works'] = function()
   eq(#screenshot.attr, n_lines)
 
   for i = 1, n_lines do
-    eq(islist(screenshot.text[i]), true)
-    eq(islist(screenshot.attr[i]), true)
+    eq(vim.islist(screenshot.text[i]), true)
+    eq(vim.islist(screenshot.attr[i]), true)
 
     eq(#screenshot.text[i], n_cols)
     eq(#screenshot.attr[i], n_cols)
@@ -1528,6 +1711,19 @@ T['gen_reporter']['buffer'] = new_set({
   },
 }, {
   test = function(opts_element)
+    local expect_screenshot = function()
+      -- Unify path separator for more robust testing. Rely on search and replace
+      -- to preserve extmark highlighting.
+      if package.config:sub(1, 1) == '\\' then
+        local cur_pos = child.api.nvim_win_get_cursor(0)
+        child.cmd([[silent! %s^\S\zs\\^/^g]])
+        child.cmd('silent! nohlsearch')
+        set_cursor(unpack(cur_pos))
+      end
+
+      child.expect_screenshot()
+    end
+
     -- Should respect non-empty 'winborder' while preferring explicitly
     -- configured value over it
     if vim.startswith(opts_element, 'window') then
@@ -1542,21 +1738,13 @@ T['gen_reporter']['buffer'] = new_set({
 
     local execute_command = string.format([[MiniTest.run_file('%s', { execute = { reporter = _G.reporter } })]], path)
     child.lua(execute_command)
+    wait_till_not_executing()
 
-    -- Unify path separator for more robust testing. Rely on search and replace
-    -- to preserve extmark highlighting.
-    if package.config:sub(1, 1) == '\\' then
-      local cur_pos = child.api.nvim_win_get_cursor(0)
-      child.cmd([[silent! %s^\S\zs\\^/^g]])
-      child.cmd('silent! nohlsearch')
-      set_cursor(unpack(cur_pos))
-    end
-
-    child.expect_screenshot()
+    expect_screenshot()
 
     -- Should be able to run several times
-    expect.no_error(child.lua, execute_command)
-    expect.no_error(child.lua, execute_command)
+    expect.no_error(function() child.lua(execute_command) end)
+    expect.no_error(function() child.lua(execute_command) end)
 
     -- Should use properly named buffer
     eq(child.api.nvim_buf_get_name(0), 'minitest://' .. child.api.nvim_get_current_buf() .. '/buffer-reporter')
@@ -1570,7 +1758,8 @@ T['gen_reporter']['buffer'] = new_set({
 
     child.o.winborder = '+,-,+,|,+,-,+,|'
     child.lua(execute_command)
-    child.expect_screenshot()
+    wait_till_not_executing()
+    expect_screenshot()
   end,
 })
 
@@ -1593,7 +1782,7 @@ T['gen_reporter']['stdout'] = new_set({
     child.fn.termopen(command)
     -- Wait until check is done and possible process is ended
     vim.loop.sleep(terminal_wait)
-    local ignore_attr = child.fn.has('nvim-0.11') == 1 and {} or { 31, 32, 34, 35 }
+    local ignore_attr = child.fn.has('nvim-0.11') == 1 and {} or { 31, 32, 33, 34, 35 }
     child.expect_screenshot({ ignore_attr = ignore_attr })
   end,
 })

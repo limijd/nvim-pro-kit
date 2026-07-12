@@ -5,16 +5,15 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('comment', config) end
 local unload_module = function() child.mini_unload('comment') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('comment', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
---stylua: ignore end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 
 -- Common helpers
 local reload_with_hooks = function()
@@ -31,11 +30,6 @@ local reload_with_hooks = function()
         post = function(...) table.insert(_G.hook_args, { 'post', vim.deepcopy({ ... }) }) end,
       },
     })]])
-end
-
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
 end
 
 -- Data =======================================================================
@@ -97,7 +91,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -140,16 +134,15 @@ T['toggle_lines()']['works'] = function()
   eq(get_lines(2, 5), { '  aa', '', '  aa' })
 end
 
+--stylua: ignore
 T['toggle_lines()']['validates arguments'] = function()
   set_lines({ 'aa', 'aa', 'aa' })
 
-  --stylua: ignore start
   expect.error(function() toggle_lines(-1, 1)    end, 'line_start.*1')
   expect.error(function() toggle_lines(100, 101) end, 'line_start.*3')
   expect.error(function() toggle_lines(1, -1)    end, 'line_end.*1')
   expect.error(function() toggle_lines(1, 100)   end, 'line_end.*3')
   expect.error(function() toggle_lines(2, 1)     end, 'line_start.*less than or equal.*line_end')
-  --stylua: ignore end
 end
 
 T['toggle_lines()']["works with different 'commentstring' options"] = function()
@@ -951,23 +944,30 @@ T['Textobject']['works'] = function()
 end
 
 T['Textobject']['does nothing when not inside textobject'] = function()
-  -- Builtin operators
-  type_keys('d', 'gc')
-  eq(get_lines(), example_lines)
+  local validate_no_action = function(lines, keys, pos)
+    set_lines(lines)
+    set_cursor(unpack(pos))
+    type_keys(keys, 'gc')
+    eq(get_lines(), lines)
+  end
+
+  -- Should not treat blank lines as part of textobject by default
+  local blanks_between_comments = { '# aa', '', '', '# aa' }
 
   -- Comment operator
   -- Main problem here at time of writing happened while calling `gc` on
   -- comment textobject when not on comment line. This sets `]` mark right to
   -- the left of `[` (but not when cursor in (1, 0)).
-  local validate_no_action = function(line, col)
-    set_lines(example_lines)
-    set_cursor(line, col)
-    type_keys('gc', 'gc')
-    eq(get_lines(), example_lines)
-  end
+  validate_no_action(example_lines, 'gc', { 1, 1 })
+  validate_no_action(example_lines, 'gc', { 2, 2 })
+  validate_no_action(blanks_between_comments, 'gc', { 2, 1 })
+  validate_no_action(blanks_between_comments, 'gc', { 3, 1 })
 
-  validate_no_action(1, 1)
-  validate_no_action(2, 2)
+  -- Builtin operators
+  validate_no_action(example_lines, 'd', { 1, 1 })
+  validate_no_action(example_lines, 'd', { 2, 2 })
+  validate_no_action(blanks_between_comments, 'd', { 2, 1 })
+  validate_no_action(blanks_between_comments, 'd', { 3, 1 })
 
   -- Doesn't work (but should) because both `[` and `]` are set to (1, 0)
   -- (instead of more reasonable (1, -1) or (0, 2147483647)).

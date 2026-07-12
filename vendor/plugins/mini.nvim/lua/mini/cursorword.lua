@@ -12,7 +12,7 @@
 --- - Highlighting stops in insert and terminal modes.
 ---
 --- - "Word under cursor" is meant as in Vim's |<cword>|: something user would
----   get as 'iw' text object.
+---   get as |iw| text object.
 ---
 --- # Setup ~
 ---
@@ -28,6 +28,7 @@
 --- `MiniCursorword.config`. See |mini.nvim-buffer-local-config| for more details.
 ---
 --- # Highlight groups ~
+--- *MiniCursorword-hl-groups*
 ---
 --- - `MiniCursorword` - highlight group of a non-current cursor word.
 ---   Default: plain underline.

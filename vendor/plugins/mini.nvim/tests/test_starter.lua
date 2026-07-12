@@ -8,15 +8,13 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('starter', config) end
 local unload_module = function() child.mini_unload('starter') end
-local reload_module = function(config) unload_module(); load_module(config) end
-local reload_from_strconfig = function(strconfig) unload_module(); child.mini_load_strconfig('starter', strconfig) end
+local reload_module = function(config) child.mini_reload('starter', config) end
+local reload_from_strconfig = function(strconfig) child.mini_reload_strconfig('starter', strconfig) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
---stylua: ignore end
 
 -- Make helpers
 local is_starter_shown = function() return child.bo.filetype == 'ministarter' end
@@ -139,7 +137,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1439,7 +1437,7 @@ T['Multiple buffers']['are allowed'] = function()
   eq(get_active_items_names(buf_id_1), { 'aaab', 'aaba' })
 
   -- It should open new Starter buffer while keeping previous one
-  child.cmd('tabe')
+  child.cmd('tabedit')
   validate_starter_shown()
   eq(child.api.nvim_buf_get_name(0), 'ministarter://' .. child.api.nvim_get_current_buf() .. '/welcome')
 

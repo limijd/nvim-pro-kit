@@ -6,7 +6,199 @@ There are following change types:
 - `Refine` - change in previously intended functionality *without* adding new one. This is usually described as a "breaking change", but used here in a sense that it might break user's expectations about existing functionality.
 - `Expand` - adding new functionality without affecting existing ones. This is essentially new features.
 
-# Version 0.17.0-dev
+# Version 0.19.0-dev
+
+## All
+
+### Refine
+
+- Stop official support of Neovim 0.9.
+
+## mini.ai
+
+### Evolve
+
+- Set `{}` as `config.custom_textobjects` default (instead of `nil`). This is more consistent with other modules and should not have visible side effects.
+
+## mini.surround
+
+### Evolve
+
+- Set `{}` as `config.custom_surroundings` default (instead of `nil`). This is more consistent with other modules and should not have visible side effects.
+
+
+# Version 0.18.0 (2026-06-21)
+
+## All
+
+### Evolve
+
+- Prefer using 'mini.input' functionality (if module is enabled) to get user input asynchronously. Affected modules:
+
+    - mini.ai
+    - mini.align
+    - mini.jump2d
+    - mini.pick
+    - mini.surround
+
+### Refine
+
+- Soft deprecate support for Neovim 0.9. It will be fully deprecated in next release.
+
+## mini.base16
+
+### Expand
+
+- Add new plugin integrations:
+    - 'folke/snacks.nvim'
+    - 'saghen/blink.cmp'
+
+## mini.clue
+
+### Expand
+
+- Allow mode arrays for clues and triggers for parity with `modes` parameter of `vim.keymap.set`. By @pkazmier, PR #2202.
+
+## mini.completion
+
+### Expand
+
+- Add support for executing `completionItem.command` in LSP completion.
+
+## mini.deps
+
+### Evolve
+
+- Development of 'mini.deps' is frozen in favor of suggesting to use [vim.pack](https://neovim.io/doc/user/helptag.html?tag=vim.pack). See ['mini.deps' README](readmes/mini-deps.md#development-freeze) for more details.
+
+## mini.extra
+
+### Expand
+
+- Add `pickers.manpages` picker.
+
+### Refine
+
+- Update `pickers.lsp` to highlight (if 'mini.icons' is enabled) workspace symbols after prepended position. This makes easier to quickly locate the symbol data.
+
+## mini.files
+
+### Evolve
+
+- Do not treat focus as lost if it has changed from the explorer during `vim.ui.select()` or `vim.ui.input()`. These functions are useful during text editing inside the explorer and are often reimplemented via a separate floating window and dedicated buffer (like in 'mini.pick').
+
+### Expand
+
+- Add LSP integration (on Neovim>=0.11), i.e. make some files system actions (create, delete, rename) LSP aware. The information is forwarded to all active LSP servers for them to perform additional actions (like update imports after renaming a file).
+
+    This also adds `config.options.lsp_timeout` to control or disable LSP integration.
+
+    By @TheLeoP, PR #2340.
+
+## mini.hipatterns
+
+### Evolve
+
+- Add `max_number` option to `gen_highlighter.hex_color()` and `compute_hex_color_group()`. It controls how many different highlight groups these functions are allowed to create. The default is 10000, which is useful to reasonably prevent reaching the maximum number of allowed highlight groups (19999), like when there are too many hex colors to show.
+
+## mini.hues
+
+### Expand
+
+- Add new plugin integrations:
+    - 'folke/snacks.nvim'
+    - 'saghen/blink.cmp'
+
+## mini.input
+
+- Introduction of a new module.
+
+## mini.jump
+
+### Evolve
+
+- Make dot-repeat behave exactly as in clean Neovim, i.e. make it less interfere with regular jumping. This allows doing something like `dte` -> `fx` -> `.` to perform `dte` again and not `dfx` (which is the latest regular jumping state). By @abeldekat, PR #2284.
+
+## mini.misc
+
+### Evolve
+
+- Update `setup_termbg_sync()` to use OSC 111 control sequence to reset terminal emulator's background color. This provides a more robust behavior across platforms (like `tmux`).
+
+    The previous "reset by explicitly setting initial background color" behavior is available by setting the new `opts.explicit_reset` option to `true`.
+
+### Expand
+
+- Add `safely()` to execute a function reporting its possible error as warning. It can also postpone execution until certain condition (like event, fixed delay, etc.).
+
+    It is intended to be a future replacement for `MiniDeps.now()` and `MiniDeps.later()`.
+
+## mini.pairs
+
+### Refine
+
+- Update neighborhood patterns for default mappings to work better with multibyte characters. Their meaning is the same, just the form is adjusted to be more versatile.
+
+## mini.pick
+
+### Expand
+
+- Allow `source.preview` to directly set another buffer into picker's main window. The recommended way is still to adjust the provided `buf_id` buffer, but there is now a workaround if this is not reasonably possible.
+
+- Allow `opts.preview_item` in `ui_select` to also return a dedicated data about preview. This preview interface for a general `vim.ui.select` implementation is added and documented in Neovim=0.12.3.
+
+- Describe alternative move keys (`<Down>`, `<Up>`, `<Home>`) as "hard-coded but overridable" (instead of a previous not very precise "non-overridable") and show them in the info view.
+
+- Update `ui_select` to wait until currently active picker is stopped before opening a new one. This behavior allows to call several `vim.ui.select()` in a row and is more aligned with how it is assumed to work.
+
+- Update `grep` and `grep_live` pickers to allow `method` local option which describes a pattern matching method (`'regex'` or `'plain'`). The `grep_live` picker also has custom `<C-e>` mapping to switch method.
+
+- Allow non-streaming paste from system clipboard when a picker is active. It will insert text at caret similar to built-in `paste` action.
+
+### Refine
+
+- Stop forcing redraw every `config.delay.async` milliseconds while the picker is active. It added visible CPU usage and code/test lines for its benefit (mostly to show "background" changes/notifications).
+
+    One side effect of this is that previews with an asynchronous highlighting (like after `vim.treesitter.start()`) might require extra care. There are built-in several (but limited) number of explicit `:redraw` with `config.delay.async` milliseconds apart. If that is not enough, make sure to explicitly redraw when needed.
+
+## mini.sessions
+
+### Expand
+
+- Add `restart()` function that restarts Neovim>=0.12 while preserving current session.
+
+## mini.surround
+
+### Expand
+
+- Create Visual and Operator-pending mode mappings for `find` and `find_left` actions.
+
+## mini.test
+
+### Refine
+
+- Update `expect.error` and `expect.no_error` to not accept extra arguments for tested function. It will mostly work until the next 'mini.nvim' release, but not after that.
+
+    Use them explicitly inside anonymous function: `expect.error(f, "", 1, 2)` -> `expect.error(function() f(1, 2) end, "")` and `expect.no_error(f, 1, 2)` -> `expect.no_error(function() f(1, 2) end)`.
+
+    Sorry for the inconvenience.
+
+- Update all built-in reporters (`gen_reporter.buffer` and `gen_reporter.stdout`) to first show all fails followed by all notes. This makes it easier to find failed cases when there are many notes (like from `MiniTest.skip()`).
+
+### Expand
+
+- Update all `MiniTest.expect` expectations to allow customization of failure reason instead of default "Failed expectation for ...". This also consistently introduces `opts` last argument.
+
+- Update `MiniTest.expect.equality` to show more detailed cause of failed equality. Like which character is different in two string or which values are different in two tables and at what key branch.
+
+## mini.visits
+
+### Refine
+
+- Update `add_label` and `remove_label` to use `vim.ui.input` to ask user for not supplied label instead of previous non-customizable `vim.fn.input()`.
+
+
+# Version 0.17.0 (2025-12-18)
 
 ## All
 
@@ -86,6 +278,10 @@ There are following change types:
 - Add `gen_clues.square_brackets` to generate clues for `[` and `]` keys. By @TheLeoP, PR #1937.
 
 - Ensure triggers for 'mini.starter' buffers, but not override its query updaters (like for "g" and "z" triggers).
+
+## mini.cmdline
+
+- Introduction of a new module.
 
 ## mini.diff
 
@@ -222,7 +418,7 @@ There are following change types:
 - Update `expect.reference_screenshot()` to support separate ignoring of text and attribute screenshot data via new `ignore_text` and `ignore_attr` options.
 
 
-# Version 0.16.0
+# Version 0.16.0 (2025-05-20)
 
 ## All
 
@@ -456,7 +652,7 @@ There are following change types:
 - Labels for quickfix and location lists are now different.
 
 
-# Version 0.15.0
+# Version 0.15.0 (2025-01-30)
 
 ## mini.align
 
@@ -560,7 +756,7 @@ There are following change types:
 - Update `expect.reference_screenshot()` to allow `directory` option pointing to a directory where automatically constructed reference path is located.
 
 
-# Version 0.14.0
+# Version 0.14.0 (2024-09-26)
 
 ## All
 
@@ -740,7 +936,7 @@ There are following change types:
 - Make it work on Windows. By @cameronr, PR #1101.
 
 
-# Version 0.13.0
+# Version 0.13.0 (2024-06-13)
 
 ## mini.comment
 
@@ -861,7 +1057,7 @@ There are following change types:
 - Child process is now created with extra `--headless --cmd "set lines=24 columns=80"` arguments making it headless but still reasonably similar to fully functioning Neovim during interactive usage. This change should generally not break a lot of things, while enabling a faster and more robust test execution.
 
 
-# Version 0.12.0
+# Version 0.12.0 (2024-02-29)
 
 ## mini.basics
 
@@ -965,7 +1161,7 @@ There are following change types:
 - Introduction of a new module.
 
 
-# Version 0.11.0
+# Version 0.11.0 (2023-11-17)
 
 ## mini.base16
 
@@ -1082,7 +1278,7 @@ There are following change types:
 - Update `expect.reference_screenshot()` to now have `ignore_lines` option allowing to ignore specified lines during screenshot compare.
 
 
-# Version 0.10.0
+# Version 0.10.0 (2023-09-05)
 
 ## mini.ai
 
@@ -1163,7 +1359,7 @@ There are following change types:
 - Update `add` (`sa`) with ability to replicate left and right parts by respecting `[count]`. In Normal mode two kinds of `[count]` is respected: one for operator (replicates left and right parts) and one for textobject/motion. In Visual mode `[count]` replicates parts.
 
 
-# Version 0.9.0
+# Version 0.9.0 (2023-06-08)
 
 ## All
 
@@ -1230,7 +1426,7 @@ There are following change types:
 - Introduction of a new module.
 
 
-# Version 0.8.0
+# Version 0.8.0 (2023-04-02)
 
 ## All
 
@@ -1318,7 +1514,7 @@ There are following change types:
     - Blockwise adding places surrounding parts on whole edges, not only start and end of selection.
 
 
-# Version 0.7.0
+# Version 0.7.0 (2023-02-12)
 
 ## All
 
@@ -1377,7 +1573,7 @@ There are following change types:
 - Introduction of a new module.
 
 
-# Version 0.6.0
+# Version 0.6.0 (2022-10-25)
 
 ## All
 
@@ -1454,7 +1650,7 @@ There are following change types:
 - Implement `MiniSurround.gen_spec` with generators of common surrounding specifications (like `MiniSurround.gen_spec.input.treesitter` for tree-sitter based input surrounding).
 
 
-# Version 0.5.0
+# Version 0.5.0 (2022-08-19)
 
 ## All
 
@@ -1521,7 +1717,7 @@ There are following change types:
 - Implement `MiniTrailspace.trim_last_lines()`.
 
 
-# Version 0.4.0
+# Version 0.4.0 (2022-05-26)
 
 ## All
 
@@ -1628,7 +1824,7 @@ There are following change types:
 - Show quickfix/loclist buffers with special `*quickfix*` label.
 
 
-# Version 0.3.0
+# Version 0.3.0 (2022-03-08)
 
 ## All
 
@@ -1661,7 +1857,7 @@ There are following change types:
 - Implement `MiniStarter.set_query()` and make `<Esc>` mapping for resetting query.
 
 
-# Version 0.2.0
+# Version 0.2.0 (2021-12-19)
 
 ## mini.base16
 
@@ -1710,7 +1906,7 @@ There are following change types:
 - Update `section_diagnostics` to use `vim.diagnostic` in Neovim 0.6.0.
 
 
-# Version 0.1.0
+# Version 0.1.0 (2021-10-31)
 
 ## All
 

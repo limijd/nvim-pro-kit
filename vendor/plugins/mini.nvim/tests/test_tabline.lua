@@ -5,12 +5,10 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('tabline', config) end
 local unload_module = function() child.mini_unload('tabline') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('tabline', config) end
 local set_lines = function(...) return child.set_lines(...) end
---stylua: ignore end
 
 -- Make helpers
 local mock_miniicons = function() child.lua('require("mini.icons").setup()') end
@@ -92,7 +90,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -218,7 +216,7 @@ T['make_tabline_string()']['shows only listed buffers'] = function()
   child.bo.buflisted = false
   eq(eval_tabline(), '')
 
-  child.cmd('tabe')
+  child.cmd('tabedit')
   child.bo.buflisted = false
   eq(eval_tabline(), ' Tab 2/2 ')
 end
@@ -356,20 +354,20 @@ T['make_tabline_string()']['deduplicates named labels'] = function()
   eq(eval_tabline(), ' dir1/aaa  dir2/aaa  dir1/dir_nested/aaa  dir2/dir_nested/aaa ')
 
   -- Should work for buffers without initial path
+  local expected = ' dir1/aaa  dir2/aaa  dir1/dir_nested/aaa  dir2/dir_nested/aaa '
   local buf_id = child.api.nvim_create_buf(true, false)
   child.api.nvim_buf_set_name(buf_id, 'aaa')
-  local cur_dir_basename = child.fn.fnamemodify(child.fn.getcwd(), ':t')
-  eq(
-    eval_tabline(),
-    (' dir1/aaa  dir2/aaa  dir1/dir_nested/aaa  dir2/dir_nested/aaa  %s/aaa '):format(cur_dir_basename)
-  )
+  -- Avoid truncation by ensuring that width is large enough to also hold part of cwd
+  expected = expected .. (' %s/aaa '):format(child.fn.fnamemodify(child.fn.getcwd(), ':t'))
+  child.o.columns = #expected
+  eq(eval_tabline(), expected)
 end
 
 T['make_tabline_string()']['deduplicates independent of current working directory'] = function()
   edit_path('dir1/aaa')
   edit_path('dir1/dir_nested/aaa')
 
-  child.cmd('cd tests/dir-tabline/dir1')
+  child.fn.chdir('tests/dir-tabline/dir1')
   eq(eval_tabline(), ' dir1/aaa  dir_nested/aaa ')
 end
 
@@ -613,7 +611,7 @@ T['make_tabline_string()']['can show truncation characters'] = function()
   child.bo.buflisted = false
   eq(eval_tabline(), '')
 
-  child.cmd('tabe')
+  child.cmd('tabedit')
   child.bo.buflisted = false
   eq(eval_tabline(), ' Tab 2/2 ')
 end

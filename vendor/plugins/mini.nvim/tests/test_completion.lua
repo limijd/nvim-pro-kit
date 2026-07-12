@@ -8,10 +8,9 @@ local eq_partial_tbl = helpers.expect.equality_partial_tbl
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('completion', config) end
 local unload_module = function() child.mini_unload('completion') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('completion', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
@@ -20,12 +19,7 @@ local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child, true) end
 local mock_lsp = function() child.cmd('luafile tests/mock-lsp/months.lua') end
 local new_buffer = function() child.api.nvim_set_current_buf(child.api.nvim_create_buf(true, false)) end
---stylua: ignore end
-
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 
 local mock_miniicons = function()
   child.lua([[
@@ -128,6 +122,17 @@ local validate_single_floating_win = function(opts)
   end
 end
 
+local validate_helper_buf = function(name_suffix)
+  -- Special helper buffer should be always present and work as expected
+  local helper_buf_id, ref_pattern = nil, '^minicompletion://%d+/' .. vim.pesc(name_suffix) .. '$'
+  for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+    if string.find(child.api.nvim_buf_get_name(buf_id), ref_pattern) then helper_buf_id = buf_id end
+  end
+  eq(type(helper_buf_id), 'number')
+  eq(child.api.nvim_get_option_value('modified', { buf = helper_buf_id }), false)
+  return helper_buf_id
+end
+
 -- Time constants
 local default_completion_delay, default_info_delay, default_signature_delay = 100, 100, 50
 local small_time = helpers.get_time_const(10)
@@ -198,7 +203,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1067,6 +1072,21 @@ T['Manual completion']['applies `additionalTextEdits` from "completionItem/resol
   eq(get_lines(), { 'January' })
 end
 
+T['Manual completion']['executes `command` from completion item'] = function()
+  if child.fn.has('nvim-0.11') == 0 then MiniTest.skip('`client:exec_cmd()` is available on Neovim>=0.11') end
+
+  local command = { command = 'add_import', arguments = { 'months' } }
+  mock_lsp_items({ { label = 'Hello', command = command } })
+
+  set_lines({})
+  type_keys('i', '<C-Space>')
+  child.lua('_G.params_log = {}')
+
+  type_keys('<C-n>', '<C-y>')
+  eq(get_lines(), { 'Hello' })
+  eq(child.lua_get('_G.params_log'), { { method = 'workspace/executeCommand', params = command } })
+end
+
 T['Manual completion']['prefers completion range from LSP response'] = function()
   set_lines({})
   type_keys('i', 'months.')
@@ -1345,6 +1365,12 @@ T['Information window']['works'] = function()
   -- Should show relevant content without delay upon revisit
   type_keys('<C-n>')
   child.expect_screenshot()
+
+  -- Should not contain artificially added fields in request parameters
+  local params_log = child.lua_get('_G.params_log')
+  for _, p in ipairs(params_log) do
+    if p.method == 'completionItem/resolve' then eq(p.params.client_id, nil) end
+  end
 end
 
 T['Information window']['works without attached LSP server'] = function()
@@ -1737,8 +1763,6 @@ T['Information window']['adjusts title'] = function()
 end
 
 T['Information window']['stylizes markdown with concealed characters'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Markdown highlighting is different on Neovim<0.10') end
-
   child.set_size(15, 45)
   type_keys('i', 'Jul', '<C-Space>')
   type_keys('<C-n>')
@@ -1748,7 +1772,6 @@ T['Information window']['stylizes markdown with concealed characters'] = functio
 end
 
 T['Information window']['uses `detail` to construct content'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Markdown highlighting is different on Neovim<0.10') end
   child.bo.filetype = 'lua'
 
   child.set_size(15, 45)
@@ -1767,8 +1790,6 @@ T['Information window']['uses `detail` to construct content'] = function()
 end
 
 T['Information window']['ignores data from first response if server can resolve completion item'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Markdown highlighting is different on Neovim<0.10') end
-
   child.set_size(10, 45)
   child.lua([[
     MiniCompletion.config.lsp_completion.process_items = function(items, base)
@@ -1875,6 +1896,32 @@ T['Information window']['handles outdated scheduled showing'] = function()
   eq(child.cmd_capture('messages'), '')
 end
 
+T['Information window']['handles deleting all buffers'] = function()
+  local validate = function()
+    new_buffer()
+    mock_lsp()
+    validate_info_win(default_info_delay)
+    local helper_buf_id = validate_helper_buf('item-info')
+
+    -- Should highlight with attached markdown tree-sitter parser
+    child.lua('_G.helper_buf_id = ' .. helper_buf_id)
+    eq(child.lua_get('vim.treesitter.get_parser(_G.helper_buf_id, "markdown") ~= nil', { helper_buf_id }), true)
+
+    child.ensure_normal_mode()
+    for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+      child.api.nvim_set_option_value('modified', false, { buf = buf_id })
+    end
+  end
+
+  validate()
+
+  child.cmd('%bwipeout')
+  validate()
+
+  child.cmd('%bdelete')
+  validate()
+end
+
 T['Information window']['respects `vim.{g,b}.minicompletion_disable`'] = new_set({
   parametrize = { { 'g' }, { 'b' } },
 }, {
@@ -1963,7 +2010,7 @@ T['Signature help']['updates highlighting of active parameter'] = function()
   type_keys('<Esc>')
   set_lines({ '' })
 
-  -- Should work when LSP server returns paramter label as string
+  -- Should work when LSP server returns parameter label as string
   type_keys('i', 'multiline(')
   sleep(default_signature_delay + small_time)
   child.expect_screenshot()
@@ -2118,7 +2165,7 @@ T['Signature help']['adjusts title'] = function()
 end
 
 T['Signature help']['stylizes markdown with concealed characters'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Lua highlighting is different on Neovim<0.10') end
+  if child.fn.has('nvim-0.12') == 0 then MiniTest.skip('Lua highlighting is different on Neovim<0.12') end
 
   child.set_size(10, 65)
   child.bo.filetype = 'lua'
@@ -2154,15 +2201,30 @@ T['Signature help']['is closed when forced outside of Insert mode'] = new_set(
   }
 )
 
-T['Signature help']['handles all buffer wipeout'] = function()
-  validate_signature_win(default_signature_delay)
-  child.ensure_normal_mode()
+T['Signature help']['handles deleting all buffers'] = function()
+  local validate = function()
+    new_buffer()
+    child.bo.filetype = 'aaa'
+    mock_lsp()
+    validate_signature_win(default_signature_delay)
+    local helper_buf_id = validate_helper_buf('signature-help')
 
-  child.cmd('%bw!')
-  new_buffer()
-  mock_lsp()
+    -- Should highlight with custom syntax
+    eq(child.api.nvim_get_option_value('syntax', { buf = helper_buf_id }), 'aaa')
 
-  validate_signature_win(default_signature_delay)
+    child.ensure_normal_mode()
+    for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+      child.api.nvim_set_option_value('modified', false, { buf = buf_id })
+    end
+  end
+
+  validate()
+
+  child.cmd('%bwipeout')
+  validate()
+
+  child.cmd('%bdelete')
+  validate()
 end
 
 T['Signature help']['respects `vim.{g,b}.minicompletion_disable`'] = new_set({
@@ -2211,8 +2273,6 @@ T['Scroll']['can be done in info window'] = function()
 end
 
 T['Scroll']['can be done in signature window'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip("'smoothscroll' requires Neovim>=0.10") end
-
   child.o.smoothscroll = true
   child.lua('MiniCompletion.config.window.signature.height = 4')
   child.lua('MiniCompletion.config.window.signature.width = 4')
@@ -2252,7 +2312,6 @@ T['Scroll']['can be done in both windows'] = function()
   type_keys('<C-b>')
   child.expect_screenshot()
 
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip("'smoothscroll' requires Neovim>=0.10") end
   type_keys('<C-e>')
   type_keys('<C-f>')
   child.expect_screenshot()
@@ -2392,7 +2451,7 @@ T['Snippets']['work'] = function()
   validate(items[7], { 'Snippet G', 'Multi', 'Line ' }, { 3, 5 })
 end
 
-T['Snippets']['are inserted after attempting to insert non-keyword charater'] = function()
+T['Snippets']['are inserted after attempting to insert non-keyword character'] = function()
   mock_lsp_snippets({ 'Snippet A $1' })
 
   local validate = function(non_keyword_char, ref_line, ref_cursor)
@@ -2432,11 +2491,6 @@ T['Snippets']['are inserted after attempting to insert non-keyword charater'] = 
 
   -- Should work when non-keyword char triggers Insert mode mapping that
   -- inserts more characters (like in 'mini.pairs')
-  if child.fn.has('nvim-0.10') == 0 then
-    -- This is probably due to some fixed issue with extmarks
-    MiniTest.skip('Non-keyword character that inserts multiple characters can be used only on Neovim>=0.10 ')
-  end
-
   child.cmd('inoremap ( (abc)<Left><Left><Left>')
   set_lines({ 'Before cursor  text after cursor' })
   set_cursor(1, 14)
@@ -2522,28 +2576,7 @@ T['Snippets']["can fall back if no 'mini.snippets' is enabled"] = function()
 
   mock_lsp_snippets({ 'Single line $1 snippet', 'Multi\nline $1\\tnsnippet' })
 
-  -- On Neovim<0.10 should insert snippet text as is and set cursor at its end
-  if child.fn.has('nvim-0.10') == 0 then
-    local validate = function(snippet, ref_lines, ref_cursor)
-      mock_lsp_snippets({ snippet })
-
-      type_keys('i', '  Text before ')
-      type_keys('<C-Space>', '<C-n>', '<C-y>')
-      eq(get_lines(), ref_lines)
-      eq(get_cursor(), ref_cursor)
-      eq(child.fn.mode(), 'i')
-
-      child.ensure_normal_mode()
-      set_lines({ '' })
-    end
-
-    validate('Single line $1 snippet', { '  Text before Single line $1 snippet' }, { 1, 36 })
-    validate('Multi\nline $1\nsnippet', { '  Text before Multi', 'line $1', 'snippet' }, { 3, 7 })
-
-    return
-  end
-
-  -- On Neovim>=0.10 should use `vim.snippet.expand`
+  -- Should fall back to `vim.snippet.expand`
   mock_lsp_snippets({ 'Multi\nline $1\nsnippet' })
   type_keys('i', '  Text before ')
   type_keys('<C-Space>', '<C-n>', '<C-y>')
@@ -2566,8 +2599,7 @@ T['Snippets']["respect 'mini.snippets' config"] = function()
   ]])
   mock_lsp_snippets({ 'Snippet_$1($0) $VAR' })
   type_keys('i', '<C-Space>', '<C-n>', '<C-y>')
-  -- NOTE: inline virtual text is supported on Neovim>=0.10
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
   eq(get_cursor(), { 1, 8 })
 
   type_keys('<Tab>')
@@ -2603,7 +2635,7 @@ end
 T['Snippets']['are not inserted if have no tabstops or variables'] = function()
   -- This allows inserting snippets "implicitly" after typing non-keyword
   -- character. Without this, LSP servers which report any inserted text as
-  -- snippet will "eat" the next typed non-keyword charater.
+  -- snippet will "eat" the next typed non-keyword character.
   -- Treating text as snippet if there is a variable is important for a snippet
   -- insert method to expand them.
 
@@ -2746,10 +2778,6 @@ T['Snippets']['can be inserted together with additional text edits'] = function(
 
   -- Additional text edits should be applied after removing inserted
   -- non-keyword characters used to accept completion item
-  if child.fn.has('nvim-0.10') == 0 then
-    -- This is probably due to some fixed issue with extmarks
-    MiniTest.skip('Non-keyword character that inserts multiple characters can be used only on Neovim>=0.10 ')
-  end
   items[1].additionalTextEdits[1].range = { start = { line = 0, character = 6 }, ['end'] = { line = 0, character = 6 } }
   mock_lsp_items(items)
   child.cmd('inoremap ( (abc)<Left><Left><Left>')
@@ -2761,8 +2789,6 @@ T['Snippets']['can be inserted together with additional text edits'] = function(
 end
 
 T['Snippets']['respect covering `textEdit` in candidate'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('This has problems on Neovim<0.10') end
-
   child.set_size(10, 25)
 
   local kind_snippet = child.lua_get('vim.lsp.protocol.CompletionItemKind.Snippet')
@@ -2859,7 +2885,7 @@ T['Snippets']["LSP server from 'mini.snippets'"]['works'] = function()
 
   type_keys('i', '<C-Space>', '<C-n>')
   sleep(default_info_delay + small_time)
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
 
   type_keys(' ')
   eq(get_lines(), { 'Snippet  aa' })

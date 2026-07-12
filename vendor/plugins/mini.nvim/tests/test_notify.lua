@@ -5,11 +5,10 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('notify', config) end
 local unload_module = function() child.mini_unload('notify') end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 
 -- Common test helpers
 local get_notif_win_id = function(tabpage_id)
@@ -25,11 +24,6 @@ end
 local is_notif_window_shown = function(tabpage_id) return get_notif_win_id(tabpage_id) ~= nil end
 
 -- Common test wrappers
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
 local get = forward_lua('MiniNotify.get')
 local get_all = forward_lua('MiniNotify.get_all')
 
@@ -127,7 +121,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -558,10 +552,8 @@ T['refresh()']['handles manual buffer/window delete'] = function()
 
   -- Buffer
   child.cmd('%bw')
-  eq(#child.api.nvim_list_bufs(), 1)
   eq(is_notif_window_shown(), false)
   refresh()
-  eq(#child.api.nvim_list_bufs(), 2)
   eq(is_notif_window_shown(), true)
 end
 
@@ -574,6 +566,35 @@ T['refresh()']['can be used inside fast event'] = function()
   ]])
   sleep(small_time + small_time)
   eq(child.cmd_capture('messages'), '')
+end
+
+T['refresh()']['can be used when editor is locked'] = function()
+  -- `:h :map-expression` lists things that are not allowed to be done when
+  -- the mapping is still active. Editing another buffer (like the one used by
+  -- 'mini.notify') is not allowed.
+  child.lua([[
+    local notif_id = MiniNotify.add("Hello")
+    local a = function()
+      MiniNotify.refresh()
+      MiniNotify.refresh()
+      return "2l"
+    end
+    vim.keymap.set('o', '<C-a>', a, { expr = true })
+
+    local r = function()
+      MiniNotify.remove(notif_id)
+      return "2h"
+    end
+    vim.keymap.set('n', '<C-r>', r, { expr = true })
+  ]])
+
+  child.type_keys('y<C-a>')
+  eq(child.cmd_capture('messages'), '')
+  eq(is_notif_window_shown(), true)
+
+  child.type_keys('<C-r>')
+  eq(child.cmd_capture('messages'), '')
+  eq(is_notif_window_shown(), false)
 end
 
 T['refresh()']['respects `vim.{g,b}.mininotify_disable`'] = new_set({ parametrize = { { 'g' }, { 'b' } } }, {
@@ -836,8 +857,15 @@ T['Window']['respects `window.config`'] = function()
     return { border = 'double', width = 25, height = 5, title = 'Custom title to check truncation' }
   end]])
   refresh()
-  -- NOTE: Neovim<0.10 has issues with displaying title in this case
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot()
+
+  -- Should properly truncate title
+  child.lua([[
+    local title = string.sub('abcdefgijklmnopqrstuvwxyzabcdefgijklmnopqrstuvwxyz', -vim.o.columns)
+    MiniNotify.config.window.config = { width = vim.o.columns, title = title }
+  ]])
+  refresh()
+  child.expect_screenshot()
 end
 
 T['Window']["respects 'winborder' option"] = function()
@@ -946,7 +974,7 @@ T['Window']['persists across tabpages'] = function()
   eq(is_notif_window_shown(init_tabpage_id), true)
 
   -- Window should appear only in current tabpage
-  child.cmd('tabe')
+  child.cmd('tabedit')
   local new_tabpage_id = child.api.nvim_get_current_tabpage()
   eq(is_notif_window_shown(init_tabpage_id), false)
   eq(is_notif_window_shown(new_tabpage_id), true)
@@ -1006,6 +1034,30 @@ T['Window']['handles width computation for empty lines inside notification buffe
   add('')
   add('')
   child.expect_screenshot()
+end
+
+T['Window']['handles deleting all buffers'] = function()
+  local validate = function(name_suffix)
+    add('Hello')
+
+    local helper_buf_id, ref_pattern = nil, '^mininotify://%d+/' .. vim.pesc(name_suffix) .. '$'
+    for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+      if string.find(child.api.nvim_buf_get_name(buf_id), ref_pattern) ~= nil then helper_buf_id = buf_id end
+    end
+    eq(type(helper_buf_id), 'number')
+    eq(child.api.nvim_get_option_value('modified', { buf = helper_buf_id }), false)
+  end
+
+  validate('content')
+  validate('textlock-check-scratch')
+
+  child.cmd('%bwipeout')
+  validate('content')
+  validate('textlock-check-scratch')
+
+  child.cmd('%bdelete')
+  validate('content')
+  validate('textlock-check-scratch')
 end
 
 T['LSP progress'] = new_set({
@@ -1131,10 +1183,6 @@ T['LSP progress']['respects `lsp_progress.duration_last`'] = function()
 end
 
 T['LSP progress']['reuses previous LSP handler'] = function()
-  -- Test only on Neovim>=0.10 as previously it was different event and
-  -- (possibly) different implementation (which makes mocking difficult).
-  -- But relevant event should still be triggered in Neovim<0.10.
-  if child.fn.has('nvim-0.10') == 0 then return end
   child.cmd('au LspProgress * lua _G.n_been_here = (_G.n_been_here or 0) + 1')
 
   local ctx = { bufnr = vim.api.nvim_get_current_buf(), client_id = child.lua_get('_G.fruits_lsp_client_id') }

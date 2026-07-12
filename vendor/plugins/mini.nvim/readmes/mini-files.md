@@ -32,7 +32,7 @@ https://github.com/nvim-mini/mini.nvim/assets/24854248/530483a5-fe9a-4e18-9813-a
 
 - Opt-in preview of file or directory under cursor.
 
-- Manipulate files and directories by editing text buffers: create, delete, copy, rename, move. See `:h MiniFiles-manipulation` for overview.
+- Manipulate files and directories by editing text buffers: create, delete, rename (all three are LSP aware), copy, move. See `:h MiniFiles-manipulation` for an overview.
 
 - Use as default file explorer instead of `netrw`.
 
@@ -102,59 +102,73 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+<summary><b>(Recommended)</b> With <a href="https://neovim.io/doc/user/helptag.html?tag=vim.pack">vim.pack</a> (on Neovim 0.12 and newer)</summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | *Follow recommended ‘mini.deps’ installation* |
-    | Stable | *Follow recommended ‘mini.deps’ installation* |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                                    |
-    |--------|-----------------------------------------------------------------|
-    | Main   | `add(‘nvim-mini/mini.files’)`                                   |
-    | Stable | `add({ source = ‘nvim-mini/mini.files’, checkout = ‘stable’ })` |
+Main branch:
+
+```lua
+vim.pack.add({ 'https://github.com/nvim-mini/mini.files' })
+```
+
+Stable branch:
+
+```lua
+vim.pack.add({
+  { src = 'https://github.com/nvim-mini/mini.files', version = 'stable' },
+})
+```
+
+</details>
+
+<details>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a> (before Neovim 0.12)</summary>
+
+**Full library**
+
+Follow [recommended 'mini.deps' installation](https://nvim-mini.org/mini.nvim/readmes/mini-deps#installation).
+
+**Standalone plugin**:
+
+Main branch:
+
+```lua
+add('nvim-mini/mini.files')
+```
+
+Stable branch:
+
+```lua
+add({ source = 'nvim-mini/mini.files', checkout = 'stable' })
+```
 
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                   |
-    |--------|------------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.files', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.files', version = '*' },`   |
+Main branch:
 
-</details>
+```lua
+{ 'nvim-mini/mini.files', version = false },
+```
 
-<details>
-<summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
+Stable branch:
 
-- 'mini.nvim' library:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
-    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
-
-- Standalone plugin:
-
-    | Branch | Code snippet                                          |
-    |--------|-------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.files'`                         |
-    | Stable | `Plug 'nvim-mini/mini.files', { 'branch': 'stable' }` |
+```lua
+{ 'nvim-mini/mini.files', version = '*' },
+```
 
 </details>
 
@@ -206,6 +220,8 @@ Here are code snippets for some common installation methods (use only one):
     permanent_delete = true,
     -- Whether to use for editing directories
     use_as_default_explorer = true,
+    -- Timeout for synchronous LSP integration requests
+    lsp_timeout = 1000,
   },
 
   -- Customization of explorer windows

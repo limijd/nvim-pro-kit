@@ -5,7 +5,6 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('extra', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
@@ -13,18 +12,9 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-local islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
-
--- Tweak `expect_screenshot()` to test only on Neovim>=0.10 (as it has floating
--- window footer). Use `child.expect_screenshot_orig()` for original testing.
-child.expect_screenshot_orig = child.expect_screenshot
-child.expect_screenshot = function(opts)
-  if child.fn.has('nvim-0.10') == 0 then return end
-  child.expect_screenshot_orig(opts)
-end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
+local validate_edit = function(...) return child.validate_edit(...) end
+local validate_edit1d = function(...) return child.validate_edit1d(...) end
 
 -- Test paths helpers
 local path_sep = package.config:sub(1, 1)
@@ -40,11 +30,6 @@ local make_testpath = function(...) return join_path(test_dir, ...) end
 local real_file = function(basename) return join_path(real_files_dir, basename) end
 
 -- Common test wrappers
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
 local forward_lua_notify = function(fun_str)
   local lua_cmd = fun_str .. '(...)'
   return function(...) return child.lua_notify(lua_cmd, { ... }) end
@@ -56,27 +41,12 @@ local get_picker_matches = forward_lua('MiniPick.get_picker_matches')
 local is_picker_active = forward_lua('MiniPick.is_picker_active')
 
 -- Common test helpers
-local validate_buf_name = function(buf_id, name)
+local validate_buf_name = function(buf_id, ref_name)
   buf_id = buf_id or child.api.nvim_get_current_buf()
-  name = name ~= '' and full_path(name) or ''
-  eq(child.api.nvim_buf_get_name(buf_id), name)
-end
-
-local validate_edit = function(lines_before, cursor_before, keys, lines_after, cursor_after)
-  child.ensure_normal_mode()
-  set_lines(lines_before)
-  set_cursor(cursor_before[1], cursor_before[2])
-
-  type_keys(keys)
-
-  eq(get_lines(), lines_after)
-  eq(get_cursor(), cursor_after)
-
-  child.ensure_normal_mode()
-end
-
-local validate_edit1d = function(line_before, col_before, keys, line_after, col_after)
-  validate_edit({ line_before }, { 1, col_before }, keys, { line_after }, { 1, col_after })
+  local name = child.api.nvim_buf_get_name(buf_id):gsub('\\', '/'):gsub('/+$', '')
+  ref_name = ref_name ~= '' and full_path(ref_name) or ''
+  ref_name = ref_name:gsub('\\', '/'):gsub('/+$', '')
+  eq(name, ref_name)
 end
 
 local validate_selection = function(selection_from, selection_to, visual_mode)
@@ -175,12 +145,6 @@ end
 local get_spawn_log = function() return child.lua_get('_G.spawn_log') end
 
 local clear_spawn_log = function() child.lua('_G.spawn_log = {}') end
-
-local validate_spawn_log = function(ref, index)
-  local present = get_spawn_log()
-  if type(index) == 'number' then present = present[index] end
-  eq(present, ref)
-end
 
 local get_process_log = function() return child.lua_get('_G.process_log') end
 
@@ -551,6 +515,11 @@ T['gen_ai_spec']['line()']['works as `a` textobject'] = function()
 
   -- Should work with dot-repeat
   validate_edit({ 'aa', 'bb' }, { 1, 0 }, { 'caL', 'xx', '<Esc>', 'j', '.' }, { 'xx', 'xx' }, { 2, 1 })
+
+  -- Should support `[count]`
+  local lines = { '  aa', 'bb', '  cc', 'dd' }
+  validate_edit(lines, { 1, 1 }, { 'c2aL', 'xx', '<Esc>' }, { 'xx', '  cc', 'dd' }, { 1, 1 })
+  validate_edit(lines, { 1, 1 }, { 'c2aL', 'xx', '<Esc>', 'j', '.' }, { 'xx', 'xx' }, { 2, 1 })
 end
 
 T['gen_ai_spec']['line()']['works as `i` textobject'] = function()
@@ -569,6 +538,11 @@ T['gen_ai_spec']['line()']['works as `i` textobject'] = function()
 
   -- Should work with dot-repeat
   validate_edit({ '  aa', '  bb' }, { 1, 0 }, { 'ciL', 'xx', '<Esc>', 'j', '.' }, { '  xx', '  xx' }, { 2, 3 })
+
+  -- Should support `[count]`
+  local lines = { '  aa', 'bb', '  cc', 'dd' }
+  validate_edit(lines, { 1, 1 }, { 'c2iL', 'xx', '<Esc>' }, { '  xx', '  cc', 'dd' }, { 1, 3 })
+  validate_edit(lines, { 1, 1 }, { 'c2iL', 'xx', '<Esc>', 'j', '.' }, { '  xx', '  xx' }, { 2, 3 })
 end
 
 T['gen_ai_spec']['number()'] = new_set()
@@ -1017,7 +991,7 @@ T['pickers']['colorschemes()']["can cancel with 'mini.colors'"] = function()
   -- Should trigger 'ColorScheme' event
   child.cmd('au ColorScheme * lua _G.n = (_G.n or 0) + 1')
   type_keys('<C-c>')
-  eq(child.lua_get('_G.n'), child.fn.has('nvim-0.10') == 1 and 1 or 2)
+  eq(child.lua_get('_G.n'), 1)
 
   eq(child.lua_get('_G.return_item'), vim.NIL)
   eq(child.g.colors_name, 'minischeme')
@@ -1126,6 +1100,13 @@ T['pickers']['commands()']['works'] = function()
 end
 
 T['pickers']['commands()']['respects user commands'] = function()
+  local expect_screenshot = function(...)
+    -- Screenshots are generated for Neovim>=0.13, since the output structure
+    -- of `nvim_get_commands()` has changed
+    if child.fn.has('nvim-0.13') == 0 then return end
+    child.expect_screenshot(...)
+  end
+
   child.set_size(25, 75)
   child.cmd('command -nargs=0 MyCommand lua _G.my_command = true')
   child.cmd('command -nargs=* -buffer MyCommandBuf lua _G.my_command_buf = true')
@@ -1137,9 +1118,9 @@ T['pickers']['commands()']['respects user commands'] = function()
 
   -- Should have proper preview with data
   type_keys('<Tab>')
-  child.expect_screenshot({ ignore_text = { 24 } })
+  expect_screenshot({ ignore_text = { 24 } })
   type_keys('<C-n>')
-  child.expect_screenshot({ ignore_text = { 24 } })
+  expect_screenshot({ ignore_text = { 24 } })
 
   -- Should on choose execute command if it is without arguments
   type_keys('<C-p>', '<CR>')
@@ -1488,7 +1469,7 @@ T['pickers']['explorer()']['respects `local_opts.sort`'] = function()
   -- Should be called with proper arguments
   local sort_log = child.lua_get('_G.sort_log')
   eq(#sort_log, 2)
-  eq(islist(sort_log[1]), true)
+  eq(vim.islist(sort_log[1]), true)
   eq(sort_log[1][1], { fs_type = 'directory', path = test_dir_absolute, text = '..' })
 end
 
@@ -1563,7 +1544,13 @@ T['pickers']['git_branches()']['works'] = function()
     { executable = 'git', options = { args = { '-C', repo_dir, 'log', 'main', '--format=format:%h %s' } } },
   })
   -- - It should properly close both stdout and stderr
-  eq(get_process_log(), { 'stdout_2 was closed.', 'stderr_1 was closed.', 'Process Pid_2 was closed.' })
+  --stylua: ignore
+  local ref_log = {
+    'stdout_2 finished reading.', 'stdout_2 was closed.',
+    'stderr_1 finished reading.', 'stderr_1 was closed.',
+    'Process Pid_2 was closed.',
+  }
+  eq(get_process_log(), ref_log)
 
   -- Should properly choose by showing history in the new scratch buffer
   child.lua([[_G.stream_type_queue = { 'stdout', 'stderr' }]])
@@ -1689,7 +1676,7 @@ T['pickers']['git_commits()']['works'] = function()
   child.lua([[
     vim.treesitter.get_parser = function(...)
       _G.ts_get_parser_args = { ... }
-      errror('No parser')
+      error('No parser')
     end
   ]])
 
@@ -1716,7 +1703,13 @@ T['pickers']['git_commits()']['works'] = function()
     { executable = 'git', options = { args = { '-C', repo_dir, '--no-pager', 'show', '1111111' } } },
   })
   -- - It should properly close both stdout and stderr
-  eq(get_process_log(), { 'stdout_2 was closed.', 'stderr_1 was closed.', 'Process Pid_2 was closed.' })
+  --stylua: ignore
+  local ref_log = {
+    'stdout_2 finished reading.', 'stdout_2 was closed.',
+    'stderr_1 finished reading.', 'stderr_1 was closed.',
+    'Process Pid_2 was closed.',
+  }
+  eq(get_process_log(), ref_log)
 
   -- Should properly choose by showing commit in the new scratch buffer
   child.lua([[_G.stream_type_queue = { 'stdout', 'stderr' }]])
@@ -1822,16 +1815,15 @@ T['pickers']['git_files()']['works'] = function()
   child.set_size(10, 50)
 
   local repo_dir = test_dir_absolute
-  child.fn.chdir(repo_dir)
+  child.fn.chdir(repo_dir .. '/git-files')
   mock_git_repo(repo_dir)
   mock_cli_return({ 'git-files/git-file-1', 'git-files/git-file-2' })
 
   child.lua_notify('_G.return_item = MiniExtra.pickers.git_files()')
   validate_picker_name('Git files (tracked)')
   child.expect_screenshot()
-  eq(get_spawn_log(), {
-    { executable = 'git', options = { args = { '-C', repo_dir, 'ls-files', '--cached' }, cwd = repo_dir } },
-  })
+  local ref_args = { '-C', repo_dir, '-c', 'core.quotepath=false', 'ls-files', '--cached', '--exclude-standard' }
+  eq(get_spawn_log(), { { executable = 'git', options = { args = ref_args, cwd = repo_dir } } })
 
   -- Should have proper preview
   type_keys('<Tab>')
@@ -1839,7 +1831,8 @@ T['pickers']['git_files()']['works'] = function()
 
   -- Should properly choose
   type_keys('<CR>')
-  validate_buf_name(0, join_path('git-files', 'git-file-1'))
+  validate_buf_name(0, join_path('git-file-1'))
+  eq(child.fn.getcwd():gsub('\\', '/'), repo_dir:gsub('\\', '/') .. '/git-files')
 
   -- Should return chosen value
   eq(child.lua_get('_G.return_item'), 'git-files/git-file-1')
@@ -1858,7 +1851,8 @@ T['pickers']['git_files()']['respects `local_opts.path`'] = function()
 
   local validate = function(path, ref_cwd)
     pick_git_files({ path = path })
-    eq(get_spawn_log()[1].options, { args = { '-C', ref_cwd, 'ls-files', '--cached' }, cwd = ref_cwd })
+    local ref_args = { '-C', ref_cwd, '-c', 'core.quotepath=false', 'ls-files', '--cached', '--exclude-standard' }
+    eq(get_spawn_log()[1].options, { args = ref_args, cwd = ref_cwd })
     validate_picker_cwd(ref_cwd)
     validate_git_repo_check(dir_path_full)
 
@@ -1874,9 +1868,9 @@ T['pickers']['git_files()']['respects `local_opts.path`'] = function()
   -- File path (should use its parent directory path)
   validate(join_path(dir_path, 'git-file-1'), dir_path_full)
 
-  -- By default should not use parent repo and use current directory instead
+  -- Default with different current directory should use repo dir
   child.fn.chdir(dir_path_full)
-  validate(nil, dir_path_full)
+  validate(nil, repo_dir)
 end
 
 T['pickers']['git_files()']['respects `local_opts.scope`'] = function()
@@ -1885,7 +1879,7 @@ T['pickers']['git_files()']['respects `local_opts.scope`'] = function()
 
   local validate = function(scope, flags, ref_picker_name)
     pick_git_files({ scope = scope })
-    local ref_args = { '-C', test_dir_absolute, 'ls-files' }
+    local ref_args = { '-C', test_dir_absolute, '-c', 'core.quotepath=false', 'ls-files' }
     vim.list_extend(ref_args, flags)
     eq(get_spawn_log()[1].options.args, ref_args)
     validate_picker_name(ref_picker_name)
@@ -1895,11 +1889,11 @@ T['pickers']['git_files()']['respects `local_opts.scope`'] = function()
     clear_spawn_log()
   end
 
-  validate('tracked', { '--cached' }, 'Git files (tracked)')
-  validate('modified', { '--modified' }, 'Git files (modified)')
-  validate('untracked', { '--others' }, 'Git files (untracked)')
+  validate('tracked', { '--cached', '--exclude-standard' }, 'Git files (tracked)')
+  validate('modified', { '--modified', '--exclude-standard' }, 'Git files (modified)')
+  validate('untracked', { '--others', '--exclude-standard' }, 'Git files (untracked)')
   validate('ignored', { '--others', '--ignored', '--exclude-standard' }, 'Git files (ignored)')
-  validate('deleted', { '--deleted' }, 'Git files (deleted)')
+  validate('deleted', { '--deleted', '--exclude-standard' }, 'Git files (deleted)')
 end
 
 T['pickers']['git_files()']['can not show icons'] = function()
@@ -1974,7 +1968,7 @@ T['pickers']['git_hunks()']['works'] = function()
   child.lua([[
     vim.treesitter.get_parser = function(...)
       _G.ts_get_parser_args = { ... }
-      errror('No parser')
+      error('No parser')
     end
   ]])
 
@@ -2510,6 +2504,18 @@ T['pickers']['history()']['has custom "edit_command" mapping'] = function()
   pick_history({ scope = '/' })
   type_keys('<C-e>')
   validate('/', 'bbb', false)
+
+  -- Should work with special characters in editeable history
+  type_keys(':', 'echo "<LT>BS>"', '<CR>')
+  pick_history({ scope = ':' })
+  type_keys('<C-e>')
+  validate(':', 'echo "<BS>"', false)
+
+  child.api.nvim_buf_set_lines(0, 0, -1, false, { '<BS>', '<BS>' })
+  type_keys('/', '<LT>BS>', '<CR>')
+  pick_history({ scope = '/' })
+  type_keys('<C-e>')
+  validate('/', '<BS>', false)
 end
 
 T['pickers']['hl_groups()'] = new_set()
@@ -2522,7 +2528,7 @@ T['pickers']['hl_groups()']['works'] = function()
   child.lua_notify('_G.return_item = MiniExtra.pickers.hl_groups()')
   validate_picker_name('Highlight groups')
   type_keys('^Spell')
-  child.expect_screenshot({ ignore_text = { 9 } })
+  child.expect_screenshot({ ignore_text = { 9 }, ignore_attr = { 9 } })
 
   -- Should use same group for line highlighting
   local matches = get_picker_matches().all
@@ -2535,7 +2541,7 @@ T['pickers']['hl_groups()']['works'] = function()
 
   -- Should have proper preview
   type_keys('<Tab>')
-  child.expect_screenshot({ ignore_text = { 9 } })
+  child.expect_screenshot({ ignore_text = { 9 }, ignore_attr = { 9 } })
 
   -- Should properly choose
   type_keys('<CR>')
@@ -2601,7 +2607,7 @@ local setup_keymaps = function()
 end
 
 T['pickers']['keymaps()']['works'] = function()
-  child.set_size(30, 80)
+  child.set_size(32, 80)
   setup_keymaps()
 
   child.lua_notify('_G.return_item = MiniExtra.pickers.keymaps()')
@@ -2610,7 +2616,7 @@ T['pickers']['keymaps()']['works'] = function()
 
   -- Should have proper preview
   type_keys('<Tab>')
-  child.expect_screenshot()
+  if child.fn.has('nvim-0.12.2') == 1 then child.expect_screenshot() end
 
   -- Should properly choose by executing LHS keys
   type_keys('<CR>')
@@ -2619,6 +2625,7 @@ T['pickers']['keymaps()']['works'] = function()
   -- Should return chosen value
   local ref_maparg = child.fn.maparg(' b', 'n', false, true)
   ref_maparg.lhs = child.api.nvim_replace_termcodes(ref_maparg.lhs, true, true, true)
+  ref_maparg.buf = child.fn.has('nvim-0.12.2') == 1 and 1 or nil
   eq(child.lua_get('_G.return_item'), {
     desc = '<Cmd>lua _G.res = "buf"<CR>',
     lhs = '<Space>b',
@@ -2936,6 +2943,7 @@ local validate_location_scope = function(scope)
     end_lnum = 3,
     end_col = 17,
     text = file_path:gsub('\\', '/') .. '│3│16│   x = math.max(a, 2),',
+    text_start_col = 45,
     user_data = {
       range = { start = { line = 2, character = 15 }, ['end'] = { line = 2, character = 16 } },
       uri = 'file://' .. (helpers.is_windows() and '/' or '') .. file_path_full:gsub('\\', '/'),
@@ -2944,7 +2952,6 @@ local validate_location_scope = function(scope)
   if child.fn.has('nvim-0.11') == 0 then
     ref_item.end_lnum, ref_item.end_col = nil, nil
   end
-  if child.fn.has('nvim-0.10') == 0 then ref_item.user_data = nil end
   eq(get_picker_items()[1], ref_item)
 
   -- Should properly choose by moving to the position
@@ -2959,21 +2966,23 @@ end
 
 local validate_symbol_scope = function(scope, skip_preview)
   local file_path, file_path_full = setup_lsp()
+  local is_workspace = vim.startswith(scope, 'workspace')
 
   mock_slash_path_sep()
   pick_lsp({ scope = scope })
   validate_picker_name('LSP (' .. scope .. ')')
   eq(child.lua_get('_G.lsp_requests'), { scope_to_request[scope] })
-  if scope == 'workspace_symbol' then eq(child.lua_get('_G.params.query'), '') end
+  if is_workspace then eq(child.lua_get('_G.params.query'), '') end
   child.expect_screenshot()
 
-  -- Should highlight some symbols
+  -- Should highlight symbols without prepended position
   local has_mini_icons = child.lua_get('_G.MiniIcons ~= nil')
+  local col = is_workspace and 44 or 0
   local ref_extmark_data = {
-    { hl_group = '@number', row = 0, col = 0 },
-    { hl_group = '@object', row = 1, col = 0 },
-    { hl_group = '@variable', row = 2, col = 0 },
-    { hl_group = '@variable', row = 3, col = 0 },
+    { hl_group = '@number', row = 0, col = col },
+    { hl_group = '@object', row = 1, col = col },
+    { hl_group = '@variable', row = 2, col = col },
+    { hl_group = '@variable', row = 3, col = col },
   }
   if has_mini_icons then
     ref_extmark_data[1].hl_group = 'MiniIconsOrange'
@@ -2991,7 +3000,7 @@ local validate_symbol_scope = function(scope, skip_preview)
   unmock_slash_path_sep()
 
   -- Should have proper items
-  local text_prefix = scope == 'workspace_symbol' and (file_path:gsub('\\', '/') .. '│1│7│ ') or ''
+  local text_prefix = is_workspace and (file_path:gsub('\\', '/') .. '│1│7│ ') or ''
   local kind_name = child.lua_get('vim.lsp.protocol.SymbolKind[16]')
   -- - Icon should be added only if it is not already assumed to be inside
   --   `SymbolKind` map (as after `MiniIcons.tweak_lsp_kind()`).
@@ -3006,6 +3015,7 @@ local validate_symbol_scope = function(scope, skip_preview)
     kind = 'Number',
     text = text_prefix .. '[' .. kind_name .. '] a',
     hl = ref_extmark_data[1].hl_group,
+    text_start_col = is_workspace and 44 or nil,
   }
   if child.fn.has('nvim-0.11') == 0 then
     ref_item.end_lnum, ref_item.end_col = nil, nil
@@ -3074,6 +3084,7 @@ T['pickers']['lsp()']['works for `references`'] = function()
     end_lnum = 3,
     end_col = 17,
     text = file_path:gsub('\\', '/') .. '│3│16│   x = math.max(a, 2),',
+    text_start_col = 45,
     user_data = {
       uri = 'file://' .. (helpers.is_windows() and '/' or '') .. file_path_full:gsub('\\', '/'),
       range = { start = { line = 2, character = 15 }, ['end'] = { line = 2, character = 16 } },
@@ -3082,7 +3093,6 @@ T['pickers']['lsp()']['works for `references`'] = function()
   if child.fn.has('nvim-0.11') == 0 then
     ref_item.end_lnum, ref_item.end_col = nil, nil
   end
-  if child.fn.has('nvim-0.10') == 0 then ref_item.user_data = nil end
   eq(get_picker_items()[2], ref_item)
 
   -- Should properly choose by moving to the position
@@ -3135,6 +3145,10 @@ T['pickers']['lsp()']['works for `workspace_symbol_live`'] = function()
   type_keys('x')
   validate(1, 'ax')
 
+  -- - Should preserve order of the returned symbols
+  local items = get_picker_items()
+  eq({ items[3].lnum, items[4].lnum }, { 4, 3 })
+
   -- Should not make request for empty query and show no items instead
   type_keys('<C-u>')
   validate(0, nil)
@@ -3166,6 +3180,166 @@ T['pickers']['lsp()']['validates arguments'] = function()
 
   validate({}, '`pickers%.lsp` needs an explicit scope')
   validate({ scope = '1' }, '`pickers%.lsp`.*"scope".*"1".*one of')
+end
+
+T['pickers']['manpages()'] = new_set({
+  hooks = {
+    pre_case = function()
+      -- Mock `vim.loop.spawn` for `MiniPick.builtin.cli()`
+      mock_spawn()
+
+      -- Mock `:Man` command for robust testing
+      child.lua([[
+        _G.man_cmd_log = {}
+        local callback = function(cmd_data)
+          table.insert(_G.man_cmd_log, cmd_data)
+
+          -- Mock opening a manpage buffer in the same window
+          local name, section = cmd_data.fargs[2], cmd_data.fargs[1]
+          local buf_name = string.format('man://%s(%s)', name, section)
+          -- table.insert(_G.man_cmd_log, buf_name)
+          vim.cmd('noautocmd edit! ' .. vim.fn.fnameescape(buf_name))
+
+          local lines = { string.format('%s (%s) - Manual Page', name, section) }
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+          vim.bo.modified = false
+
+          vim.bo.filetype = 'man'
+        end
+
+        local opts = { addr = 'other', bang = true, bar = true, nargs = '*', range = true }
+        vim.api.nvim_create_user_command('Man', callback, opts)
+      ]])
+    end,
+  },
+})
+
+local pick_manpages = forward_lua_notify('MiniExtra.pickers.manpages')
+
+local mock_man_list = function()
+  mock_cli_return({
+    -- "Regular" output
+    'st (1)               - simple terminal',
+    'IO::Socket::IP (3perl) - Family-neutral IP socket supporting both IPv4 and IPv6',
+
+    -- "Exotic" output (like Void Linux, OpenBSD)
+    -- - Several commands separated by comma
+    'alacritty, Alacritty (1) - A fast, cross-platform, OpenGL terminal emulator.',
+    -- - Several sections separated by comma
+    'afterstep_faq (1, 2)',
+    -- - No space before `(section)`
+    'alacritty-msg(1) - Send messages to Alacritty.',
+    -- - Unexpected characters in `(section)`
+    'amd64_iopl(2/amd64)',
+  })
+end
+
+T['pickers']['manpages()']['works'] = function()
+  child.set_size(20, 70)
+  mock_man_list()
+
+  -- Should compute items with `man -k .` system call
+  child.fn.setenv('PATH', '/home,/home/user')
+  child.fn.setenv('MANPATH', '/home,/home/manpage')
+  child.lua_notify('_G.return_item = MiniExtra.pickers.manpages()')
+  validate_picker_name('Manpages')
+  child.expect_screenshot()
+
+  local cwd = child.fn.getcwd()
+  local spawn_env = { 'MANWIDTH=999', 'PATH=/home,/home/user', 'MANPATH=/home,/home/manpage' }
+  eq(get_spawn_log(), { { executable = 'man', options = { args = { '-k', '.' }, cwd = cwd, env = spawn_env } } })
+  clear_spawn_log()
+  clear_process_log()
+
+  -- Should use `:Man` to preview and choose manpage
+  local preview_win_id = child.lua_get('MiniPick.get_picker_state().windows.main')
+
+  local buf_scope = child.fn.has('nvim-0.11') == 1 and 'local' or nil
+  local get_buf_option = function(buf_id, name)
+    return child.api.nvim_get_option_value(name, { scope = buf_scope, buf = buf_id })
+  end
+
+  local validate_preview = function(ref_man_args)
+    local man_cmd_log = child.lua_get('_G.man_cmd_log')
+    eq(#man_cmd_log, 1)
+    eq(man_cmd_log[1].args, ref_man_args)
+    eq(man_cmd_log[1].mods, 'hide')
+    child.lua('_G.man_cmd_log = {}')
+    child.lua('_G.log = {}')
+
+    -- Should force non-listed temporary buffer
+    local buf_id = child.api.nvim_win_get_buf(preview_win_id)
+    eq(get_buf_option(buf_id, 'buflisted'), false)
+    eq(get_buf_option(buf_id, 'bufhidden'), 'wipe')
+  end
+
+  type_keys('<Tab>')
+
+  -- - Should use syntax `man <section> <command>`
+  validate_preview('1 st')
+  child.expect_screenshot()
+
+  -- - Should extract valid section value (see `:Man man`)
+  type_keys('<C-n>')
+  validate_preview('3perl IO::Socket::IP')
+
+  -- - Should use first command if there are several
+  type_keys('<C-n>')
+  validate_preview('1 alacritty')
+
+  -- - Should use first section if there are several
+  type_keys('<C-n>')
+  validate_preview('1 afterstep_faq')
+
+  -- - Should handle no space before `(section)`
+  type_keys('<C-n>')
+  validate_preview('1 alacritty-msg')
+
+  -- - Should handle non-digits in `(section)`
+  type_keys('<C-n>')
+  validate_preview('2 amd64_iopl')
+
+  -- Should properly choose by showing manpage in target window (not split)
+  type_keys('<CR>')
+  child.expect_screenshot()
+  validate_buf_name(0, 'man://amd64_iopl(2)')
+  -- - Should not preserve `buflisted=false` from preview
+  eq(get_buf_option(0, 'buflisted'), true)
+
+  local man_cmd_log = child.lua_get('_G.man_cmd_log')
+  eq(#man_cmd_log, 1)
+  eq(man_cmd_log[1].args, '2 amd64_iopl')
+  eq(man_cmd_log[1].mods, 'hide')
+
+  -- Should return chosen value
+  eq(child.lua_get('_G.return_item'), 'amd64_iopl(2/amd64)')
+
+  -- Should work without set up 'mini.pick'
+  child.mini_unload('pick')
+  mock_man_list()
+  pick_manpages()
+  validate_active_picker()
+end
+
+T['pickers']['manpages()']['can choose in split'] = function()
+  mock_man_list()
+  pick_manpages()
+  type_keys('<C-v>')
+  child.expect_screenshot()
+end
+
+T['pickers']['manpages()']['respects `opts`'] = function()
+  pick_manpages({}, { source = { name = 'My name' } })
+  validate_picker_name('My name')
+end
+
+T['pickers']['manpages()']['respects global source options'] = function()
+  validate_global_source_options(pick_manpages, false, false)
+end
+
+T['pickers']['manpages()']['validates `:Man` dependency'] = function()
+  child.api.nvim_del_user_command('Man')
+  expect.error(function() child.lua('MiniExtra.pickers.manpages()') end, '`manpages` picker needs `:Man` command')
 end
 
 T['pickers']['marks()'] = new_set()
@@ -3344,12 +3518,14 @@ end
 
 T['pickers']['oldfiles()']['respects `local_opts.preserve_order`'] = function()
   child.lua('vim.fn.filereadable = function() return 1 end')
-  child.v.oldfiles = { 'axay', 'b', 'aaxy', 'ccc', 'xaa' }
+  local p = function(x) return full_path(make_testpath(x)) end
+
+  child.v.oldfiles = { p('auav'), p('b'), p('aauv'), p('ccc'), p('uaa') }
   pick_oldfiles({ preserve_order = true })
 
-  type_keys('x')
+  type_keys('u')
   eq(get_picker_matches().all_inds, { 1, 3, 5 })
-  type_keys('y')
+  type_keys('v')
   eq(get_picker_matches().all_inds, { 1, 3 })
 end
 
@@ -3463,11 +3639,10 @@ T['pickers']['options()']['respects `local_opts.scope`'] = function()
     if scope == 'all' then return stop_picker() end
 
     -- Validate proper set of options
-    local is_010 = child.fn.has('nvim-0.10') == 1 and child.fn.has('nvim-0.11') == 0
+    local is_010 = child.fn.has('nvim-0.11') == 0
     for _, item in ipairs(get_picker_items()) do
       -- Neovim=0.10 has `nvim_get_option_info2()` throwing error for options
       -- that are obsolete (like 'aleph').
-      -- It doesn't happen on Neovim=0.9 or Neovim>=0.11.
       local ok, item_info = pcall(child.api.nvim_get_option_info2, item.text, {})
       local item_scope = (not ok and is_010) and scope or item_info.scope
       eq(item_scope, scope)

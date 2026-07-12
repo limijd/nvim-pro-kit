@@ -12,17 +12,17 @@
 11|│  bang = false,                               │                           
 12|│  bar = false,                                │                           
 13|│  definition = "lua _G.my_command_buf = true",│                           
-14|│  keepscript = false,                         │                           
-15|│  name = "MyCommandBuf",                      │                           
-16|│  nargs = "*",                                │                           
-17|│  preview = false,                            │                           
+14|│  desc = "",                                  │                           
+15|│  keepscript = false,                         │                           
+16|│  name = "MyCommandBuf",                      │                           
+17|│  nargs = "*",                                │                           
 18|│  register = false,                           │                           
 19|│  script_id = -10                             │                           
 20|│}                                             │                           
 21|│                                              │                           
 22|│                                              │                           
 23|│                                              │                           
-24|└ Commands ─────────────────────────── 2|2|583 ┘                           
+24|└ Commands ─────────────────────────── 2|2|588 ┘                           
 25|                                                                           
 
 --|---------|---------|---------|---------|---------|---------|---------|-----

@@ -4,6 +4,18 @@ MIT License Copyright (c) 2024 Evgeni Chasnovski
 
 ------------------------------------------------------------------------------
                                                                       *MiniDeps*
+*MiniDeps-dev-freeze*
+As Neovim=0.12 introduced a built-in plugin manager |vim.pack| (which used this
+module as a design reference), development of |mini.deps| is frozen. It means:
+
+- On Neovim>=0.12 it is recommended to use |vim.pack| for plugin management
+  and |MiniMisc.safely()| as |MiniDeps.now()| and |MiniDeps.later()| alternative.
+  See https://echasnovski.com/vim-pack-guide for more details, including
+  recommendations about migration from |mini.deps|.
+
+- This module will remain a part of |mini.nvim| at least until Neovim=0.11 is
+  supported. It might receive critical fixes, but likely no new features.
+
 Features:
 
 - Manage plugins utilizing Git and built-in |packages| with these actions:
@@ -79,10 +91,11 @@ You can override runtime config settings locally to buffer inside
 
 - [junegunn/vim-plug](https://github.com/junegunn/vim-plug):
     - Written in Vimscript, while this module is in Lua.
-    - Similar approach to defining and installing plugins as 'savq/paq-nvim'.
+    - Similar approach to defining and installing plugins as `savq/paq-nvim`.
     - Has basic lazy-loading built-in, while this module does not (by design).
 
 # Highlight groups ~
+*MiniDeps-hl-groups*
 
 Highlight groups are used inside confirmation buffers after
 default |MiniDeps.update()| and |MiniDeps.clean()|.
@@ -207,7 +220,7 @@ To make it permanent, freeze plugin in target state manually.
 # Freeze ~
 
 Modify plugin's specification to have `checkout` pointing to a static
-target: tag, state (commit hash), or 'HEAD' (to freeze in current state).
+target: tag, state (commit hash), or `'HEAD'` (to freeze in current state).
 
 Frozen plugins will not receive updates. You can monitor any new changes from
 its source by "subscribing" to `monitor` branch which will be shown inside
@@ -536,7 +549,7 @@ Get session
 
 Plugin is registered in current session if it either:
 - Was added with |MiniDeps.add()| (preserving order of calls).
-- Is a "start" plugin and present in 'runtimpath'.
+- Is a "start" plugin and present in |'runtimepath'|.
 
 Return ~
 `(table)` Array with specifications of all plugins registered in

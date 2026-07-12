@@ -20,6 +20,7 @@
 ---     - [DanilaMihailov/beacon.nvim](https://github.com/DanilaMihailov/beacon.nvim)
 ---     - [folke/lazy.nvim](https://github.com/folke/lazy.nvim)
 ---     - [folke/noice.nvim](https://github.com/folke/noice.nvim)
+---     - [folke/snacks.nvim](https://github.com/folke/snacks.nvim)
 ---     - [folke/todo-comments.nvim](https://github.com/folke/todo-comments.nvim)
 ---     - [folke/trouble.nvim](https://github.com/folke/trouble.nvim)
 ---     - [folke/which-key.nvim](https://github.com/folke/which-key.nvim)
@@ -49,6 +50,7 @@
 ---     - [rcarriga/nvim-notify](https://github.com/rcarriga/nvim-notify)
 ---     - [rlane/pounce.nvim](https://github.com/rlane/pounce.nvim)
 ---     - [romgrk/barbar.nvim](https://github.com/romgrk/barbar.nvim)
+---     - [saghen/blink.cmp](https://github.com/saghen/blink.cmp)
 ---     - [stevearc/aerial.nvim](https://github.com/stevearc/aerial.nvim)
 ---     - [williamboman/mason.nvim](https://github.com/williamboman/mason.nvim)
 ---
@@ -99,7 +101,7 @@
 --- 2. Using `setup()` doesn't actually create a |:colorscheme|. It basically
 ---    creates a coordinated set of |highlight-groups|. To create your own theme:
 ---     - Put "myscheme.lua" file (name after your chosen theme name) inside
----       any "colors" directory reachable from 'runtimepath' ("colors" inside
+---       any "colors" directory reachable from |'runtimepath'| ("colors" inside
 ---       your Neovim config directory is usually enough).
 ---     - Inside "myscheme.lua" call `require('mini.base16').setup()` with your
 ---       palette and only after that set |g:colors_name| to "myscheme".
@@ -152,8 +154,8 @@ local H = {}
 --- good idea to have `config.palette` respect the original [styling
 --- principles](https://github.com/chriskempson/base16/blob/master/styling.md).
 ---
---- By default only 'gui highlighting' (see |highlight-gui| and
---- |'termguicolors'|) is supported. To support 'cterm highlighting' (see
+--- By default only "gui highlighting" (see |highlight-gui| and
+--- |'termguicolors'|) is supported. To support "cterm highlighting" (see
 --- |highlight-cterm|) supply `config.use_cterm` argument in one of the formats:
 --- - `true` to auto-generate from `palette` (as closest colors).
 --- - Table with similar structure to `palette` but having terminal colors
@@ -214,9 +216,9 @@ MiniBase16.config = {
 --minidoc_afterlines_end
 
 -- Module functionality =======================================================
---- Create 'mini' palette
+--- Create MINI Base16 palette
 ---
---- Create base16 palette based on the HEX (string '#RRGGBB') colors of main
+--- Create base16 palette based on the HEX (string `'#RRGGBB'`) colors of main
 --- background and foreground with optional setting of accent chroma (see
 --- details).
 ---
@@ -235,9 +237,9 @@ MiniBase16.config = {
 ---   lightness progresses from background towards focus.
 --- - Second four colors have the same chroma and hue as `foreground` but
 ---   lightness progresses from foreground towards edge in such a way that
----   'base05' color is main foreground color.
+---   `base05` color is main foreground color.
 --- - The rest eight colors are accent colors which are created in pairs
----     - Each pair has same hue from set of hues 'most different' to
+---     - Each pair has same hue from set of hues "most different" to
 ---       background and foreground hues (if respective chorma is positive).
 ---     - All colors have the same chroma equal to `accent_chroma` (if not
 ---       provided, chroma of foreground is used, as they will appear next
@@ -308,7 +310,7 @@ MiniBase16.mini_palette = function(background, foreground, accent_chroma)
   if fg.c > 0 then table.insert(present_hues, fg.h) end
   local hues = H.make_different_hues(present_hues, 4)
 
-  -- stylua: ignore start
+  --stylua: ignore start
   palette[9]  = { l = fg.l,    c = accent_chroma, h = hues[1] }
   palette[10] = { l = focus_l, c = accent_chroma, h = hues[1] }
   palette[11] = { l = focus_l, c = accent_chroma, h = hues[2] }
@@ -317,7 +319,7 @@ MiniBase16.mini_palette = function(background, foreground, accent_chroma)
   palette[14] = { l = fg.l,    c = accent_chroma, h = hues[3] }
   palette[15] = { l = fg.l,    c = accent_chroma, h = hues[4] }
   palette[16] = { l = focus_l, c = accent_chroma, h = hues[3] }
-  -- stylua: ignore end
+  --stylua: ignore end
 
   -- Convert to base16 palette
   local base16_palette = {}
@@ -463,7 +465,7 @@ H.apply_palette = function(palette, use_cterm)
   -- - Link all repeated groups within paragraph (lowers execution time).
   -- - Align by commas.
 
-  -- stylua: ignore start
+  --stylua: ignore start
   -- Builtin highlighting groups. Some groups which are missing in 'base16-vim'
   -- are added based on groups to which they are linked.
   hi('ColorColumn',    {fg=nil,      bg=p.base01, attr=nil,            sp=nil})
@@ -662,45 +664,30 @@ H.apply_palette = function(palette, use_cterm)
   hi('markdownH5', {fg=p.base0D, bg=nil, attr=nil, sp=nil})
   hi('markdownH6', {fg=p.base0F, bg=nil, attr=nil, sp=nil})
 
-  -- Tree-sitter
-  -- Sources:
-  -- - `:h treesitter-highlight-groups`
-  -- - https://github.com/nvim-treesitter/nvim-treesitter/blob/master/CONTRIBUTING.md#highlights
-  -- Included only those differing from default links
+  -- Tree-sitter. Source: `:h treesitter-highlight-groups`.
   hi('@keyword.return', {fg=p.base08, bg=nil, attr=nil, sp=nil})
-  hi('@symbol',         {fg=p.base0E, bg=nil, attr=nil, sp=nil})
   hi('@variable',       {fg=p.base05, bg=nil, attr=nil, sp=nil})
 
-  hi('@text.strong',    {fg=nil, bg=nil, attr='bold',          sp=nil})
-  hi('@text.emphasis',  {fg=nil, bg=nil, attr='italic',        sp=nil})
-  hi('@text.strike',    {fg=nil, bg=nil, attr='strikethrough', sp=nil})
-  hi('@text.underline', {link='Underlined'})
+  hi('@markup.strong',        {fg=nil, bg=nil, attr='bold',          sp=nil})
+  hi('@markup.italic',        {fg=nil, bg=nil, attr='italic',        sp=nil})
+  hi('@markup.strikethrough', {fg=nil, bg=nil, attr='strikethrough', sp=nil})
+  hi('@markup.underline',     {link='Underlined'})
+
+  hi('@markup.heading.1', {link='markdownH1'})
+  hi('@markup.heading.2', {link='markdownH2'})
+  hi('@markup.heading.3', {link='markdownH3'})
+  hi('@markup.heading.4', {link='markdownH4'})
+  hi('@markup.heading.5', {link='markdownH5'})
+  hi('@markup.heading.6', {link='markdownH6'})
+
+  hi('@string.special.vimdoc',     {link='SpecialChar'})
+  hi('@variable.parameter.vimdoc', {fg=p.base09, bg=nil, attr=nil, sp=nil})
+  hi('@markup.heading.4.vimdoc',   {link='Title'})
 
   -- Semantic tokens. Source: `:h lsp-semantic-highlight`.
   -- Included only those differing from default links
   hi('@lsp.type.variable',  {fg=p.base05, bg=nil, attr=nil, sp=nil})
   hi('@lsp.mod.deprecated', {fg=p.base08, bg=nil, attr=nil, sp=nil})
-
-  -- New tree-sitter groups
-  if vim.fn.has('nvim-0.10') == 1 then
-    -- Source: `:h treesitter-highlight-groups`
-    -- Included only those differing from default links
-    hi('@markup.strong',        {link='@text.strong'})
-    hi('@markup.italic',        {link='@text.emphasis'})
-    hi('@markup.strikethrough', {link='@text.strike'})
-    hi('@markup.underline',     {link='@text.underline'})
-
-    hi('@markup.heading.1', {link='markdownH1'})
-    hi('@markup.heading.2', {link='markdownH2'})
-    hi('@markup.heading.3', {link='markdownH3'})
-    hi('@markup.heading.4', {link='markdownH4'})
-    hi('@markup.heading.5', {link='markdownH5'})
-    hi('@markup.heading.6', {link='markdownH6'})
-
-    hi('@string.special.vimdoc',     {link='SpecialChar'})
-    hi('@variable.parameter.vimdoc', {fg=p.base09, bg=nil, attr=nil, sp=nil})
-    hi('@markup.heading.4.vimdoc',   {link='Title'})
-  end
 
   -- Plugins
   -- nvim-mini/mini.nvim
@@ -716,6 +703,13 @@ H.apply_palette = function(palette, use_cterm)
     hi('MiniClueNextKeyWithPostkeys', {link='DiagnosticFloatingError'})
     hi('MiniClueSeparator',           {link='DiagnosticFloatingInfo'})
     hi('MiniClueTitle',               {fg=p.base0D, bg=p.base01, attr='bold', sp=nil})
+
+    hi('MiniCmdlinePeekBorder', {link='FloatBorder'})
+    hi('MiniCmdlinePeekLineNr', {link='DiagnosticSignWarn'})
+    hi('MiniCmdlinePeekNormal', {link='NormalFloat'})
+    hi('MiniCmdlinePeekSep',    {link='SignColumn'})
+    hi('MiniCmdlinePeekSign',   {link='DiagnosticSignHint'})
+    hi('MiniCmdlinePeekTitle',  {fg=p.base0D, bg=p.base01, attr='bold', sp=nil})
 
     hi('MiniCompletionActiveParameter',    {link='LspSignatureActiveParameter'})
     hi('MiniCompletionDeprecated',         {link='DiagnosticDeprecated'})
@@ -771,6 +765,15 @@ H.apply_palette = function(palette, use_cterm)
 
     hi('MiniIndentscopeSymbol',    {fg=p.base0F, bg=nil, attr=nil, sp=nil})
     hi('MiniIndentscopeSymbolOff', {fg=p.base08, bg=nil, attr=nil, sp=nil})
+
+    hi('MiniInputAdded',   {link='DiagnosticFloatingOk'})
+    hi('MiniInputBorder',  {link='FloatBorder'})
+    hi('MiniInputCaret',   {link='MiniInputPrompt'})
+    hi('MiniInputHide',    {link='DiagnosticFloatingWarn'})
+    hi('MiniInputHint',    {link='DiagnosticFloatingHint'})
+    hi('MiniInputNormal',  {link='NormalFloat'})
+    hi('MiniInputPrompt',  {link='DiagnosticFloatingInfo'})
+    hi('MiniInputSpecial', {link='DiagnosticFloatingWarn'})
 
     hi('MiniJump', {link='SpellRare'})
 
@@ -887,9 +890,14 @@ H.apply_palette = function(palette, use_cterm)
   end
 
   if H.has_integration('folke/noice.nvim') then
+    --typos: ignore
     hi('NoiceCmdlinePopupBorder', {fg=p.base0D, bg=nil, attr=nil, sp=nil})
+    --typos: ignore
     hi('NoiceConfirmBorder',      {fg=p.base0E, bg=nil, attr=nil, sp=nil})
   end
+
+  -- folke/snacks.nvim
+  -- Everything works correctly out of the box
 
   -- folke/trouble.nvim
   if H.has_integration('folke/trouble.nvim') then
@@ -985,6 +993,7 @@ H.apply_palette = function(palette, use_cterm)
     hi('LSOutlinePreviewBorder', {fg=p.base0F, bg=nil, attr=nil, sp=nil})
     hi('OutlineDetail',          {fg=p.base03, bg=nil, attr=nil, sp=nil})
     hi('OutlineFoldPrefix',      {fg=p.base08, bg=nil, attr=nil, sp=nil})
+    --typos: ignore
     hi('OutlineIndentEvn',       {fg=p.base04, bg=nil, attr=nil, sp=nil})
     hi('OutlineIndentOdd',       {fg=p.base05, bg=nil, attr=nil, sp=nil})
   end
@@ -1317,6 +1326,37 @@ H.apply_palette = function(palette, use_cterm)
     hi('BufferVisibleTarget', {fg=p.base0E, bg=p.base01, attr='bold', sp=nil})
   end
 
+  if H.has_integration('saghen/blink.cmp') then
+    hi('BlinkCmpLabelDeprecated', {fg=p.base03, bg=nil, attr=nil,    sp=nil})
+    hi('BlinkCmpLabelMatch',      {fg=p.base0A, bg=nil, attr='bold', sp=nil})
+
+    hi('BlinkCmpKindClass',         {link='Type'})
+    hi('BlinkCmpKindColor',         {link='Special'})
+    hi('BlinkCmpKindConstant',      {link='Constant'})
+    hi('BlinkCmpKindConstructor',   {link='Type'})
+    hi('BlinkCmpKindEnum',          {link='Structure'})
+    hi('BlinkCmpKindEnumMember',    {link='Structure'})
+    hi('BlinkCmpKindEvent',         {link='Exception'})
+    hi('BlinkCmpKindField',         {link='Structure'})
+    hi('BlinkCmpKindFile',          {link='Tag'})
+    hi('BlinkCmpKindFolder',        {link='Directory'})
+    hi('BlinkCmpKindFunction',      {link='Function'})
+    hi('BlinkCmpKindInterface',     {link='Structure'})
+    hi('BlinkCmpKindKeyword',       {link='Keyword'})
+    hi('BlinkCmpKindMethod',        {link='Function'})
+    hi('BlinkCmpKindModule',        {link='Structure'})
+    hi('BlinkCmpKindOperator',      {link='Operator'})
+    hi('BlinkCmpKindProperty',      {link='Structure'})
+    hi('BlinkCmpKindReference',     {link='Tag'})
+    hi('BlinkCmpKindSnippet',       {link='Special'})
+    hi('BlinkCmpKindStruct',        {link='Structure'})
+    hi('BlinkCmpKindText',          {link='Statement'})
+    hi('BlinkCmpKindTypeParameter', {link='Type'})
+    hi('BlinkCmpKindUnit',          {link='Special'})
+    hi('BlinkCmpKindValue',         {link='Identifier'})
+    hi('BlinkCmpKindVariable',      {link='Delimiter'})
+  end
+
   -- stevearc/aerial.nvim
   -- Everything works correctly out of the box
 
@@ -1336,7 +1376,7 @@ H.apply_palette = function(palette, use_cterm)
     hi('MasonMutedBlock',                  {fg=p.base00, bg=p.base03, attr=nil,    sp=nil})
     hi('MasonMutedBlockBold',              {fg=p.base00, bg=p.base03, attr='bold', sp=nil})
   end
-  -- stylua: ignore end
+  --stylua: ignore end
 
   -- Terminal colors
   vim.g.terminal_color_0 = palette.base00
@@ -1453,7 +1493,7 @@ end
 -- Sources:
 -- - https://github.com/shawncplus/Vim-toCterm/blob/master/lib/Xterm.php
 -- - https://gist.github.com/MicahElliott/719710
--- stylua: ignore start
+--stylua: ignore
 H.cterm_first16 = {
   { r = 0,   g = 0,   b = 0 },
   { r = 205, g = 0,   b = 0 },
@@ -1472,7 +1512,6 @@ H.cterm_first16 = {
   { r = 0,   g = 255, b = 255 },
   { r = 255, g = 255, b = 255 },
 }
--- stylua: ignore end
 
 H.cterm_basis = { 0, 95, 135, 175, 215, 255 }
 
@@ -1562,11 +1601,11 @@ end
 
 H.xyz2rgb = function(xyz)
   -- Source of better matrix: http://brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
-  -- stylua: ignore start
+  --stylua: ignore start
   local r =  3.24045 * xyz.x - 1.53713 * xyz.y - 0.49853 * xyz.z
   local g = -0.96927 * xyz.x + 1.87601 * xyz.y + 0.04155 * xyz.z
   local b =  0.05564 * xyz.x - 0.20403 * xyz.y + 1.05722 * xyz.z
-  -- stylua: ignore end
+  --stylua: ignore end
 
   return vim.tbl_map(function(c)
     c = c / 100

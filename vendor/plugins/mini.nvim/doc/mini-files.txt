@@ -11,7 +11,8 @@ Features:
 - Opt-in preview of file or directory under cursor.
 
 - Manipulate files and directories by editing text buffers: create, delete,
-  copy, rename, move. See |MiniFiles-manipulation| for overview.
+  rename (all three are LSP aware), copy, move.
+  See |MiniFiles-manipulation| for an overview.
 
 - Use as default file explorer instead of `netrw`.
 
@@ -79,11 +80,13 @@ more details.
       explored branch.
     - Also uses text editing to manipulate file system entries.
     - Can work for remote file systems, while this module can not (by design).
+    - Both provide LSP integration.
 
 - [nvim-neo-tree/neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim):
-    - Compares to this module mostly the same as 'nvim-tree/nvim-tree.lua'.
+    - Compares to this module mostly the same as `nvim-tree/nvim-tree.lua`.
 
 # Highlight groups ~
+*MiniFiles-hl-groups*
 
 - `MiniFilesBorder` - border of regular windows.
 - `MiniFilesBorderModified` - border of windows showing modified buffer.
@@ -187,7 +190,7 @@ Details:
 - "Set mark" and "Go to mark" both wait for user to press a single character
   of a bookmark id. Example: `ma` sets directory path of focused window as
   bookmark "a"; `'a` jumps (sets as whole branch) to bookmark "a".
-  Special bookmark "'" always points to path before the latest bookmark jump.
+  Special bookmark `'` always points to path before the latest bookmark jump.
 
 - "Reset" focuses only on "anchor" directory (the one used to open current
   explorer) and resets all stored directory cursor positions.
@@ -262,12 +265,12 @@ Note that order of text manipulation steps does not affect performed actions.
 - Create directory by creating new line with directory name followed by `/`.
 
 - Create file or directory inside nested directories by creating new line
-  with text like 'dir/nested-dir/' or 'dir/nested-dir/file'.
+  with text like `dir/nested-dir/` or `dir/nested-dir/file`.
   Always use `/` on any OS.
 
 ## Delete ~
 
-- Delete file or directory by deleting **whole line** describing it.
+- Delete file or directory by deleting WHOLE LINE describing it.
 
 - If `options.permanent_delete` is `true`, delete is permanent. Otherwise
   file system entry is moved to a module-specific trash directory
@@ -294,7 +297,7 @@ Note that order of text manipulation steps does not affect performed actions.
 
 ## Copy ~
 
-- Copy file or directory by copying **whole line** describing it and pasting
+- Copy file or directory by copying WHOLE LINE describing it and pasting
   it inside buffer of target directory.
 
 - Change of target path is allowed. Edit only entry name in target location
@@ -307,13 +310,27 @@ Note that order of text manipulation steps does not affect performed actions.
 
 ## Move ~
 
-- Move file or directory by cutting **whole line** describing it and then
+- Move file or directory by cutting WHOLE LINE describing it and then
   pasting it inside target directory.
 
 - Change of target path is allowed. Edit only entry name in target location
   (not icon or path index to the left of it).
 
 - Moving directory inside itself is not supported.
+
+# LSP integration ~
+
+Create, delete, and rename are LSP aware (on Neovim>=0.11): the information
+is forwarded to all active LSP servers for them to perform additional actions.
+This means that LSP servers can, for example, update imports after renaming
+a file or populate a file with a boilerplate code after creation.
+
+The actual changes depend entirely on the LSP server and whether it supports
+relevant methods:
+- `workspace/will{Create,Delete,Rename}Files` before a file system action.
+- `workspace/did{Create,Delete,Rename}Files` after a file system action.
+
+It can be disabled by setting `options.lsp_timeout = 0` in |MiniFiles.config|.
 
 ------------------------------------------------------------------------------
                                                               *MiniFiles-events*
@@ -334,7 +351,7 @@ autocommand events are triggered under common circumstances.
   Can be used for integrations to set useful |extmarks|.
 
 - `MiniFilesWindowOpen` - when new window is opened. Can be used to set
-  window-local settings (like border, 'winblend', etc.)
+  window-local settings (like border, |'winblend'|, etc.)
 
 - `MiniFilesWindowUpdate` - when a window is updated. Triggers VERY frequently.
   At least after every cursor movement and "go in" / "go out" action.
@@ -599,6 +616,8 @@ Defaults ~
       permanent_delete = true,
       -- Whether to use for editing directories
       use_as_default_explorer = true,
+      -- Timeout for synchronous LSP integration requests
+      lsp_timeout = 1000,
     },
 
     -- Customization of explorer windows
@@ -679,8 +698,12 @@ Note: to work with directory in |arglist|, do not lazy load this module.
 `options.permanent_delete` is a boolean indicating whether to perform
 permanent delete or move into special trash directory.
 This is a module-specific variant of "remove to trash".
-Target directory is 'mini.files/trash' inside standard path of Neovim data
+Target directory is `mini.files/trash` inside standard path of Neovim data
 directory (execute `:echo stdpath('data')` to see its path in your case).
+
+`options.lsp_timeout` is a number that defines a timeout for synchronous
+LSP integration requests (see |MiniFiles-manipulation|).
+Set to 0 to disable LSP integration.
 
 # Windows ~
 
@@ -694,8 +717,8 @@ file/directory under cursor. Notes:
 - File preview is highlighted if its size is small enough (less than 1K
   bytes per line or 1M bytes in total).
 
-`windows.width_focus` and `windows.width_nofocus` are number of columns used
-as `width` for focused and non-focused windows respectively.
+`windows.width_focus`, `windows.width_nofocus` and `windows.width_preview`
+are number of columns used as `width` for the corresponding window type.
 
 ------------------------------------------------------------------------------
                                                               *MiniFiles.open()*
@@ -741,7 +764,8 @@ Notes:
   buffers are forced to update.
 
 Parameters ~
-{opts} `(table|nil)` Table of options to update.
+{opts} `(table|nil)` Table of options overriding local options of active
+  explorer session.
 
 ------------------------------------------------------------------------------
                                                        *MiniFiles.synchronize()*
@@ -890,7 +914,7 @@ Parameters ~
 {branch} `(table)` Array of strings representing actually present on disk paths.
   Each consecutive pair should represent direct parent-child paths.
   Should contain at least one directory path.
-  May end with file path (will be previwed).
+  May end with file path (will be previewed).
   Relative paths are resolved using |current-directory|.
 {opts} `(table|nil)` Options. Possible fields:
   - <depth_focus> `(number)` - an index in `branch` for path to focus. Will
@@ -943,8 +967,8 @@ Default prefix of file system entries
 - If set up |mini.icons|, use |MiniIcons.get()| for "directory"/"file" category.
 - Otherwise:
     - For directory return fixed icon and "MiniFilesDirectory" group name.
-    - For file try to use `get_icon()` from 'nvim-tree/nvim-web-devicons'.
-      If missing, return fixed icon and 'MiniFilesFile' group name.
+    - For file try to use `get_icon()` from `nvim-tree/nvim-web-devicons`.
+      If missing, return fixed icon and `MiniFilesFile` group name.
 
 Parameters ~
 {fs_entry} `(table)` Table with the following fields:

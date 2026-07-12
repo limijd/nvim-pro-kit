@@ -26,6 +26,7 @@ body:
         - mini.bracketed
         - mini.bufremove
         - mini.clue
+        - mini.cmdline
         - mini.colors
         - mini.comment
         - mini.completion
@@ -41,6 +42,7 @@ body:
         - mini.hues
         - mini.icons
         - mini.indentscope
+        - mini.input
         - mini.jump
         - mini.jump2d
         - mini.keymap

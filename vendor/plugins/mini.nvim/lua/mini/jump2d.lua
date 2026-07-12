@@ -19,7 +19,7 @@
 ---       before/at/after cursor line, etc. Example: user can configure to look
 ---       for spots only inside current window at or after cursor line.
 ---     Example: user can configure to look for word starts only inside current
----     window at or after cursor line with 'j' and 'k' labels performing some
+---     window at or after cursor line with `j` and `k` labels performing some
 ---     action after jump.
 ---
 --- - Works in Visual and Operator-pending (with dot-repeat) modes.
@@ -89,28 +89,29 @@
 --- - [phaazon/hop.nvim](https://github.com/phaazon/hop.nvim):
 ---     - Both are fast, customizable, and extensible (user can write their own
 ---       ways to define jump spots).
----     - 'hop.nvim' visualizes all steps at once. While this module can show
+---     - `hop.nvim` visualizes all steps at once. While this module can show
 ---       configurable number of steps ahead.
 ---     - Both have several builtin ways to specify type of jump (word start,
----       line start, one character or query based on user input). 'hop.nvim'
+---       line start, one character or query based on user input). `hop.nvim`
 ---       does that by exporting many targeted Neovim commands, while this
 ---       module has preconfigured basic options leaving others to
 ---       customization with Lua code (see |MiniJump2d.builtin_opts|).
----     - 'hop.nvim' computes labels (called "hints") differently. Contrary to
+---     - `hop.nvim` computes labels (called "hints") differently. Contrary to
 ---       this module deliberately not having preference of one jump spot over
----       another, 'hop.nvim' uses specialized algorithm that produces sequence
+---       another, `hop.nvim` uses specialized algorithm that produces sequence
 ---       of keys in a slightly biased manner: some sequences are intentionally
 ---       shorter than the others (leading to fewer average keystrokes). They
 ---       are put near cursor (by default) and highlighted differently. Final
 ---       order of sequences is based on distance to the cursor.
----     - 'mini.jump2d' has opinionated default algorithm of computing jump
+---     - |mini.jump2d| has opinionated default algorithm of computing jump
 ---       spots. See |MiniJump2d.default_spotter()|.
 ---
 --- # Highlight groups ~
+--- *MiniJump2d-hl-groups*
 ---
 --- - `MiniJump2dSpot` - highlighting of jump spot's next step. By default it
 ---   uses label with highest contrast while not being too visually demanding:
----   white on black for dark 'background', black on white for light. If it
+---   white on black for dark |'background'|, black on white for light. If it
 ---   doesn't suit your liking, try couple of these alternatives (or choose
 ---   your own, of course): >lua
 ---
@@ -417,8 +418,8 @@ MiniJump2d.gen_spotter = {}
 ---   of "non-whitespace non-punctuation characters" (basically a way of saying
 ---   "group of alphanumeric characters" that works with multibyte characters).
 ---@param side string|nil Which side of pattern match should be considered as
----   jumping spot. Should be one of 'start' (start of match, default), 'end'
----   (inclusive end of match), or 'none' (match for spot is done manually
+---   jumping spot. Should be one of `'start'` (start of match, default), `'end'`
+---   (inclusive end of match), or `'none'` (match for spot is done manually
 ---   inside pattern with plain `()` matching group).
 ---
 ---@return function Spotter function.
@@ -478,8 +479,8 @@ MiniJump2d.gen_spotter.pattern = function(pattern, side)
 
       -- Unify how spot is chosen in case of multibyte characters
       -- Use `+-1` to make sure that result is at start of multibyte character
-      local utf_index = vim.str_utfindex(line, spot) - 1
-      spot = vim.str_byteindex(line, utf_index) + 1
+      local utf_index = H.str_utfindex(line, spot) - 1
+      spot = H.str_byteindex(line, utf_index) + 1
 
       -- Add spot only if it referces new actually visible column
       if spot ~= res[#res] then table.insert(res, spot) end
@@ -500,7 +501,7 @@ end
 --- Generate spotter for Vimscript pattern
 ---
 ---@param pattern string|nil Vimscript |pattern|. Default: `\k\+` to match group
----   of "keyword characters" (see 'iskeyword').
+---   of "keyword characters" (see |'iskeyword'|).
 ---
 ---@return function Spotter function.
 ---
@@ -655,7 +656,7 @@ MiniJump2d.builtin_opts.line_start = {
 
 --- Jump to word start
 ---
---- Respects 'iskeyword' when computing word start.
+--- Respects |'iskeyword'| when computing word start.
 ---
 --- Defines `spotter`.
 MiniJump2d.builtin_opts.word_start = { spotter = MiniJump2d.gen_spotter.vimpattern('\\k\\+') }
@@ -683,14 +684,14 @@ end
 --- Defines `spotter`, `allowed_lines.blank`, `allowed_lines.fold`, and
 --- `hooks.before_start`.
 MiniJump2d.builtin_opts.single_character = user_input_opts(
-  function() return H.getcharstr('Enter single character to search') end
+  function() return H.getcharstr('Reminder to press a character to search') end
 )
 
 --- Jump to query taken from user input
 ---
 --- Defines `spotter`, `allowed_lines.blank`, `allowed_lines.fold`, and
 --- `hooks.before_start`.
-MiniJump2d.builtin_opts.query = user_input_opts(function() return H.input('Enter query to search') end)
+MiniJump2d.builtin_opts.query = user_input_opts(function() return H.user_input('Enter query to search') end)
 
 -- Helper data ================================================================
 -- Module default config
@@ -780,7 +781,11 @@ H.create_autocommands = function(config)
 
   -- Corrections for default `<CR>` mapping to not interfere with popular usages
   if config.mappings.start_jumping == '<CR>' then
-    local revert_cr = function() vim.keymap.set('n', '<CR>', '<CR>', { buffer = true }) end
+    local revert_cr = function()
+      -- Don't revert when there is an existing buffer local mapping
+      if vim.fn.maparg('<CR>', 'n', false, true).buffer == 1 then return end
+      vim.keymap.set('n', '<CR>', '<CR>', { buffer = true })
+    end
     au('FileType', 'qf', revert_cr, 'Revert <CR>')
     au('CmdwinEnter', '*', revert_cr, 'Revert <CR>')
   end
@@ -1040,7 +1045,7 @@ H.advance_jump = function(opts)
     return
   end
 
-  local key = H.getcharstr('Enter encoding symbol to advance jump')
+  local key = H.getcharstr('Reminder to press encoding symbol to advance jumping')
 
   if vim.tbl_contains(label_tbl, key) then
     H.spots_unshow(spots)
@@ -1118,42 +1123,41 @@ H.is_operator_pending = function()
 end
 
 H.getcharstr = function(msg)
-  local needs_help_msg = true
+  local needs_reminder = true
   if msg ~= nil then
     vim.defer_fn(function()
-      if not needs_help_msg then return end
+      if not needs_reminder then return end
       H.echo(msg)
       H.cache.msg_shown = true
     end, 1000)
   end
 
   H.cache.is_in_getcharstr = true
-  local _, char = pcall(vim.fn.getcharstr)
+  local ok, char = pcall(vim.fn.getcharstr)
   H.cache.is_in_getcharstr = false
-  needs_help_msg = false
+  needs_reminder = false
   H.unecho()
 
+  -- Terminate if couldn't get input (like with <C-c>) or on `<Esc>`
+  if not ok or char == '' or char == '\3' or char == '\27' then return nil end
   return char
 end
 
-H.input = function(prompt, text)
-  -- Distinguish between `<C-c>`, `<Esc>`, and first `<CR>`
-  local on_key = vim.on_key or vim.register_keystroke_callback
+H.user_input = function(prompt, text)
+  prompt = '(mini.jump2d) ' .. prompt
+  if _G.MiniInput ~= nil then return MiniInput.get({ prompt = prompt, scope = 'cursor', init_keys = { text } }) end
+
+  -- Use `on_key` to distinguish cancel with `<Esc>` and immediate `<CR>`
   local was_cancelled = false
-  on_key(function(key)
-    if key == H.keys.esc then was_cancelled = true end
-  end, H.ns_id.input)
+  vim.on_key(function(key) was_cancelled = was_cancelled or key == '\27' end, H.ns_id.input)
 
-  -- Ask for input
-  local opts = { prompt = '(mini.jump2d) ' .. prompt .. ': ', default = text or '' }
-  -- Use `pcall` to allow `<C-c>` to cancel user input
-  local ok, res = pcall(vim.fn.input, opts)
+  -- Ask for input. Use `pcall` to allow `<C-c>` to cancel user input
+  vim.cmd('echohl Question')
+  local ok, res = pcall(vim.fn.input, { prompt = prompt .. ': ', default = text or '' })
+  vim.cmd('echohl None | echo "" | redraw')
 
-  -- Stop key listening
-  on_key(nil, H.ns_id.input)
-
-  if not ok or was_cancelled then return end
-  return res
+  vim.on_key(nil, H.ns_id.input)
+  return (ok and not was_cancelled) and res or nil
 end
 
 --- This ensures order of windows based on their layout
@@ -1225,5 +1229,11 @@ H.merge_unique = function(tbl_1, tbl_2)
 
   return res
 end
+
+H.str_utfindex = function(s, i) return vim.str_utfindex(s, 'utf-32', i) end
+if vim.fn.has('nvim-0.11') == 0 then H.str_utfindex = function(s, i) return (vim.str_utfindex(s, i)) end end
+
+H.str_byteindex = function(s, i) return vim.str_byteindex(s, 'utf-32', i) end
+if vim.fn.has('nvim-0.11') == 0 then H.str_byteindex = function(s, i) return vim.str_byteindex(s, i) end end
 
 return MiniJump2d

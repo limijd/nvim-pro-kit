@@ -5,17 +5,15 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('pairs', config) end
 local unload_module = function() child.mini_unload('pairs') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('pairs', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
 
 -- Make helpers
 local get_term_channel = function()
@@ -232,6 +230,12 @@ local validate_disable = function(var_type, key)
   child[var_type].minipairs_disable = nil
 end
 
+local validate_cmdline = function(line, pos)
+  eq(child.fn.mode(), 'c')
+  eq(child.fn.getcmdline(), line)
+  eq(child.fn.getcmdpos(), pos or line:len() + 1)
+end
+
 local apply_map = function(fun_name, args_string)
   -- If testing `MiniPairs.map_buf()`, apply it in current buffer
   local is_buf_local = fun_name == 'map_buf' or fun_name == 'unmap_buf'
@@ -285,24 +289,18 @@ T['setup()']['creates `config` field'] = function()
 
   -- Check default values
   expect_config('modes', { insert = true, command = false, terminal = false })
-  expect_config("mappings['(']", { action = 'open', pair = '()', neigh_pattern = '[^\\].' })
-  expect_config("mappings['[']", { action = 'open', pair = '[]', neigh_pattern = '[^\\].' })
-  expect_config("mappings['{']", { action = 'open', pair = '{}', neigh_pattern = '[^\\].' })
-  expect_config("mappings[')']", { action = 'close', pair = '()', neigh_pattern = '[^\\].' })
-  expect_config("mappings[']']", { action = 'close', pair = '[]', neigh_pattern = '[^\\].' })
-  expect_config("mappings['}']", { action = 'close', pair = '{}', neigh_pattern = '[^\\].' })
-  expect_config(
-    "mappings['\"']",
-    { action = 'closeopen', pair = '""', neigh_pattern = '[^\\].', register = { cr = false } }
-  )
-  expect_config(
-    'mappings["\'"]',
-    { action = 'closeopen', pair = "''", neigh_pattern = '[^%a\\].', register = { cr = false } }
-  )
-  expect_config(
-    "mappings['`']",
-    { action = 'closeopen', pair = '``', neigh_pattern = '[^\\].', register = { cr = false } }
-  )
+  expect_config("mappings['(']", { action = 'open', pair = '()', neigh_pattern = '^[^\\]' })
+  expect_config("mappings['[']", { action = 'open', pair = '[]', neigh_pattern = '^[^\\]' })
+  expect_config("mappings['{']", { action = 'open', pair = '{}', neigh_pattern = '^[^\\]' })
+  expect_config("mappings[')']", { action = 'close', pair = '()', neigh_pattern = '^[^\\]' })
+  expect_config("mappings[']']", { action = 'close', pair = '[]', neigh_pattern = '^[^\\]' })
+  expect_config("mappings['}']", { action = 'close', pair = '{}', neigh_pattern = '^[^\\]' })
+  local quote_config = { action = 'closeopen', pair = '""', neigh_pattern = '^[^\\]', register = { cr = false } }
+  expect_config("mappings['\"']", quote_config)
+  quote_config.pair, quote_config.neigh_pattern = "''", '^[^%a\\]'
+  expect_config('mappings["\'"]', quote_config)
+  quote_config.pair, quote_config.neigh_pattern = '``', '^[^\\]'
+  expect_config("mappings['`']", quote_config)
 end
 
 T['setup()']['respects `config` argument'] = function()
@@ -315,7 +313,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -355,15 +353,15 @@ local has_map = function(lhs, rhs, mode)
 end
 
 T['setup()']['makes default `config.mappings`'] = function()
-  eq(has_map('(', [[v:lua.MiniPairs.open("()", "[^\\].")]]), true)
-  eq(has_map('[', [[v:lua.MiniPairs.open("[]", "[^\\].")]]), true)
-  eq(has_map('{', [[v:lua.MiniPairs.open("{}", "[^\\].")]]), true)
-  eq(has_map(')', [[v:lua.MiniPairs.close("()", "[^\\].")]]), true)
-  eq(has_map(']', [[v:lua.MiniPairs.close("[]", "[^\\].")]]), true)
-  eq(has_map('}', [[v:lua.MiniPairs.close("{}", "[^\\].")]]), true)
-  eq(has_map('"', [[v:lua.MiniPairs.closeopen('""', "[^\\].")]]), true)
-  eq(has_map("'", [[v:lua.MiniPairs.closeopen("''", "[^%a\\].")]]), true)
-  eq(has_map('`', [[v:lua.MiniPairs.closeopen("``", "[^\\].")]]), true)
+  eq(has_map('(', [[v:lua.MiniPairs.open("()", "^[^\\]")]]), true)
+  eq(has_map('[', [[v:lua.MiniPairs.open("[]", "^[^\\]")]]), true)
+  eq(has_map('{', [[v:lua.MiniPairs.open("{}", "^[^\\]")]]), true)
+  eq(has_map(')', [[v:lua.MiniPairs.close("()", "^[^\\]")]]), true)
+  eq(has_map(']', [[v:lua.MiniPairs.close("[]", "^[^\\]")]]), true)
+  eq(has_map('}', [[v:lua.MiniPairs.close("{}", "^[^\\]")]]), true)
+  eq(has_map('"', [[v:lua.MiniPairs.closeopen('""', "^[^\\]")]]), true)
+  eq(has_map("'", [[v:lua.MiniPairs.closeopen("''", "^[^%a\\]")]]), true)
+  eq(has_map('`', [[v:lua.MiniPairs.closeopen("``", "^[^\\]")]]), true)
 
   eq(has_map('<CR>', 'v:lua.MiniPairs.cr()'), true)
   eq(has_map('<BS>', 'v:lua.MiniPairs.bs()'), true)
@@ -371,7 +369,7 @@ end
 
 T['setup()']['makes custom `config.mappings`'] = function()
   reload_module({ mappings = { ['('] = { pair = '[]', action = 'close' } } })
-  eq(has_map('(', [[v:lua.MiniPairs.close("[]", "[^\\].")]]), true)
+  eq(has_map('(', [[v:lua.MiniPairs.close("[]", "^[^\\]")]]), true)
 
   reload_module({ mappings = { ['*'] = { pair = '**', action = 'closeopen' } } })
   eq(has_map('*', 'v:lua.MiniPairs.closeopen("**", "..")'), true)
@@ -381,16 +379,40 @@ T['setup()']['makes mappings in supplied modes'] = function()
   child.api.nvim_del_keymap('i', '(')
   reload_module({ modes = { insert = false, command = true, terminal = false } })
 
-  eq(has_map('(', [[v:lua.MiniPairs.open("()", "[^\\].")]]), false)
-  eq(has_map('(', [[v:lua.MiniPairs.open("()", "[^\\].")]], 'c'), true)
+  eq(has_map('(', [[v:lua.MiniPairs.open("()", "^[^\\]")]]), false)
+  eq(has_map('(', [[v:lua.MiniPairs.open("()", "^[^\\]")]], 'c'), true)
 end
 
 T['setup()']['allows `false` as `mappings` entry to not create mapping'] = function()
-  eq(has_map('(', [[v:lua.MiniPairs.open("()", "[^\\].")]]), true)
+  eq(has_map('(', [[v:lua.MiniPairs.open("()", "^[^\\]")]]), true)
   child.api.nvim_del_keymap('i', '(')
 
   reload_module({ mappings = { ['('] = false } })
-  eq(has_map('(', [[v:lua.MiniPairs.open("()", "[^\\].")]]), false)
+  eq(has_map('(', [[v:lua.MiniPairs.open("()", "^[^\\]")]]), false)
+end
+
+T['setup()']['has default neighborhood patterns working with multibyte characters'] = function()
+  local validate = function(line_before, col_before, key, line_after)
+    set_lines({ line_before })
+    set_cursor(1, col_before)
+    type_keys('i', '\\', key)
+
+    eq(get_lines(), { line_after })
+
+    child.ensure_normal_mode()
+  end
+
+  validate('є', 0, '(', '\\(є')
+  validate('є', 0, '[', '\\[є')
+  validate('є', 0, '{', '\\{є')
+
+  validate('є)', 2, ')', 'є\\))')
+  validate('є]', 2, ']', 'є\\]]')
+  validate('є}', 2, '}', 'є\\}}')
+
+  validate('є', 0, '"', '\\"є')
+  validate('є', 0, "'", "\\'є")
+  validate('є', 0, '`', '\\`є')
 end
 
 T['map()/map_buf()'] = new_set({
@@ -679,6 +701,12 @@ T['Open action']['does not break undo sequence in Insert mode'] = function()
   eq(get_lines(), { '' })
 end
 
+T['Open action']['works with visible wildmenu'] = function()
+  apply_map('map', '"c", "<", { action = "open", pair = "<>" }')
+  type_keys(':', '<Tab>', '<')
+  validate_cmdline('!<>', 3)
+end
+
 T['Open action']['respects neighbor pattern'] = function()
   validate_slash('(')
   validate_slash('[')
@@ -769,6 +797,40 @@ T['Close action']['does not break undo sequence in Insert mode'] = function()
   type_keys('i', ')) ', '<Esc>')
   type_keys('u')
   eq(get_lines(), { '(())' })
+end
+
+T['Close action']['works with visible wildmenu'] = function()
+  apply_map('map', '"c", "(", { action = "open", pair = "()" }')
+  apply_map('map', '"c", ")", { action = "close", pair = "()" }')
+  child.lua('_G.AAA = 1')
+  type_keys(':', 'lua print(1 + ', '<Tab>')
+  validate_cmdline('lua print(1 + AAA)', 18)
+
+  type_keys(')')
+  validate_cmdline('lua print(1 + AAA)', 19)
+end
+
+T['Close action']['works with inline virtual text'] = function()
+  set_lines({ '()' })
+  local ns_id = child.api.nvim_create_namespace('Test')
+  child.api.nvim_buf_set_extmark(0, ns_id, 0, 1, { virt_text = { { 'Virt', 'String' } }, virt_text_pos = 'inline' })
+
+  local validate = function(virtualedit)
+    child.o.virtualedit = virtualedit
+    set_cursor(1, 0)
+
+    type_keys('a', ')')
+    eq(child.fn.getcurpos(), { 0, 1, 3, 0, 7 })
+    -- Should have no side effects
+    eq(child.o.virtualedit, virtualedit)
+
+    type_keys('<Esc>')
+  end
+
+  validate('all')
+  validate('none')
+  validate('block')
+  validate('onemore')
 end
 
 local validate_slash_close = function(key, pair)
@@ -873,6 +935,39 @@ T['Closeopen action']['does not break undo sequence in Insert mode'] = function(
   type_keys('i', '"" ', '<Esc>')
   type_keys('u')
   eq(get_lines(), { '""""' })
+end
+
+T['Closeopen action']['works with visible wildmenu'] = function()
+  apply_map('map', '"c", "`", { action = "closeopen", pair = "``" }')
+  child.lua('_G.AAA = 1')
+  type_keys(':', 'lua print`1 + ', '<Tab>')
+  validate_cmdline('lua print`1 + AAA`', 18)
+
+  type_keys('`')
+  validate_cmdline('lua print`1 + AAA`', 19)
+end
+
+T['Closeopen action']['works with inline virtual text'] = function()
+  set_lines({ '""' })
+  local ns_id = child.api.nvim_create_namespace('Test')
+  child.api.nvim_buf_set_extmark(0, ns_id, 0, 1, { virt_text = { { 'Virt', 'String' } }, virt_text_pos = 'inline' })
+
+  local validate = function(virtualedit)
+    child.o.virtualedit = virtualedit
+    set_cursor(1, 0)
+
+    type_keys('a', '"')
+    eq(child.fn.getcurpos(), { 0, 1, 3, 0, 7 })
+    -- Should have no side effects
+    eq(child.o.virtualedit, virtualedit)
+
+    type_keys('<Esc>')
+  end
+
+  validate('all')
+  validate('none')
+  validate('block')
+  validate('onemore')
 end
 
 T['Closeopen action']['respects neighbor pattern'] = function()

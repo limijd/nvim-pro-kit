@@ -5,39 +5,17 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('operators', config) end
 local unload_module = function() child.mini_unload('operators') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('operators', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
---stylua: ignore end
-
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
--- Custom validators
-local validate_edit = function(lines_before, cursor_before, keys, lines_after, cursor_after)
-  child.ensure_normal_mode()
-  set_lines(lines_before)
-  set_cursor(cursor_before[1], cursor_before[2])
-
-  type_keys(keys)
-
-  eq(get_lines(), lines_after)
-  eq(get_cursor(), cursor_after)
-
-  child.ensure_normal_mode()
-end
-
-local validate_edit1d = function(line_before, col_before, keys, line_after, col_after)
-  validate_edit({ line_before }, { 1, col_before }, keys, { line_after }, { 1, col_after })
-end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
+local validate_edit = function(...) return child.validate_edit(...) end
+local validate_edit1d = function(...) return child.validate_edit1d(...) end
 
 -- Output test set ============================================================
 local T = new_set({
@@ -99,7 +77,7 @@ end
 T['setup()']['validates `config` argument'] = function()
   unload_module()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -135,12 +113,17 @@ T['setup()']['removes built-in LSP mappings'] = function()
   eq(child.fn.maparg('gri'), '')
   eq(child.fn.maparg('grn'), '')
   eq(child.fn.maparg('grt'), '')
+  eq(child.fn.maparg('grx'), '')
 end
 
 T['setup()']['remaps built-in `gx` mappings'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Neovim<0.10 does not have built-in `gx` mappings') end
-
+  -- Mock functions used to compute and show URI at cursor
+  child.lua('vim.lsp.buf_request_sync = function() return {} end')
   child.lua('vim.ui.open = function() _G.n = (_G.n or 0) + 1 end')
+
+  set_lines({ 'https://nvim-mini.org' })
+  set_cursor(1, 0)
+
   local validate = function(keys, ref_n)
     type_keys(keys)
     eq(child.lua_get('_G.n'), ref_n)
@@ -332,14 +315,14 @@ T['default_sort_func()']['respects `opts.split_patterns`'] = function()
 end
 
 T['default_sort_func()']['validates arguments'] = function()
-  expect.error(default_sort_func, '`content`', 1)
-  expect.error(default_sort_func, '`content`', {})
-  expect.error(default_sort_func, '`content`', { submode = 'v' })
-  expect.error(default_sort_func, '`content`', { lines = { 'a' } })
+  expect.error(function() default_sort_func(1) end, '`content`')
+  expect.error(function() default_sort_func({}) end, '`content`')
+  expect.error(function() default_sort_func({ submode = 'v' }) end, '`content`')
+  expect.error(function() default_sort_func({ lines = { 'a' } }) end, '`content`')
 
   local content = { lines = { 'a', 'b' }, submode = 'V' }
-  expect.error(default_sort_func, '`opts.compare_fun`', content, { compare_fun = 1 })
-  expect.error(default_sort_func, '`opts.split_patterns`', content, { split_patterns = 1 })
+  expect.error(function() default_sort_func(content, { compare_fun = 1 }) end, '`opts.compare_fun`')
+  expect.error(function() default_sort_func(content, { split_patterns = 1 }) end, '`opts.split_patterns`')
 end
 
 T['default_evaluate_func()'] = new_set()
@@ -410,10 +393,10 @@ T['default_evaluate_func()']['does not modify input'] = function()
 end
 
 T['default_evaluate_func()']['validates arguments'] = function()
-  expect.error(default_evaluate_func, '`content`', 1)
-  expect.error(default_evaluate_func, '`content`', {})
-  expect.error(default_evaluate_func, '`content`', { submode = 'v' })
-  expect.error(default_evaluate_func, '`content`', { lines = { 'a' } })
+  expect.error(function() default_evaluate_func(1) end, '`content`')
+  expect.error(function() default_evaluate_func({}) end, '`content`')
+  expect.error(function() default_evaluate_func({ submode = 'v' }) end, '`content`')
+  expect.error(function() default_evaluate_func({ lines = { 'a' } }) end, '`content`')
 end
 
 -- Integration tests ==========================================================
@@ -465,6 +448,15 @@ T['Evaluate']['works in Normal mode for line'] = function()
 
   -- With dot-repeat
   validate_edit({ '1 + 1', '1 + 2' }, { 1, 0 }, { 'g==', 'j', '.' }, { '2', '3' }, { 2, 0 })
+end
+
+T['Evaluate']['works with empty textobject/motion'] = function()
+  child.api.nvim_set_keymap('o', 'w', '<Cmd><CR>', {})
+  child.lua('_G.x = 1')
+  set_lines({ 'xxx' })
+  set_cursor(1, 1)
+  type_keys('g=', 'w')
+  eq(get_lines(), { 'xxx' })
 end
 
 T['Evaluate']['works in Visual mode'] = function()
@@ -805,6 +797,31 @@ T['Exchange']['works with `[count]` in Normal mode for line'] = function()
   )
 end
 
+T['Exchange']['works with empty textobject/motion'] = function()
+  child.api.nvim_set_keymap('o', 'w', '<Cmd><CR>', {})
+
+  -- On step one
+  set_lines({ 'xxx', 'yyy' })
+  set_cursor(1, 1)
+  type_keys('gx', 'w')
+  eq(child.fn.maparg('<C-c>'), '')
+  -- - Should ignore previous time and treat this as step one
+  type_keys('j', 'gx', '$')
+  eq(get_lines(), { 'xxx', 'yyy' })
+  type_keys('k', 'gx', '$')
+  eq(get_lines(), { 'xyy', 'yxx' })
+
+  -- On step two
+  set_lines({ 'xxx', 'yyy' })
+  set_cursor(1, 1)
+  type_keys('gx', 'iw')
+  -- - Should ignore this one while still allowing proper step two
+  type_keys('jl', 'gx', 'w')
+  eq(get_lines(), { 'xxx', 'yyy' })
+  type_keys('gx', '$')
+  eq(get_lines(), { 'yy', 'yxxx' })
+end
+
 T['Exchange']['works in Visual mode'] = function()
   -- Charwise from - Charwise to
   validate_edit1d('aa bb', 0, { 'viwgx', 'w', 'viwgx' }, 'bb aa', 3)
@@ -841,6 +858,19 @@ T['Exchange']['works in Visual mode'] = function()
   -- Blockwise from - Blockwise to
   validate_edit({ 'ab', 'cd' }, { 1, 0 }, { '<C-v>jgx', 'l', '<C-v>jgx' }, { 'ba', 'dc' }, { 1, 1 })
   validate_edit({ 'ab', 'cd' }, { 1, 1 }, { '<C-v>jgx', 'h', '<C-v>jgx' }, { 'ba', 'dc' }, { 1, 0 })
+end
+
+T['Exchange']['works with newline in region'] = function()
+  validate_edit(
+    { 'a(', '  b', ')', 'c{', '  d,', '}' },
+    { 2, 2 },
+    { 'vk', 'gx', '4jl', 'vk', 'gx' },
+    { 'a(', '  d', ')', 'c{', '  b,', '}' },
+    { 4, 1 }
+  )
+
+  -- Doesn't 100% work with trailing newline due to Neovim limitations
+  -- See https://github.com/neovim/neovim/issues/37664
 end
 
 T['Exchange']['works with different `virtualedit`'] = function()
@@ -1366,6 +1396,14 @@ T['Multiply']['works with `cmdheight=0`'] = function()
   child.expect_screenshot({ redraw = false })
 end
 
+T['Multiply']['works with empty textobject/motion'] = function()
+  child.api.nvim_set_keymap('o', 'w', '<Cmd><CR>', {})
+  set_lines({ 'xxx' })
+  set_cursor(1, 1)
+  type_keys('gm', 'w')
+  eq(get_lines(), { 'xxx' })
+end
+
 T['Multiply']['works in Visual mode'] = function()
   validate_edit1d('aa bb', 0, { 'viw', 'gm' }, 'aaaa bb', 2)
 
@@ -1392,6 +1430,13 @@ T['Multiply']['works with `[count]` in Visual mode'] = function()
   validate_edit(lines, { 1, 1 }, { '<C-v>jh', '2gm' }, ref_lines, ref_cursor)
   validate_edit(lines, { 2, 0 }, { '<C-v>kl', '2gm' }, ref_lines, ref_cursor)
   validate_edit(lines, { 2, 1 }, { '<C-v>kh', '2gm' }, ref_lines, ref_cursor)
+end
+
+T['Multiply']['works with newline in region'] = function()
+  validate_edit({ 'a(', '  b', ')' }, { 2, 2 }, { 'vk', 'gm' }, { 'a(', '  b', '  b', ')' }, { 2, 2 })
+
+  -- Doesn't 100% work with trailing newline due to Neovim limitations
+  -- See https://github.com/neovim/neovim/issues/37664
 end
 
 T['Multiply']['works with different `virtualedit`'] = function()
@@ -1743,6 +1788,7 @@ T['Replace']['works with two types of `[count]` in Normal mode'] = function()
   validate_edit1d('aa bb cc dd', 0, { 'yiw', 'w', '2graW', 'w', '.' }, 'aa aaaaccaaaa', 9)
 
   -- Second `[count]` for textobject with dot-repeat
+  --typos: ignore
   validate_edit1d('aa bb cc dd ee', 0, { 'yiw', 'w', 'gr2aW' }, 'aa aadd ee', 3)
   validate_edit1d('aa bb cc dd ee', 0, { 'yiw', 'w', 'gr2aW', '.' }, 'aaaa', 2)
 
@@ -1786,6 +1832,15 @@ T['Replace']['works with `[count]` in Normal mode for line'] = function()
   )
 end
 
+T['Replace']['works with empty textobject/motion'] = function()
+  child.api.nvim_set_keymap('o', 'w', '<Cmd><CR>', {})
+  set_lines({ 'xxx', 'yyy' })
+  set_cursor(1, 1)
+  type_keys('yiw', 'jl')
+  type_keys('gr', 'w')
+  eq(get_lines(), { 'xxx', 'yyy' })
+end
+
 T['Replace']['works in Visual mode'] = function()
   -- Charwise selection
   validate_edit({ 'aa bb' }, { 1, 0 }, { 'yiw', 'w', 'viw', 'gr' }, { 'aa aa' }, { 1, 3 })
@@ -1801,6 +1856,13 @@ T['Replace']['works in Visual mode'] = function()
   validate_edit({ 'a b', 'a b' }, { 1, 0 }, { 'yiw', 'w', '<C-v>j', 'gr' }, { 'a a', 'a ' }, { 1, 2 })
   validate_edit({ 'a b', 'a b' }, { 1, 0 }, { 'yy', 'w', '<C-v>j', 'gr' }, { 'a a b', 'a ' }, { 1, 2 })
   validate_edit({ 'a b', 'a b' }, { 1, 0 }, { 'y<C-v>j', 'w', '<C-v>j', 'gr' }, { 'a a', 'a a' }, { 1, 2 })
+end
+
+T['Replace']['works with newline in region'] = function()
+  validate_edit({ 'a(', '  b', ')' }, { 2, 2 }, { 'vky', 'gvgr' }, { 'a(', '  b', ')' }, { 1, 1 })
+
+  -- Doesn't 100% work with trailing newline due to Neovim limitations
+  -- See https://github.com/neovim/neovim/issues/37664
 end
 
 T['Replace']['works with different `virtualedit`'] = function()
@@ -2182,6 +2244,14 @@ T['Sort']['works in Normal mode for line'] = function()
 
   -- With dot-repeat
   validate_edit({ 't, r, s', 'c, a, b' }, { 1, 0 }, { 'gss', 'j', '.' }, { 'r, s, t', 'a, b, c' }, { 2, 0 })
+end
+
+T['Sort']['works with empty textobject/motion'] = function()
+  child.api.nvim_set_keymap('o', 'w', '<Cmd><CR>', {})
+  set_lines({ 'fedcba' })
+  set_cursor(1, 1)
+  type_keys('gs', 'w')
+  eq(get_lines(), { 'fedcba' })
 end
 
 T['Sort']['works in Visual mode'] = function()

@@ -60,9 +60,9 @@
 ---     - Similar general idea as in `'jump_{after,before}_tsnode'` steps
 ---       of |MiniKeymap.map_multistep()|.
 ---     - Works only with enabled tree-sitter parser. This module provides
----       fallback via 'jump_after_close' and 'jump_before_open' that work
+---       fallback via `'jump_after_close'` and `'jump_before_open'` that work
 ---       without tree-sitter parser.
----     - 'tabout.nvim' has finer control of how the tree-sitter node movement
+---     - `tabout.nvim` has finer control of how the tree-sitter node movement
 ---       is done, while this module has "jump outside of current node" behavior.
 ---
 --- # Disabling ~
@@ -282,7 +282,7 @@ MiniKeymap.config = {}
 ---   a function to be later executed. See usage examples.
 ---
 --- - Some mapped keys (like <Tab>, <CR>) might require disabling smart presets
----   in plugins (like 'nvim-cmp', 'blink-cmp', 'nvim-autopairs').
+---   in plugins (like `nvim-cmp`, `blink-cmp`, `nvim-autopairs`).
 ---
 ---@param mode string|table Same as for |vim.keymap.set()|.
 ---@param lhs string Same as for |vim.keymap.set()|.
@@ -650,7 +650,7 @@ if vim.fn.has('nvim-0.11') == 0 then H.combo_get_key = function(key) return key 
 
 -- Multi-step -----------------------------------------------------------------
 H.normalize_steps = function(steps)
-  if not H.islist(steps) then H.error('`steps` should be array') end
+  if not vim.islist(steps) then H.error('`steps` should be array') end
   local res = {}
   for i, step in ipairs(steps) do
     local s = type(step) == 'string' and H.steps_builtin[step] or step
@@ -821,7 +821,7 @@ H.steps_builtin.nvimautopairs_bs = { condition = H.has_nvimautopairs, action = H
 H.is_string = function(x) return type(x) == 'string' end
 
 H.is_array_of = function(x, predicate)
-  if not H.islist(x) then return false end
+  if not vim.islist(x) then return false end
   for i = 1, #x do
     if not predicate(x[i]) then return false end
   end
@@ -864,8 +864,5 @@ H.hide_completion = function()
   -- 'mini.snippets' (as there is no extmarks involved).
   if vim.fn.mode() == 'i' and vim.fn.pumvisible() == 1 then vim.cmd('silent noautocmd call complete(col("."), [])') end
 end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 return MiniKeymap

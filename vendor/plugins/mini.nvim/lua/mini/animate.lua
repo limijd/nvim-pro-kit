@@ -55,28 +55,29 @@
 ---
 --- - [Neovide](https://neovide.dev/):
 ---     - Neovide is a standalone GUI which has more control over its animations.
----       While 'mini.animate' works inside terminal emulator (with all its
+---       While |mini.animate| works inside terminal emulator (with all its
 ---       limitations, like lack of pixel-size control over animations).
----     - Neovide animates cursor movement across screen, while 'mini.animate' -
+---     - Neovide animates cursor movement across screen, while |mini.animate| -
 ---       as it moves across same buffer.
 ---     - Neovide has fixed number of animation effects per action, while
----       'mini.animate' is fully customizable.
----     - 'mini.animate' implements animations for window open/close, while
+---       |mini.animate| is fully customizable.
+---     - |mini.animate| implements animations for window open/close, while
 ---       Neovide does not.
 --- - [edluffy/specs.nvim](https://github.com/edluffy/specs.nvim):
----     - 'mini.animate' approaches cursor movement visualization via
----       customizable path function (uses extmarks), while 'specs.nvim' can
+---     - |mini.animate| approaches cursor movement visualization via
+---       customizable path function (uses extmarks), while `specs.nvim` can
 ---       customize within its own visual effects (shading and floating
 ---       window resizing).
 --- - [karb94/neoscroll.nvim](https://github.com/karb94/neoscroll.nvim):
 ---     - Scroll animation is triggered only inside dedicated mappings.
----       'mini.animate' animates scroll resulting from any window view change.
+---       |mini.animate| animates scroll resulting from any window view change.
 --- - [anuvyklack/windows.nvim](https://github.com/anuvyklack/windows.nvim):
 ---     - Resize animation is done only within custom commands and mappings,
----       while 'mini.animate' animates any resize with appropriate values of
----       'winheight' / 'winwidth' and 'winminheight' / 'winminwidth').
+---       while |mini.animate| animates any resize with appropriate values of
+---       |'winheight'| / |'winwidth'| and |'winminheight'| / |'winminwidth'|).
 ---
 --- # Highlight groups ~
+--- *MiniAnimate-hl-groups*
 ---
 --- - `MiniAnimateCursor` - highlight of cursor during its animated movement.
 --- - `MiniAnimateNormalFloat` - highlight of floating window for `open` and
@@ -218,11 +219,11 @@ end
 --- - As scroll animation is essentially a precisely scheduled non-blocking
 ---   subscrolls, this has two important interconnected consequences:
 ---     - If another scroll is attempted during the animation, it is done based
----       on the **currently visible** window view. Example: if user presses
----       |CTRL-D| and then |CTRL-U| when animation is half done, window will not
----       display the previous view half of 'scroll' above it. This especially
----       affects mouse wheel scrolling, as each its turn results in a new scroll
----       for number of lines defined by 'mousescroll'. Tweak it to your liking.
+---       on the CURRENTLY VISIBLE window view. Example: if user presses |CTRL-D|
+---       and then |CTRL-U| when animation is half done, window will not display
+---       the previous view half of |'scroll'| above it. This especially affects
+---       mouse wheel scrolling, as each its turn results in a new scroll for
+---       number of lines defined by |'mousescroll'|. Tweak it to your liking.
 ---     - It breaks the use of several relative scrolling commands in the same
 ---       command. Use |MiniAnimate.execute_after()| to schedule action after
 ---       reaching target window view.
@@ -233,7 +234,7 @@ end
 ---           'MiniAnimate.execute_after("scroll", "normal! zvzz")<CR>'
 --- <
 --- - Default timing might conflict with scrolling via holding a key (like `j` or `k`
----   with 'wrap' enabled) due to high key repeat rate: next scroll is done before
+---   with |'wrap'| enabled) due to high key repeat rate: next scroll is done before
 ---   first step of current one finishes. Resolve this by not scrolling like that
 ---   or by ensuring maximum value of step duration to be lower than between
 ---   repeated keys: set timing like `function(_, n) return math.min(250/n, 10) end`
@@ -289,7 +290,7 @@ end
 --- - As resize animation is essentially a precisely scheduled non-blocking
 ---   subresizes, this has two important interconnected consequences:
 ---     - If another resize is attempted during the animation, it is done based
----       on the **currently visible** window sizes. This might affect relative
+---       on the CURRENTLY VISIBLE window sizes. This might affect relative
 ---       resizing.
 ---     - It breaks the use of several relative resizing commands in the same
 ---       command. Use |MiniAnimate.execute_after()| to schedule action after
@@ -348,7 +349,7 @@ end
 --- <
 --- The `winblend` option is similar to `timing` option: it is a callable
 --- which, given current and total step numbers, returns value of floating
---- window's 'winblend' option. Note, that it is called for current step (so
+--- window's |'winblend'| option. Note, that it is called for current step (so
 --- starts from 0), as opposed to `timing` which is called before step.
 --- Example:
 --- - Function `function(s, n) return 80 + 20 * s / n end` results in linear
@@ -631,7 +632,7 @@ end
 ---     },
 ---   })
 --- <
----@seealso |MiniIndentscope.gen_animation| for similar concept in 'mini.indentscope'.
+---@seealso |MiniIndentscope.gen_animation| for similar concept in |mini.indentscope|.
 MiniAnimate.gen_timing = {}
 
 ---@alias __animate_timing_opts table|nil Options that control progression. Possible keys:
@@ -814,14 +815,13 @@ MiniAnimate.gen_path.spiral = function(opts)
   local predicate = opts.predicate or H.default_path_predicate
   local width = opts.width or 2
 
+  --stylua: ignore
   local add_layer = function(res, w, destination)
     local dest_line, dest_col = destination[1], destination[2]
-    --stylua: ignore start
     for j = -w, w-1 do table.insert(res, { dest_line - w, dest_col + j }) end
     for i = -w, w-1 do table.insert(res, { dest_line + i, dest_col + w }) end
     for j = -w, w-1 do table.insert(res, { dest_line + w, dest_col - j }) end
     for i = -w, w-1 do table.insert(res, { dest_line - i, dest_col - w }) end
-    --stylua: ignore end
   end
 
   return function(destination)
@@ -1127,8 +1127,8 @@ MiniAnimate.gen_winblend = {}
 --- Generate linear `winblend` progression
 ---
 ---@param opts table|nil Options that control generator. Possible keys:
----   - <from> `(number)` - initial value of 'winblend'.
----   - <to> `(number)` - final value of 'winblend'.
+---   - <from> `(number)` - initial value of |'winblend'|.
+---   - <to> `(number)` - final value of |'winblend'|.
 ---
 ---@return function Winblend function (see |MiniAnimate.config.open|
 ---   or |MiniAnimate.config.close|).
@@ -1239,6 +1239,11 @@ H.create_autocommands = function()
   au('CursorMoved', '*', H.auto_cursor, 'Animate cursor')
 
   au('WinScrolled', '*', function()
+    -- On Neovim>=0.13 `WinScrolled` is also triggered when window scrolls
+    -- during 'incsearch' and when cancelling. Ignore these state changes to
+    -- not have extra scroll as a result of it.
+    H.ignore_incsearch_scroll()
+
     -- Inside `WinScrolled` first animate resize before scroll to avoid flicker
     H.auto_resize()
     H.auto_scroll()
@@ -1257,7 +1262,7 @@ H.create_autocommands = function()
   -- end). Use `vim.schedule()` to make it affect state only after scroll is
   -- done and cursor is already in correct final position.
   au('CursorMoved', '*', vim.schedule_wrap(H.track_scroll_state_partial), 'Track partial scroll state')
-  au('CmdlineLeave', '*', H.on_cmdline_leave, 'On CmdlineLeave')
+  au('CmdlineLeave', '*', function() H.ignore_incsearch_scroll() end, 'Ignore incsearch scroll')
 
   -- Use `vim.schedule_wrap()` animation to get a window data used for
   -- displaying (and not one after just opening). Useful for 'nvim-tree'.
@@ -1390,15 +1395,16 @@ H.track_scroll_state_partial = function()
   H.cache.scroll_state.cursor = { line = vim.fn.line('.'), virtcol = vim.fn.virtcol('.') }
 end
 
-H.on_cmdline_leave = function()
+H.ignore_incsearch_scroll = function()
   local cmd_type = vim.fn.getcmdtype()
   local is_insearch = vim.o.incsearch and (cmd_type == '/' or cmd_type == '?')
-  if not is_insearch then return end
+  if not (is_insearch or H.cache.scroll_state.aborted_incsearch) then return end
 
   -- Update scroll state so that there is no scroll animation after confirming
   -- incremental search. Otherwise it leads to unnecessary animation from
   -- initial scroll state to the one **already shown**.
   H.track_scroll_state()
+  H.cache.scroll_state.aborted_incsearch = vim.v.event.abort
 end
 
 H.auto_openclose = function(action_type)
@@ -1730,17 +1736,10 @@ H.get_layout_windows = function(layout)
 end
 
 H.apply_resize_state = function(state, full_view)
-  -- Set window sizes while ensuring that 'cmdheight' will not change. Can
-  -- happen if changing height of window main row layout or increase terminal
-  -- height quickly (see #270)
-  local cache_cmdheight = vim.o.cmdheight
-
   for win_id, dims in pairs(state.sizes) do
     vim.api.nvim_win_set_height(win_id, dims.height)
     vim.api.nvim_win_set_width(win_id, dims.width)
   end
-
-  vim.o.cmdheight = cache_cmdheight
 
   -- Use `or {}` to allow states without `view` (mainly inside animation)
   for win_id, view in pairs(state.views or {}) do
@@ -1794,7 +1793,8 @@ H.make_openclose_step = function(action_type, win_id, config)
       end
 
       -- Empty buffer should always be valid (might have been closed by user command)
-      if H.empty_buf_id == nil or not vim.api.nvim_buf_is_valid(H.empty_buf_id) then
+      if H.empty_buf_id == nil or not vim.api.nvim_buf_is_loaded(H.empty_buf_id) then
+        pcall(vim.api.nvim_buf_delete, H.empty_buf_id, { force = true })
         H.empty_buf_id = vim.api.nvim_create_buf(false, true)
         H.set_buf_name(H.empty_buf_id, 'open-close-scratch')
       end
@@ -2097,7 +2097,7 @@ end
 H.get_n_visible_lines = function(from_line, to_line)
   local min_line, max_line = math.min(from_line, to_line), math.max(from_line, to_line)
 
-  -- If `max_line` is inside fold, scrol should stop on the fold (not after)
+  -- If `max_line` is inside fold, scroll should stop on the fold (not after)
   local max_line_fold_start = vim.fn.foldclosed(max_line)
   local target_line = max_line_fold_start == -1 and max_line or max_line_fold_start
 

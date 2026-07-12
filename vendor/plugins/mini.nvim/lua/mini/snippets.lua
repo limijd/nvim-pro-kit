@@ -36,7 +36,7 @@
 ---     - Easy to reason rules for when session automatically stops.
 ---     - Text synchronization of linked tabstops preserving relative indent.
 ---     - Dynamic tabstop state visualization (current/visited/unvisited, etc.)
----     - Inline visualization of empty tabstops (requires Neovim>=0.10).
+---     - Inline visualization of empty tabstops.
 ---     - Works inside comments by preserving comment leader on new lines.
 ---     - Supports nested sessions (expand snippet while there is an active one).
 ---   See |MiniSnippets.default_insert()|.
@@ -75,50 +75,51 @@
 ---
 --- You can override runtime config settings locally to buffer inside
 --- `vim.b.minisnippets_config` which should have same structure as
---- `Minisnippets.config`. See |mini.nvim-buffer-local-config| for more details.
+--- `MiniSnippets.config`. See |mini.nvim-buffer-local-config| for more details.
 ---
 --- # Comparisons ~
 ---
 --- - [L3MON4D3/LuaSnip](https://github.com/L3MON4D3/LuaSnip):
 ---     - Both contain functionality to load snippets from file system.
----       This module provides several common loader generators while 'LuaSnip'
+---       This module provides several common loader generators while `LuaSnip`
 ---       contains a more elaborate loading setup.
 ---       Also both require explicit opt-in for which snippets to load.
----     - Both support LSP snippet format. 'LuaSnip' also provides own more
+---     - Both support LSP snippet format. `LuaSnip` also provides own more
 ---       elaborate snippet format which is out of scope for this module.
----     - 'LuaSnip' can autoexpand snippets, while this module always requires
+---     - `LuaSnip` can autoexpand snippets, while this module always requires
 ---       an explicit user action to expand (by design).
 ---     - Both contain snippet expand functionality which differs in some aspects:
----         - 'LuaSnip' has an elaborate dynamic tabstop visualization config.
+---         - `LuaSnip` has an elaborate dynamic tabstop visualization config.
 ---           This module provides a handful of dedicated highlight groups.
 ---         - This module provides configurable visualization of empty tabstops.
----         - 'LusSnip' implements nested sessions by essentially merging them
+---         - `LuaSnip` implements nested sessions by essentially merging them
 ---           into one. This module treats each nested session separately (to not
 ---           visually overload) while storing them in stack (first in last out).
----         - 'LuaSnip' uses |Select-mode| to power replacing current tabstop,
+---         - `LuaSnip` uses |Select-mode| to power replacing current tabstop,
 ---           while this module always stays in |Insert-mode|. This enables easier
 ---           mapping understanding and more targeted highlighting.
 ---         - This module implements jumping which wraps after final tabstop
 ---           for more flexible navigation (enhanced with by a more flexible
----           autostopping rules), while 'LuaSnip' autostops session once
+---           autostopping rules), while `LuaSnip` autostops session once
 ---           jumping reached the final tabstop.
 ---
---- - Built-in |vim.snippet| (on Neovim>=0.10):
+--- - Built-in |vim.snippet|:
 ---     - Does not contain functionality to load or match snippets (by design),
 ---       while this module does.
 ---     - Both contain expand functionality based on LSP snippet format.
 ---       Differences in how snippet sessions are handled are similar to
----       comparison with 'LuaSnip'.
+---       comparison with `LuaSnip`.
 ---
 --- - [rafamadriz/friendly-snippets](https://github.com/rafamadriz/friendly-snippets):
 ---     - A snippet collection plugin without features to manage or expand them.
----       This module is designed with 'friendly-snippets' compatibility in mind.
+---       This module is designed with `friendly-snippets` compatibility in mind.
 ---
 --- - [abeldekat/cmp-mini-snippets](https://github.com/abeldekat/cmp-mini-snippets):
 ---     - A source for [hrsh7th/nvim-cmp](https://github.com/hrsh7th/nvim-cmp)
----       that integrates 'mini.snippets'.
+---       that integrates |mini.snippets|.
 ---
 --- # Highlight groups ~
+--- *MiniSnippets-hl-groups*
 ---
 --- - `MiniSnippetsCurrent` - current tabstop.
 --- - `MiniSnippetsCurrentReplace` - current tabstop, placeholder is to be replaced.
@@ -135,6 +136,29 @@
 --- of different scenarios and customization intentions, writing exact rules
 --- for disabling module's functionality is left to user. See
 --- |mini.nvim-disabling-recipes| for common recipes.
+---
+--- # Using in other plugins ~
+--- *MiniSnippets-in-other-plugins*
+---
+--- - Perform a `_G.MiniSnippets ~= nil` check before using any feature. This
+---   ensures that user explicitly set up the module.
+---
+--- - To insert snippet given its body (like |vim.snippet.expand()|), use: >lua
+---
+---      -- Use configured `insert` method with falling back to default
+---      local insert = MiniSnippets.config.expand.insert
+---        or MiniSnippets.default_insert
+---      -- Insert at cursor
+---      insert({ body = snippet })
+--- <
+--- - To get available snippets, use: >lua
+---
+---   -- Get snippets matched at cursor
+---   MiniSnippets.expand({ insert = false })
+---
+---   -- Get all snippets available at cursor context
+---   MiniSnippets.expand({ match = false, insert = false })
+--- <
 ---@tag MiniSnippets
 
 --- POSITION ~
@@ -319,12 +343,12 @@
 --- To select and insert snippets via completion engine (that supports LSP
 --- completion; like |mini.completion| or |lsp-autocompletion|),
 --- call |MiniSnippets.start_lsp_server()| after |MiniSnippets.setup()|. This sets up
---- an LSP server that matches and provides snippets loaded with 'mini.snippets'.
+--- an LSP server that matches and provides snippets loaded with |mini.snippets|.
 --- To match with completion engine, use `start_lsp_server({ match = false })`.
 ---
 --- # Management ~
 ---
---- Out of the box 'mini.snippets' doesn't load any snippets, it should be done
+--- Out of the box |mini.snippets| doesn't load any snippets, it should be done
 --- explicitly inside |MiniSnippets.setup()| following |MiniSnippets.config|.
 ---
 --- The suggested approach to snippet management is to create dedicated files with
@@ -362,11 +386,11 @@
 ---
 --- ## General advice ~
 ---
---- - Put files in "snippets" subdirectory of any path in 'runtimepath' (like
----   '`$XDG_CONFIG_HOME`/nvim/snippets/global.json').
+--- - Put files in "snippets" subdirectory of any path in |'runtimepath'| (like
+---   `$XDG_CONFIG_HOME/nvim/snippets/global.json`).
 ---   This is compatible with |MiniSnippets.gen_loader.from_runtime()| and
 ---   example from |MiniSnippets-examples|.
---- - Prefer `*.json` files with dict-like content if you want more cross platfrom
+--- - Prefer `*.json` files with dict-like content if you want more cross platform
 ---   setup. Otherwise use `*.lua` files with array-like content.
 --- - To implement "dynamic snippet" that changes data (usually <body>) depending
 ---   on the context, use `*.lua` file with function returning snippet data.
@@ -376,7 +400,7 @@
 ---
 --- The best way to grasp the design of snippet management and expansion is to
 --- try them out yourself. Here are steps for a basic demo:
---- - Create 'snippets/global.json' file in the config directory with the content: >json
+--- - Create `snippets/global.json` file in the config directory with the content: >json
 ---
 ---   {
 ---     "Basic":        { "prefix": "ba", "body": "T1=$1 T2=$2 T0=$0"         },
@@ -390,7 +414,7 @@
 ---     }
 ---   }
 --- <
---- - Set up 'mini.snippets' as recommended in |MiniSnippets-examples|.
+--- - Set up |mini.snippets| as recommended in |MiniSnippets-examples|.
 --- - Open Neovim. Type each snippet prefix and press <C-j> (even if there is
 ---   still active session). Explore from there.
 ---@tag MiniSnippets-overview
@@ -407,7 +431,7 @@
 ---       gen_loader.from_file('~/.config/nvim/snippets/global.json'),
 ---
 ---       -- Load snippets based on current language by reading files from
----       -- "snippets/" subdirectories from 'runtimepath' directories.
+---       -- `snippets/` subdirectories from 'runtimepath' directories.
 ---       gen_loader.from_lang(),
 ---     },
 ---   })
@@ -417,8 +441,8 @@
 --- language (see |MiniSnippets.gen_loader.from_lang()|).
 ---
 --- Create language snippets manually (by creating and populating
---- '`$XDG_CONFIG_HOME`/nvim/snippets/lua.json' file) or by installing dedicated
---- snippet collection plugin (like 'rafamadriz/friendly-snippets').
+--- `$XDG_CONFIG_HOME/nvim/snippets/lua.json` file) or by installing dedicated
+--- snippet collection plugin (like `rafamadriz/friendly-snippets`).
 ---
 --- Note: all built-in loaders and |MiniSnippets.read_file()| cache their output
 --- by default. It means that after a file is first read, changing it won't have
@@ -527,28 +551,6 @@
 ---   vim.keymap.set({ 'i', 's' }, '<C-l>', jump_next)
 ---   vim.keymap.set({ 'i', 's' }, '<C-h>', jump_prev)
 --- <
---- # Using 'mini.snippets' in other plugins ~
---- *MiniSnippets-in-other-plugins*
----
---- - Perform a `_G.MiniSnippets ~= nil` check before using any feature. This
----   ensures that user explicitly set up 'mini.snippets'.
----
---- - To insert snippet given its body (like |vim.snippet.expand()|), use: >lua
----
----      -- Use configured `insert` method with falling back to default
----      local insert = MiniSnippets.config.expand.insert
----        or MiniSnippets.default_insert
----      -- Insert at cursor
----      insert({ body = snippet })
---- <
---- - To get available snippets, use: >lua
----
----   -- Get snippets matched at cursor
----   MiniSnippets.expand({ insert = false })
----
----   -- Get all snippets available at cursor context
----   MiniSnippets.expand({ match = false, insert = false })
---- <
 ---@tag MiniSnippets-examples
 
 ---@alias __minisnippets_cache_opt <cache> `(boolean)` - whether to use cached output. Default: `true`.
@@ -624,7 +626,7 @@ end
 ---       { prefix='cdate', body='$CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE' },
 ---
 ---       -- Load snippets based on current language by reading files from
----       -- "snippets/" subdirectories from 'runtimepath' directories.
+---       -- `snippets/` subdirectories from 'runtimepath' directories.
 ---       gen_loader.from_lang(),
 ---
 ---       -- Load project-local snippets with `gen_loader.from_file()`
@@ -843,7 +845,7 @@ MiniSnippets.gen_loader = {}
 
 --- Generate language loader
 ---
---- Output loads files from "snippets/" subdirectories of 'runtimepath' matching
+--- Output loads files from `snippets/` subdirectories of |'runtimepath'| matching
 --- configured language patterns.
 --- See |MiniSnippets.gen_loader.from_runtime()| for runtime loading details.
 ---
@@ -862,9 +864,9 @@ MiniSnippets.gen_loader = {}
 ---
 ---     Default pattern array (for non-empty language) is constructed as to read
 ---     `*.json` and `*.lua` files that are:
----     - Inside "snippets/" subdirectory named as language (files can be however
+---     - Inside `snippets/` subdirectory named as language (files can be however
 ---       deeply nested).
----     - Named as language and is in "snippets/" directory (however deep).
+---     - Named as language and is in `snippets/` directory (however deep).
 ---     Example for "lua" language: >lua
 ---         { 'lua/**/*.json', 'lua/**/*.lua', '**/lua.json', '**/lua.lua' }
 --- <
@@ -926,12 +928,12 @@ end
 
 --- Generate runtime loader
 ---
---- Output loads files which match `pattern` inside "snippets/" directories from
---- 'runtimepath'. This is useful to simultaneously read several similarly
---- named files from different sources. Order from 'runtimepath' is preserved.
+--- Output loads files which match `pattern` inside `snippets/` directories from
+--- |'runtimepath'|. This is useful to simultaneously read several similarly
+--- named files from different sources. Order from |'runtimepath'| is preserved.
 ---
 --- Typical case is loading snippets for a language from files like `xxx.{json,lua}`
---- but located in different "snippets/" directories inside 'runtimepath'.
+--- but located in different `snippets/` directories inside |'runtimepath'|.
 --- - `<config>`/snippets/lua.json - manually curated snippets in user config.
 --- - `<path/to/installed/plugin>`/snippets/lua.json - from installed plugin.
 --- - `<config>`/after/snippets/lua.json - used to adjust snippets from plugins.
@@ -944,7 +946,7 @@ end
 ---     Default: `true`.
 ---   - __minisnippets_cache_opt
 ---     Note: caching is done per `pattern` value, which assumes that both
----     'runtimepath' value and snippet files do not change during Neovim session.
+---     |'runtimepath'| value and snippet files do not change during Neovim session.
 ---     Caching this way gives significant speed improvement by reducing the need
 ---     to traverse file system on every snippet expand.
 ---   - __minisnippets_silent_opt
@@ -1063,11 +1065,11 @@ end
 ---   - <context> `(any)` - Context used as an argument for callable snippet data.
 ---     Default: table with <buf_id> (current buffer identifier) and <lang> (local
 ---     language) fields. Language is computed from tree-sitter parser at cursor
----     (allows different snippets in injected languages), 'filetype' otherwise.
+---     (allows different snippets in injected languages), |'filetype'| otherwise.
 ---
 ---@return ... Array of snippets and supplied context (default if none was supplied).
 MiniSnippets.default_prepare = function(raw_snippets, opts)
-  if not H.islist(raw_snippets) then H.error('`raw_snippets` should be array') end
+  if not vim.islist(raw_snippets) then H.error('`raw_snippets` should be array') end
   opts = vim.tbl_extend('force', { context = nil }, opts or {})
   local context = opts.context
   if context == nil then context = H.get_default_context() end
@@ -1212,9 +1214,9 @@ end
 ---   text for nodes with same tabstops. Stop if not able to.
 --- - Insert snippet at cursor:
 ---     - Add snippet's text. Lines are split at "\n".
----       Indent and left comment leaders (inferred from 'commentstring' and
----       'comments') of current line are repeated on the next.
----       Tabs ("\t") are expanded according to 'expandtab' and 'shiftwidth'.
+---       Indent and left comment leaders (inferred from |'commentstring'| and
+---       |'comments'|) of current line are repeated on the next.
+---       Tabs ("\t") are expanded according to |'expandtab'| and |'shiftwidth'|.
 ---     - If there is an actionable tabstop (not final), start snippet session.
 ---
 --- # Session life cycle ~
@@ -1246,7 +1248,7 @@ end
 --- - If tabstop has choices, all of them are shown after each jump and deleting
 ---   tabstop text. It is done with |complete()|, so use <C-n> / <C-p> to select
 ---   next / previous choice. Type text to narrow down the list.
----   Works best when 'completeopt' option contains `menuone` and `noselect` flags.
+---   Works best when |'completeopt'| option contains `menuone` and `noselect` flags.
 ---   Note: deleting character hides the list due to how |complete()| works;
 ---   delete whole tabstop text (for example with one or more |i_CTRL-W|) for
 ---   full list to reappear.
@@ -1365,7 +1367,6 @@ MiniSnippets.session = {}
 ---        - <is_visited> `(boolean)` - whether tabstop was visited.
 ---        - <next> `(string)` - identifier of the next tabstop.
 ---        - <prev> `(string)` - identifier of the previous tabstop.
----
 MiniSnippets.session.get = function(all) return vim.deepcopy(all and H.sessions or H.get_active_session()) end
 
 --- Jump to next/previous tabstop
@@ -1408,6 +1409,7 @@ MiniSnippets.session.stop = function()
     vim.api.nvim_del_augroup_by_name('MiniSnippetsTrack')
     H.unmap_in_sessions()
   end
+  H.clean_sessions()
   H.session_init(H.get_active_session(), false)
 end
 
@@ -1471,12 +1473,15 @@ MiniSnippets.parse = function(snippet_body, opts)
     is_not_top_level = function(self) return #self.depth_arrays > 1 end,
   }
 
-  for i = 0, vim.fn.strchars(snippet_body) - 1 do
+  -- NOTE: Special parsing is required only for single-byte characters, so
+  -- traverse snippet body per byte. This improves performance (~100x) on large
+  -- snippets compared to using `vim.fn.strchars()` and `vim.fn.strcharpart()`.
+  for i = 1, snippet_body:len() do
     -- Infer helper data (for more concise manipulations inside processor)
     local depth = #state.depth_arrays
     local arr = state.depth_arrays[depth]
     local processor, node = H.parse_processors[state.name], arr[#arr]
-    processor(vim.fn.strcharpart(snippet_body, i, 1), state, node)
+    processor(snippet_body:sub(i, i), state, node)
   end
 
   -- Verify, post-process, normalize
@@ -1512,7 +1517,7 @@ end
 MiniSnippets.start_lsp_server = function(opts)
   local default_opts = { before_attach = H.lsp_default_before_attach, match = nil, server_config = {}, triggers = {} }
   opts = vim.tbl_extend('force', default_opts, opts or {})
-  H.check_type('opts.before_attch', opts.before_attach, 'callable')
+  H.check_type('opts.before_attach', opts.before_attach, 'callable')
   H.check_type('opts.server_config', opts.server_config, 'table')
   H.check_type('opts.triggers', opts.triggers, 'table')
 
@@ -1565,9 +1570,6 @@ H.cache = {
   mappings = {},
 }
 
--- Capabilties of current Neovim version
-H.nvim_supports_inline_extmarks = vim.fn.has('nvim-0.10') == 1
-
 -- Helper functionality =======================================================
 -- Settings -------------------------------------------------------------------
 H.setup_config = function(config)
@@ -1619,28 +1621,14 @@ H.create_autocommands = function()
   au('ColorScheme', '*', H.create_default_hl, 'Ensure colors')
 
   -- Clean up invalid sessions (i.e. which have outdated or corrupted data)
-  local clean_sessions = function()
-    for i = #H.sessions - 1, 1, -1 do
-      if not H.session_is_valid(H.sessions[i]) then
-        H.session_deinit(H.sessions[i], true)
-        table.remove(H.sessions, i)
-      end
-    end
-    if #H.sessions > 0 and not H.session_is_valid(H.get_active_session()) then MiniSnippets.session.stop() end
-  end
   -- - Use `vim.schedule_wrap` to make it work with `:edit` command
-  au('BufUnload', '*', vim.schedule_wrap(clean_sessions), 'Clean sessions stack')
+  au('BufUnload', '*', vim.schedule_wrap(H.clean_sessions), 'Clean sessions stack')
 end
 
 H.create_default_hl = function()
   local hi_link_underdouble = function(to, from)
     local data = vim.api.nvim_get_hl(0, { name = from, link = false })
-    data.default = true
-    data.underdouble, data.underline, data.undercurl, data.underdotted, data.underdashed =
-      true, false, false, false, false
-    data.cterm = { underdouble = true }
-    data.fg, data.bg, data.ctermfg, data.ctermbg = 'NONE', 'NONE', 'NONE', 'NONE'
-    vim.api.nvim_set_hl(0, to, data)
+    vim.api.nvim_set_hl(0, to, { default = true, sp = data.sp, underdouble = true })
   end
   hi_link_underdouble('MiniSnippetsCurrent', 'DiagnosticUnderlineWarn')
   hi_link_underdouble('MiniSnippetsCurrentReplace', 'DiagnosticUnderlineError')
@@ -1742,7 +1730,7 @@ H.traverse_raw_snippets = function(x, target, context)
     end
   end
 
-  if H.islist(x) then
+  if vim.islist(x) then
     for _, v in ipairs(x) do
       H.traverse_raw_snippets(v, target, context)
     end
@@ -1893,7 +1881,7 @@ H.parse_processors = {}
 
 H.parse_processors.text = function(c, s, n)
   if n.after_slash then
-    -- Escape `$}\` and allow unescaped '\\' to preceed any character
+    -- Escape `$}\` and allow unescaped '\\' to precede any character
     if not (c == '$' or c == '}' or c == '\\') then table.insert(n.text, '\\') end
     n.text[#n.text + 1], n.after_slash = c, nil
     return
@@ -1975,7 +1963,7 @@ H.parse_processors.choice = function(c, s, n)
 
   local cur = n.choices[#n.choices]
   if n.after_slash then
-    -- Escape `$}\` and allow unescaped '\\' to preceed any character
+    -- Escape `$}\` and allow unescaped '\\' to precede any character
     if not (c == ',' or c == '|' or c == '\\') then table.insert(cur, '\\') end
     cur[#cur + 1], n.after_slash = c, nil
     return
@@ -1999,7 +1987,7 @@ H.parse_processors.transform_format = function(c, s, n)
   if n.after_slash then return s:set_in(n, 'after_slash', nil) end
   if n.after_dollar then
     n.after_dollar = nil
-    -- Inside `${}` wait until the first (unescaped) `}`. Techincally, this
+    -- Inside `${}` wait until the first (unescaped) `}`. Technically, this
     -- breaks LSP spec in `${1:?if:else}` (`if` doesn't have to escape `}`).
     -- Accept this as known limitation and ask to escape `}` in such cases.
     if c == '{' and not n.inside_braces then return s:set_in(n, 'inside_braces', true) end
@@ -2208,6 +2196,16 @@ H.track_sessions = function()
   vim.api.nvim_create_autocmd(text_events, { group = gr, callback = stop_if_final, desc = 'Stop on final tabstop' })
 end
 
+H.clean_sessions = function()
+  for i = #H.sessions - 1, 1, -1 do
+    if not H.session_is_valid(H.sessions[i]) then
+      H.session_deinit(H.sessions[i], true)
+      table.remove(H.sessions, i)
+    end
+  end
+  if #H.sessions > 0 and not H.session_is_valid(H.get_active_session()) then MiniSnippets.session.stop() end
+end
+
 H.map_in_sessions = function()
   -- Create mapping only once for all nested sessions
   if #H.sessions > 1 then return end
@@ -2308,7 +2306,7 @@ H.session_is_valid = function(session)
     -- NOTE: Invalid extmark tracking (via `invalidate=true`) should be doable,
     -- but comes with constraints: manually making tabstop empty should be
     -- allowed; deleting placeholder also deletes extmark's range. Both make
-    -- extmark invalid, so deligate to users to see that extmarks are broken.
+    -- extmark invalid, so delegate to users to see that extmarks are broken.
     local ok, row, _, _ = pcall(H.extmark_get, buf_id, n.extmark_id)
     res = res and (ok and row < n_lines)
   end
@@ -2431,10 +2429,8 @@ H.session_update_hl = function(session)
     opts.hl_group, opts.virt_text_pos, opts.virt_text = nil, nil, nil
 
     if is_empty then
-      if H.nvim_supports_inline_extmarks then
-        opts.virt_text_pos = 'inline'
-        opts.virt_text = { { is_final and empty_tabstop_final or empty_tabstop, hl_group } }
-      end
+      opts.virt_text_pos = 'inline'
+      opts.virt_text = { { is_final and empty_tabstop_final or empty_tabstop, hl_group } }
     else
       opts.hl_group = hl_group
     end
@@ -2750,7 +2746,7 @@ end
 H.trigger_event = function(event_name, data) vim.api.nvim_exec_autocmds('User', { pattern = event_name, data = data }) end
 
 H.is_array_of = function(x, predicate)
-  if not H.islist(x) then return false end
+  if not vim.islist(x) then return false end
   for i = 1, #x do
     if not predicate(x[i]) then return false end
   end
@@ -2767,15 +2763,15 @@ H.ensure_cur_buf = function(buf_id)
 end
 
 H.set_cursor = function(pos)
+  -- NOTE: This won't put cursor past enf of line (for cursor in Insert mode to
+  -- append text to the line). Ensure that Insert mode is active prior.
+  vim.api.nvim_win_set_cursor(0, pos)
+
   -- Ensure no built-in completion window
   -- HACK: Always clearing (and not *only* when pumvisible) accounts for weird
   -- edge case when it is not visible (i.e. candidates *just* got exhausted)
   -- but will still "clear and restore" text leading to squashing of extmarks.
   H.hide_completion()
-
-  -- NOTE: This won't put cursor past enf of line (for cursor in Insert mode to
-  -- append text to the line). Ensure that Insert mode is active prior.
-  vim.api.nvim_win_set_cursor(0, pos)
 end
 
 H.call_in_insert_mode = function(f)
@@ -2814,8 +2810,5 @@ H.hide_completion = function()
   -- '--INSERT--' temporarily when 'showmode' is active, but seems acceptable.
   if vim.fn.mode() == 'i' then vim.cmd('silent noautocmd call complete(col("."), [])') end
 end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 return MiniSnippets

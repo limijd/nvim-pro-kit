@@ -15,5 +15,14 @@ if vim.fn.has('nvim-0.11') == 1 then
   vim.api.nvim_set_hl(0, 'PmenuMatchSel', { link = 'PmenuSel' })
 end
 
--- Ensure no custom fold method in Lua files (it interfers with many tests)
+-- Ensure no custom fold method in Lua files (it interferes with many tests)
 vim.cmd('au FileType lua set foldmethod=manual')
+
+-- - Ensure that child process is tested with termguicolors, since 'mini.hues'
+--   only works with it. This might matter with screenshot testing.
+--   One example is how https://github.com/neovim/neovim/pull/35026 adjusts
+--   the behavior based on the presence of `rgb`.
+--   NOTE: similar effect can be achieved by adding the following to
+--   `child.setup` in 'helpers.lua':
+--   `child.api.nvim_ui_attach(child.o.columns, child.o.lines, { rgb=true })`
+vim.o.termguicolors = true

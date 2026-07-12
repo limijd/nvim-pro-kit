@@ -5,7 +5,6 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('animate', config) end
 local unload_module = function() child.mini_unload('animate') end
 local set_cursor = function(...) return child.set_cursor(...) end
@@ -13,7 +12,6 @@ local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child, true) end
---stylua: ignore end
 
 local get_virt_cursor = function()
   local pos = child.fn.getcurpos()
@@ -172,7 +170,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1858,14 +1856,23 @@ T['Scroll']["does not automatically animate result of 'incsearch'"] = function()
   type_keys('/', 'oo', '<CR>')
   child.expect_screenshot()
   sleep(step_time + small_time)
-  -- Should be the same
+  -- - Should be the same
   child.expect_screenshot()
 
   -- Should work for search with `?`
   type_keys('?', 'aa', '<CR>')
   child.expect_screenshot()
   sleep(step_time + small_time)
-  -- Should be the same
+  -- - Should be the same
+  child.expect_screenshot()
+
+  -- Should work for canceled search
+  set_cursor(1, 0)
+  type_keys('/', 'oo')
+  type_keys('<Esc>')
+  child.expect_screenshot()
+  sleep(step_time + small_time)
+  -- - Should be the same
   child.expect_screenshot()
 end
 
@@ -2227,6 +2234,28 @@ T['Resize']['works with `winheight`/`winwidth`'] = function()
   end
 end
 
+T['Resize']["works when height is changed by adjusting 'cmdheight'"] = function()
+  if child.fn.has('nvim-0.11') == 0 then MiniTest.skip("Neovim>=0.11 preserves 'cmdheight' after `:resize <big>`") end
+  child.cmd('wincmd j | wincmd q')
+
+  local validate = function(cmdheight)
+    child.o.cmdheight = cmdheight
+    sleep(5 * step_time + small_time)
+
+    eq(child.o.cmdheight, cmdheight)
+    child.cmd('resize -2')
+    sleep(3 * step_time + small_time)
+    eq(child.o.cmdheight, cmdheight + 2)
+
+    child.cmd('resize +100')
+    sleep(5 * step_time + small_time)
+    eq(child.o.cmdheight, cmdheight)
+  end
+
+  validate(2)
+  validate(0)
+end
+
 T['Resize']['respects `enable` config setting'] = function()
   child.lua('MiniAnimate.config.resize.enable = false')
   type_keys('<C-w>|')
@@ -2495,6 +2524,32 @@ T['Open']['triggers done event'] = function()
   child.cmd('wincmd v')
   sleep(step_time * 2 + small_time)
   eq(child.lua_get('_G.inside_done_event'), true)
+end
+
+T['Open']['handles deleting all buffers'] = function()
+  child.bo.modified = false
+  local validate = function()
+    child.cmd('topleft vertical new')
+    sleep(small_time)
+
+    -- Special helper buffer should be always present and work as expected
+    local helper_buf_id, ref_pattern = nil, '^minianimate://%d+/open%-close%-scratch$'
+    for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+      if string.find(child.api.nvim_buf_get_name(buf_id), ref_pattern) ~= nil then helper_buf_id = buf_id end
+    end
+    eq(type(helper_buf_id), 'number')
+    eq(child.api.nvim_get_option_value('modified', { buf = helper_buf_id }), false)
+
+    sleep(3 * step_time + small_time)
+  end
+
+  validate()
+
+  child.cmd('%bwipeout')
+  validate()
+
+  child.cmd('%bdelete')
+  validate()
 end
 
 T['Open']['respects `vim.{g,b}.minianimate_disable`'] = new_set({

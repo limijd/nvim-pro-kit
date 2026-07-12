@@ -5,7 +5,6 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('git', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
@@ -13,15 +12,12 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 local new_buf = function() return child.api.nvim_create_buf(true, false) end
 local new_scratch_buf = function() return child.api.nvim_create_buf(false, true) end
 local get_buf = function() return child.api.nvim_get_current_buf() end
 local set_buf = function(buf_id) child.api.nvim_set_current_buf(buf_id) end
 local get_win = function() return child.api.nvim_get_current_win() end
---stylua: ignore end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-local islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 local path_sep = package.config:sub(1, 1)
 local test_dir = 'tests/dir-git'
@@ -32,11 +28,6 @@ local git_root_dir = test_dir_absolute .. path_sep .. 'git-repo'
 local git_repo_dir = git_root_dir .. path_sep .. '.git-dir'
 local git_dir_path = git_root_dir .. path_sep .. 'dir-in-git'
 local git_file_path = git_root_dir .. path_sep .. 'file-in-git'
-
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
 
 -- Time constants
 local repo_watch_delay = 50
@@ -121,7 +112,7 @@ local validate_git_spawn_log = function(ref_log)
       eq('Real spawn log does not have entry for present reference log entry', ref)
     elseif ref == nil then
       eq(real, 'Reference does not have entry for present spawn log entry')
-    elseif islist(ref) then
+    elseif vim.islist(ref) then
       eq(real, { executable = 'git', options = { args = ref, cwd = real.options.cwd } })
     else
       eq(real, { executable = 'git', options = ref })
@@ -215,7 +206,7 @@ end
 
 T['setup()']['validates `config` argument'] = function()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1424,7 +1415,7 @@ T['enable()']['works'] = function()
   eq(child.b.minigit_summary, summary)
   eq(child.b.minigit_summary_string, 'main (??)')
 
-  -- Should not re-enable alreaady enabled buffer
+  -- Should not re-enable already enabled buffer
   enable()
   validate_git_spawn_log(ref_git_spawn_log)
 

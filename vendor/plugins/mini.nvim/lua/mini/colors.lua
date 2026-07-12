@@ -11,7 +11,7 @@
 ---     - Add transparency by removing background color (requires transparency
 ---       in terminal emulator).
 ---     - Infer cterm attributes (|cterm-colors|) based on gui colors making it
----       compatible with 'notermguicolors'.
+---       compatible with |'notermguicolors'|.
 ---     - Resolve highlight group links (|:highlight-link|).
 ---     - Compress by removing redundant highlight groups.
 ---     - Extract palette of used colors and/or infer terminal colors
@@ -83,19 +83,19 @@
 --- # Comparisons ~
 ---
 --- - [rktjmp/lush.nvim](https://github.com/rktjmp/lush.nvim):
----     - Oriented towards tweaking separate highlight groups, while 'mini.colors'
+---     - Oriented towards tweaking separate highlight groups, while |mini.colors|
 ---       is more designed to work with color scheme as a whole.
----     - Uses HSL and HSLuv color spaces, while 'mini.colors' uses Oklab, Oklch,
+---     - Uses HSL and HSLuv color spaces, while |mini.colors| uses Oklab, Oklch,
 ---       and Okhsl which have slightly better perceptual uniformity properties.
 ---     - Doesn't have functionality to infer and repair missing data in color
 ---       scheme (like cterm attributes, terminal colors, transparency, etc.),
----       while 'mini.colors' does.
+---       while |mini.colors| does.
 ---     - Doesn't implement animation of color scheme transition, while
----       'mini.colors' does.
+---       |mini.colors| does.
 --- - [lifepillar/vim-colortemplate](https://github.com/lifepillar/vim-colortemplate):
----     - Comparisons are similar to that of 'rktjmp/lush.nvim'.
+---     - Comparisons are similar to that of `rktjmp/lush.nvim`.
 --- - [tjdevries/colorbuddy.nvim](https://github.com/tjdevries/colorbuddy.nvim):
----     - Comparisons are similar to that of 'rktjmp/lush.nvim'.
+---     - Comparisons are similar to that of `rktjmp/lush.nvim`.
 ---@tag MiniColors
 
 --- All following code snippets assume to be executed inside interactive buffer
@@ -234,7 +234,7 @@
 --- will lead to a color `{ l = 10, c = 10, h = 90 }` in Oklch space, i.e.
 --- "dark yellow" which is impossible to show in HEX.
 ---
---- **Gamut clipping** is an action of converting color outside of visible gamut
+--- GAMUT CLIPPING is an action of converting color outside of visible gamut
 --- (colors representable with HEX string) to be inside it while preserving
 --- certain perceptual characteristics as much as possible.
 ---
@@ -430,12 +430,12 @@
 ---   sets of highlight groups to update:
 ---   - <general> `(boolean)` - general groups (like `Normal`). Default: `true`.
 ---   - <float> `(boolean)` - built-in groups for floating windows. Default: `false`.
----   - <statuscolumn> `(boolean)` - groups related to 'statuscolumn' (signcolumn,
+---   - <statuscolumn> `(boolean)` - groups related to |'statuscolumn'| (signcolumn,
 ---     numbercolumn, foldcolumn, `DiagnosticSignXxx`, and `XxxMsg` groups). Also
 ---     updates groups for all currently defined signs. Default: `false`.
----   - <statusline> `(boolean)` - built-in groups for 'statusline'. Default: `false`.
----   - <tabline> `(boolean)` - built-in groups for 'tabline'. Default: `false`.
----   - <winbar> `(boolean)` - built-in groups for 'winbar'. Default: `false`.
+---   - <statusline> `(boolean)` - built-in groups for |'statusline'|. Default: `false`.
+---   - <tabline> `(boolean)` - built-in groups for |'tabline'|. Default: `false`.
+---   - <winbar> `(boolean)` - built-in groups for |'winbar'|. Default: `false`.
 ---
 --- ## apply() ~
 --- *MiniColors-colorscheme:apply()*
@@ -935,7 +935,7 @@ end
 ---   - <show_duration> `(number)` - number of milliseconds to show intermediate
 ---     color schemes (all but last in `cs_array`). Default: 1000.
 MiniColors.animate = function(cs_array, opts)
-  if not (H.islist(cs_array) and H.all(cs_array, H.is_colorscheme)) then
+  if not (vim.islist(cs_array) and H.all(cs_array, H.is_colorscheme)) then
     H.error('Argument `cs_array` should be an array of color schemes.')
   end
   opts = vim.tbl_deep_extend(
@@ -1049,7 +1049,7 @@ MiniColors.simulate_cvd = function(x, cvd_type, severity)
 
   -- Simulate regular CVD by multiplying with appropriate matrix
   severity = H.clip(H.round(10 * severity), 0, 10)
-  local mat = H.cvd_matricies[cvd_type][severity]
+  local mat = H.cvd_matrices[cvd_type][severity]
   local rgb = MiniColors.convert(x, 'rgb')
   local new_rgb = {
     r = mat[1][1] * rgb.r + mat[1][2] * rgb.g + mat[1][3] * rgb.b,
@@ -1076,7 +1076,7 @@ H.tau = 2 * math.pi
 -- colors lie inside this triangle **AND** not all points inside triangle are
 -- RGB colors. But both proportions are small: around 0.5% with similar modeled
 -- RGB color for first one and around 2.16% for second one.
---stylua: ignore start
+--stylua: ignore
 ---@diagnostic disable start
 ---@private
 H.cusps = {
@@ -1132,7 +1132,8 @@ H.cusps = {
 -- Each first-level entry describes CVD type; second-level - severity times 10.
 -- Source:
 -- https://www.inf.ufrgs.br/~oliveira/pubs_files/CVD_Simulation/CVD_Simulation.html
-H.cvd_matricies = {
+--stylua: ignore
+H.cvd_matrices = {
   protan = {
     [00]={{1.000000, 0.000000,  -0.000000}, {0.000000,  1.000000, 0.000000}, {-0.000000, -0.000000, 1.000000}},
     [01]={{0.856167, 0.182038,  -0.038205}, {0.029342,  0.955115, 0.015544}, {-0.002880, -0.001563, 1.004443}},
@@ -1174,7 +1175,6 @@ H.cvd_matricies = {
   },
 }
 ---@diagnostic disable end
---stylua: ignore end
 
 H.allowed_spaces = { '8-bit', 'hex', 'rgb', 'oklab', 'oklch', 'okhsl' }
 
@@ -2467,8 +2467,5 @@ H.all = function(arr, predicate)
   end
   return true
 end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 return MiniColors

@@ -2,7 +2,7 @@
 
 ### All-in-one plugin
 
-Library of 40+ independent Lua modules improving overall [Neovim](https://github.com/neovim/neovim) (version 0.9 and higher) experience with minimal effort. They all share same configuration approaches and general design principles.
+Library of 45+ independent Lua modules improving overall [Neovim](https://github.com/neovim/neovim) (version 0.10 and higher) experience with minimal effort. They all share same configuration approaches and general design principles.
 
 Think about this project as "Swiss Army knife" among Neovim plugins: it has many different independent tools (modules) suitable for most common tasks. Each module can be used separately without any startup and usage overhead.
 
@@ -35,39 +35,55 @@ There are two branches to install from:
 
 Here are code snippets for some common installation methods:
 
+- (**Recommended**) With [vim.pack](https://neovim.io/doc/user/helptag.html?tag=vim.pack) (on Neovim 0.12 and newer):
+
+    - Main branch:
+
+        ```lua
+        vim.pack.add({ 'https://github.com/nvim-mini/mini.nvim' })
+        ```
+
+    - Stable branch:
+
+        ```lua
+        vim.pack.add({
+          { src = 'https://github.com/nvim-mini/mini.nvim', version = 'stable' },
+        })
+        ```
+
 - Manually with `git clone` (compatible with [mini.deps](https://nvim-mini.org/mini.nvim/readmes/mini-deps)):
 
-```lua
--- Put this at the top of 'init.lua'
-local path_package = vim.fn.stdpath('data') .. '/site'
-local mini_path = path_package .. '/pack/deps/start/mini.nvim'
-if not vim.loop.fs_stat(mini_path) then
-  vim.cmd('echo "Installing `mini.nvim`" | redraw')
-  local clone_cmd = {
-    'git', 'clone', '--filter=blob:none',
-    -- Uncomment next line to use 'stable' branch
-    -- '--branch', 'stable',
-    'https://github.com/nvim-mini/mini.nvim', mini_path
-  }
-  vim.fn.system(clone_cmd)
-  vim.cmd('packadd mini.nvim | helptags ALL')
-  vim.cmd('echo "Installed `mini.nvim`" | redraw')
-end
-```
+    ```lua
+    -- Put this at the top of 'init.lua'
+    local path_package = vim.fn.stdpath('data') .. '/site'
+    local mini_path = path_package .. '/pack/deps/start/mini.nvim'
+    if not vim.loop.fs_stat(mini_path) then
+      vim.cmd('echo "Installing `mini.nvim`" | redraw')
+      local clone_cmd = {
+        'git', 'clone', '--filter=blob:none',
+        -- Uncomment next line to use 'stable' branch
+        -- '--branch', 'stable',
+        'https://github.com/nvim-mini/mini.nvim', mini_path
+      }
+      vim.fn.system(clone_cmd)
+      vim.cmd('packadd mini.nvim | helptags ALL')
+      vim.cmd('echo "Installed `mini.nvim`" | redraw')
+    end
+    ```
 
 - With [folke/lazy.nvim](https://github.com/folke/lazy.nvim):
 
-| Branch | Code snippet                                  |
-|--------|-----------------------------------------------|
-| Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
-| Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+    - Main branch:
 
-- With [junegunn/vim-plug](https://github.com/junegunn/vim-plug):
+        ```lua
+        { 'nvim-mini/mini.nvim', version = false },
+        ```
 
-| Branch | Code snippet                                         |
-|--------|------------------------------------------------------|
-| Main   | `Plug 'nvim-mini/mini.nvim'`                         |
-| Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
+    - Stable branch:
+
+        ```lua
+        { 'nvim-mini/mini.nvim', version = '*' },
+        ```
 
 - Every module is also distributed as a standalone Git repository. Check out module's information for more details.
 
@@ -112,11 +128,13 @@ These modules improve your general workflow. Start with 'mini.bracketed', 'mini.
 | mini.bracketed | Go forward/backward with square brackets | [README](readmes/mini-bracketed.md) | [Documentation](doc/mini-bracketed.txt) |
 | mini.bufremove | Remove buffers                           | [README](readmes/mini-bufremove.md) | [Documentation](doc/mini-bufremove.txt) |
 | mini.clue      | Show next key clues                      | [README](readmes/mini-clue.md)      | [Documentation](doc/mini-clue.txt)      |
+| mini.cmdline   | Command line tweaks                      | [README](readmes/mini-cmdline.md)   | [Documentation](doc/mini-cmdline.txt)   |
 | mini.deps      | Plugin manager                           | [README](readmes/mini-deps.md)      | [Documentation](doc/mini-deps.txt)      |
 | mini.diff      | Work with diff hunks                     | [README](readmes/mini-diff.md)      | [Documentation](doc/mini-diff.txt)      |
 | mini.extra     | Extra 'mini.nvim' functionality          | [README](readmes/mini-extra.md)     | [Documentation](doc/mini-extra.txt)     |
 | mini.files     | Navigate and manipulate file system      | [README](readmes/mini-files.md)     | [Documentation](doc/mini-files.txt)     |
 | mini.git       | Git integration                          | [README](readmes/mini-git.md)       | [Documentation](doc/mini-git.txt)       |
+| mini.input     | Get user input                           | [README](readmes/mini-input.md)     | [Documentation](doc/mini-input.txt)     |
 | mini.jump      | Jump to next/previous single character   | [README](readmes/mini-jump.md)      | [Documentation](doc/mini-jump.txt)      |
 | mini.jump2d    | Jump within visible lines                | [README](readmes/mini-jump2d.md)    | [Documentation](doc/mini-jump2d.txt)    |
 | mini.misc      | Miscellaneous functions                  | [README](readmes/mini-misc.md)      | [Documentation](doc/mini-misc.txt)      |
@@ -195,7 +213,7 @@ Each module's core functionality can be disabled globally or locally to buffer. 
 
 ### Silencing
 
-Each module providing non-error feedback can be configured to not do that by setting `config.silent = true` (either inside `setup()` call or on the fly).
+Each module providing non-error feedback (like a reminder to press a key after some idle time in 'mini.ai', 'mini.jump2d', 'mini.surround') can be configured to not do that by setting `config.silent = true` (either inside `setup()` call or on the fly).
 
 ### Highlighting
 
@@ -233,7 +251,6 @@ This plugin comes with several color schemes (all have both dark and light varia
 This is the list of modules I currently intend to implement eventually (as my free time and dedication will allow), in alphabetical order:
 
 - 'mini.abbrev' - helper to manage/setup Insert mode abbreviations.
-- 'mini.cmdline' - improved Command line. Possibly with custom `vim.ui.input` implementation.
 - 'mini.cycle' - cycle through alternatives with pre-defined rules. Something like [monaqa/dial.nvim](https://github.com/monaqa/dial.nvim) and [AndrewRadev/switch.vim](https://github.com/AndrewRadev/switch.vim)
 - 'mini.folds' - more capable and user-friendly folds.
 - 'mini.repl' - extendable wrapper for REPLs with built-in support for R, Python, Julia, and maybe (just maybe) some AI tools.

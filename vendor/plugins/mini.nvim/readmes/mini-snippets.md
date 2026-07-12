@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/2cb38960-a26c-48ae-83cd-5fbcaa57d1cf
     - Easy to reason rules for when session automatically stops.
     - Text synchronization of linked tabstops preserving relative indent.
     - Dynamic tabstop state visualization (current/visited/unvisited, etc.)
-    - Inline visualization of empty tabstops (requires Neovim>=0.10).
+    - Inline visualization of empty tabstops.
     - Works inside comments by preserving comment leader on new lines.
     - Supports nested sessions (expand snippet while there is an active one).
 
@@ -252,59 +252,73 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+<summary><b>(Recommended)</b> With <a href="https://neovim.io/doc/user/helptag.html?tag=vim.pack">vim.pack</a> (on Neovim 0.12 and newer)</summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | *Follow recommended ‘mini.deps’ installation* |
-    | Stable | *Follow recommended ‘mini.deps’ installation* |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                                       |
-    |--------|--------------------------------------------------------------------|
-    | Main   | `add(‘nvim-mini/mini.snippets’)`                                   |
-    | Stable | `add({ source = ‘nvim-mini/mini.snippets’, checkout = ‘stable’ })` |
+Main branch:
+
+```lua
+vim.pack.add({ 'https://github.com/nvim-mini/mini.snippets' })
+```
+
+Stable branch:
+
+```lua
+vim.pack.add({
+  { src = 'https://github.com/nvim-mini/mini.snippets', version = 'stable' },
+})
+```
+
+</details>
+
+<details>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a> (before Neovim 0.12)</summary>
+
+**Full library**
+
+Follow [recommended 'mini.deps' installation](https://nvim-mini.org/mini.nvim/readmes/mini-deps#installation).
+
+**Standalone plugin**:
+
+Main branch:
+
+```lua
+add('nvim-mini/mini.snippets')
+```
+
+Stable branch:
+
+```lua
+add({ source = 'nvim-mini/mini.snippets', checkout = 'stable' })
+```
 
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                      |
-    |--------|---------------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.snippets', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.snippets', version = '*' },`   |
+Main branch:
 
-</details>
+```lua
+{ 'nvim-mini/mini.snippets', version = false },
+```
 
-<details>
-<summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
+Stable branch:
 
-- 'mini.nvim' library:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
-    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
-
-- Standalone plugin:
-
-    | Branch | Code snippet                                             |
-    |--------|----------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.snippets'`                         |
-    | Stable | `Plug 'nvim-mini/mini.snippets', { 'branch': 'stable' }` |
+```lua
+{ 'nvim-mini/mini.snippets', version = '*' },
+```
 
 </details>
 
@@ -354,6 +368,6 @@ Here are code snippets for some common installation methods (use only one):
 ## Similar plugins
 
 - [L3MON4D3/LuaSnip](https://github.com/L3MON4D3/LuaSnip)
-- Built-in snippet expansion in Neovim>=0.10, see `:h vim.snippet` (doesn't provide snippet management, only snippet expansion).
+- Built-in snippet expansion, see `:h vim.snippet` (doesn't provide snippet management, only snippet expansion).
 - [rafamadriz/friendly-snippets](https://github.com/rafamadriz/friendly-snippets) (a curated collection of snippet files)
 - [abeldekat/cmp-mini-snippets](https://github.com/abeldekat/cmp-mini-snippets) (a source for [hrsh7th/nvim-cmp](https://github.com/hrsh7th/nvim-cmp) that integrates 'mini.snippets')

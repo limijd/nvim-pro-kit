@@ -5,17 +5,11 @@ local expect, eq, no_eq = helpers.expect, helpers.expect.equality, helpers.expec
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('icons', config) end
 local unload_module = function() child.mini_unload('icons') end
---stylua: ignore end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 
 -- Common test wrappers
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
 local get = function(...) return child.lua_get('{ MiniIcons.get(...) }', { ... }) end
 local list = forward_lua('MiniIcons.list')
 
@@ -50,7 +44,7 @@ T['setup()']['creates side effects'] = function()
   has_highlight('MiniIconsBlue', 'links to DiagnosticInfo')
   has_highlight('MiniIconsCyan', 'links to DiagnosticHint')
   has_highlight('MiniIconsGreen', 'links to DiagnosticOk')
-  has_highlight('MiniIconsGrey', child.fn.has('nvim-0.10') == 1 and 'cleared' or 'cterm= gui=')
+  has_highlight('MiniIconsGrey', 'cleared')
   has_highlight('MiniIconsOrange', 'links to DiagnosticWarn')
   has_highlight('MiniIconsPurple', 'links to Constant')
   has_highlight('MiniIconsRed', 'links to DiagnosticError')
@@ -86,7 +80,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -582,7 +576,7 @@ T['get()']['respects multibyte characters with "ascii" style'] = function()
   eq(get('lsp', 'й_lsp')[1], 'Й')
   eq(get('os', 'й_os')[1], 'Й')
 
-  -- Default stil should match with category's first letter
+  -- Default still should match with category's first letter
   eq(get('directory', 'й_default_dir')[1], 'D')
   eq(get('extension', 'й_default_ext')[1], 'E')
   eq(get('file', 'й_default_file')[1], 'F')
@@ -653,16 +647,45 @@ T['get()']['can be used without `setup()`'] = function()
   eq(child.lua_get('{ require("mini.icons").get("default", "file") }'), { '󰈔', 'MiniIconsGrey', false })
 end
 
-T['get()']['can be used after deleting all buffers'] = function()
-  -- As `vim.filetype.match()` requries a buffer to be more useful, make sure
-  -- that this cached buffer is persistent
+T['get()']['works with deleted cwd'] = function()
+  local temp_dir = 'tests/dir-icons/temp'
+  vim.fn.mkdir(temp_dir, 'p')
+  MiniTest.finally(function() vim.fn.delete(temp_dir, 'rf') end)
+
+  local file_path = child.fn.fnamemodify('tests/dir-icons/file.txt', ':p')
+  child.fn.chdir(temp_dir)
+  vim.fn.delete(temp_dir, 'rf')
+
+  -- Should use `vim.filetype.match` without errors due to missing cwd
+  eq(get('extension', 'xpm'), { '󰍹', 'MiniIconsYellow', false })
+  eq(get('extension', 'unknown'), { '󰈔', 'MiniIconsGrey', true })
+  eq(get('file', 'hello.tcsh'), { '', 'MiniIconsAzure', false })
+  eq(get('file', file_path), { '󰦪', 'MiniIconsYellow', false })
+  eq(get('file', 'does-not-exist'), { '󰈔', 'MiniIconsGrey', true })
+end
+
+T['get()']['handles deleting all buffers'] = function()
+  -- As `vim.filetype.match()` requires a buffer to be more useful, make sure
+  -- that there is a persistent helper buffer
+  local validate = function()
+    local helper_buf_id, ref_pattern = nil, '^miniicons://%d+/filetype%-match%-scratch$'
+    for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+      if string.find(child.api.nvim_buf_get_name(buf_id), ref_pattern) ~= nil then helper_buf_id = buf_id end
+    end
+    eq(type(helper_buf_id), 'number')
+    eq(child.api.nvim_get_option_value('modified', { buf = helper_buf_id }), false)
+  end
+
   eq(get('file', 'hello.xpm'), { '󰍹', 'MiniIconsYellow', false })
-  -- The helper scratch buffer should be properly named
-  eq(child.api.nvim_buf_get_name(2), 'miniicons://2/filetype-match-scratch')
+  validate()
 
   child.cmd('%bwipeout')
   eq(get('file', 'hello.tcsh'), { '', 'MiniIconsAzure', false })
-  eq(child.api.nvim_buf_get_name(3), 'miniicons://3/filetype-match-scratch')
+  validate()
+
+  child.cmd('%bdelete')
+  eq(get('file', 'hello.zsh'), { '', 'MiniIconsGreen', false })
+  validate()
 end
 
 T['get()']['uses width one glyphs'] = function()
@@ -686,10 +709,9 @@ end
 T['list()'] = new_set()
 
 T['list()']['works'] = function()
-  local islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
   local validate = function(category, ref_present_entry)
     local res = list(category)
-    eq(islist(res), true)
+    eq(vim.islist(res), true)
     eq(vim.tbl_contains(res, ref_present_entry), true)
   end
 

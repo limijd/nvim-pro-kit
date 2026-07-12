@@ -30,7 +30,7 @@ https://user-images.githubusercontent.com/24854248/175773105-f33cd3bb-6f62-4a61-
 ## Features
 
 - Test action is defined as a named callable entry of a table.
-- Helper for creating child Neovim process which is designed to be used in tests (including taking and verifying screenshots). See help for `MiniTest.new_child_neovim()` and `Minitest.expect.reference_screenshot()`.
+- Helper for creating child Neovim process which is designed to be used in tests (including taking and verifying screenshots). See help for `MiniTest.new_child_neovim()` and `MiniTest.expect.reference_screenshot()`.
 - Hierarchical organization of tests with custom hooks, parametrization, and user data. See help for `MiniTest.new_set()`.
 - Emulation of [Olivine-Labs/busted](https://github.com/Olivine-Labs/busted) interface (`describe`, `it`, etc.).
 - Predefined small yet usable set of expectations (`assert`-like functions). See help for `MiniTest.expect`.
@@ -54,59 +54,73 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+<summary><b>(Recommended)</b> With <a href="https://neovim.io/doc/user/helptag.html?tag=vim.pack">vim.pack</a> (on Neovim 0.12 and newer)</summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | *Follow recommended ‘mini.deps’ installation* |
-    | Stable | *Follow recommended ‘mini.deps’ installation* |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                                   |
-    |--------|----------------------------------------------------------------|
-    | Main   | `add(‘nvim-mini/mini.test’)`                                   |
-    | Stable | `add({ source = ‘nvim-mini/mini.test’, checkout = ‘stable’ })` |
+Main branch:
+
+```lua
+vim.pack.add({ 'https://github.com/nvim-mini/mini.test' })
+```
+
+Stable branch:
+
+```lua
+vim.pack.add({
+  { src = 'https://github.com/nvim-mini/mini.test', version = 'stable' },
+})
+```
+
+</details>
+
+<details>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a> (before Neovim 0.12)</summary>
+
+**Full library**
+
+Follow [recommended 'mini.deps' installation](https://nvim-mini.org/mini.nvim/readmes/mini-deps#installation).
+
+**Standalone plugin**:
+
+Main branch:
+
+```lua
+add('nvim-mini/mini.test')
+```
+
+Stable branch:
+
+```lua
+add({ source = 'nvim-mini/mini.test', checkout = 'stable' })
+```
 
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.test', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.test', version = '*' },`   |
+Main branch:
 
-</details>
+```lua
+{ 'nvim-mini/mini.test', version = false },
+```
 
-<details>
-<summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
+Stable branch:
 
-- 'mini.nvim' library:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
-    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
-
-- Standalone plugin:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.test'`                         |
-    | Stable | `Plug 'nvim-mini/mini.test', { 'branch': 'stable' }` |
+```lua
+{ 'nvim-mini/mini.test', version = '*' },
+```
 
 </details>
 

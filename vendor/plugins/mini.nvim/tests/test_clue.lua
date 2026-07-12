@@ -5,7 +5,6 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('clue', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
@@ -13,15 +12,12 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
+local validate_edit = function(...) return child.validate_edit(...) end
+local validate_edit1d = function(...) return child.validate_edit1d(...) end
 
 local get_window = function() return child.api.nvim_get_current_win() end
 local set_window = function(win_id) return child.api.nvim_set_current_win(win_id) end
-
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
 
 -- Mapping helpers
 local replace_termcodes = function(x) return child.api.nvim_replace_termcodes(x, true, true, true) end
@@ -74,23 +70,6 @@ end
 
 local validate_no_trigger_keymap = function(mode, keys, buf_id)
   expect.error(function() validate_trigger_keymap(mode, keys, buf_id) end, 'No such trigger')
-end
-
-local validate_edit = function(lines_before, cursor_before, keys, lines_after, cursor_after)
-  child.ensure_normal_mode()
-  set_lines(lines_before)
-  set_cursor(cursor_before[1], cursor_before[2])
-
-  type_keys(keys)
-
-  eq(get_lines(), lines_after)
-  eq(get_cursor(), cursor_after)
-
-  child.ensure_normal_mode()
-end
-
-local validate_edit1d = function(line_before, col_before, keys, line_after, col_after)
-  validate_edit({ line_before }, { 1, col_before }, keys, { line_after }, { 1, col_after })
 end
 
 local validate_move = function(lines, cursor_before, keys, cursor_after)
@@ -213,7 +192,7 @@ end
 
 T['setup()']['validates `config` argument'] = function()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -314,6 +293,42 @@ T['setup()']['creates triggers for already created buffers'] = function()
   validate_trigger_keymap('n', 'g', other_buf_id)
 end
 
+T['setup()']['does not affect buffer-local options'] = function()
+  --stylua: ignore
+  child.restart({
+    '--cmd', 'let &rtp.=",".getcwd()',
+    -- Executing `setup()` before `vim.o.expandtab=true` might lead to the new
+    -- option value not take effect for not current buffers. Originally because
+    -- enabling triggers force loaded buffers that were not yet loaded, which
+    -- "finalized" default value as buffer-local value.
+    '--cmd', 'lua require("mini.clue").setup({ triggers = { { mode = "n", keys = "<Space>" } } })',
+    '--cmd', 'lua vim.o.expandtab = true',
+    '--', 'file-a', 'file-b',
+  })
+  local validate = function(ref_buf_name)
+    local buf_name = child.api.nvim_buf_get_name(0)
+    eq(vim.fn.fnamemodify(buf_name, ':t'), ref_buf_name)
+    eq(child.bo.expandtab, true)
+    validate_trigger_keymap('n', '<Space>')
+  end
+
+  validate('file-a')
+  child.cmd('bnext')
+  validate('file-b')
+
+  -- Should still enable triggers if buffer is unloaded and then reloaded
+  child.cmd('bunload file-a')
+  child.cmd('edit file-a')
+  validate('file-a')
+end
+
+T['setup()']['creates triggers for an array of modes'] = function()
+  load_module({ triggers = { { mode = { 'n', 'x' }, keys = 'g' } } })
+  validate_trigger_keymap('n', 'g')
+  validate_trigger_keymap('x', 'g')
+  validate_no_trigger_keymap('c', 'g')
+end
+
 T['setup()']['creates triggers only in listed buffers'] = function()
   local buf_id_nolisted = child.api.nvim_create_buf(false, true)
   make_test_map('n', '<Space>a')
@@ -321,6 +336,7 @@ T['setup()']['creates triggers only in listed buffers'] = function()
   validate_no_trigger_keymap('n', '<Space>', buf_id_nolisted)
 
   local buf_id_nolisted_new = child.api.nvim_create_buf(false, true)
+  child.api.nvim_set_current_buf(buf_id_nolisted_new)
   validate_no_trigger_keymap('n', '<Space>', buf_id_nolisted_new)
 end
 
@@ -409,6 +425,7 @@ T['setup()']['respects `vim.b.miniclue_config`'] = function()
   validate_trigger_keymap('n', '<Space>', init_buf_id)
 
   local other_buf_id = child.api.nvim_create_buf(true, false)
+  child.api.nvim_set_current_buf(other_buf_id)
   validate_trigger_keymap('n', 'g', other_buf_id)
   validate_trigger_keymap('n', '<Space>', other_buf_id)
 end
@@ -858,9 +875,6 @@ end
 T['gen_clues']['windows()'] = new_set()
 
 T['gen_clues']['windows()']['works'] = function()
-  -- Check this only on Neovim>=0.10, as there are many new built-in mappings
-  if child.fn.has('nvim-0.10') == 0 then return end
-
   child.lua([[
     local miniclue = require('mini.clue')
     miniclue.setup({
@@ -1310,6 +1324,15 @@ T['Showing keys']['respects `config.window.config`'] = function()
 
   type_keys(' ')
   child.expect_screenshot()
+  type_keys('<Esc>')
+
+  -- Should properly truncate title
+  child.lua([[
+    local title = string.sub('abcdefgijklmnopqrstuvwxyzabcdefgijklmnopqrstuvwxyz', -vim.o.columns)
+    MiniClue.config.window.config = { width = vim.o.columns, title = title }
+  ]])
+  type_keys(' ')
+  child.expect_screenshot()
 end
 
 T['Showing keys']["respects 'winborder' option"] = function()
@@ -1715,14 +1738,12 @@ T['Showing keys']['works in Command-line window'] = function()
   type_keys('q:')
   type_keys(' ')
 
-  child.expect_screenshot()
+  child.expect_screenshot({ ignore_text = { 10 } })
 
   sleep(small_time + small_time)
   type_keys('f')
 
-  -- Closing floating window is allowed only on Neovim>=0.10.
-  -- See https://github.com/neovim/neovim/issues/24452 .
-  if child.fn.has('nvim-0.10') == 1 then child.expect_screenshot() end
+  child.expect_screenshot({ ignore_text = { 10 } })
 
   eq(get_test_map_count('n', '<Space>f'), 1)
 
@@ -1741,6 +1762,31 @@ T['Showing keys']['does not trigger unnecessary events'] = function()
   type_keys('a', 'a')
   eq(get_test_map_count('n', ' aa'), 1)
   eq(child.lua_get('_G.n_events'), vim.NIL)
+end
+
+T['Showing keys']['handles deleting all buffers'] = function()
+  make_test_map('n', '<Space>aa')
+  load_module({ triggers = { { mode = 'n', keys = '<Space>' } }, window = { delay = 0 } })
+
+  local validate = function()
+    type_keys(' ')
+    type_keys('<Esc>')
+
+    -- Special helper buffer should be always present and work as expected
+    local helper_buf_id, ref_pattern = nil, '^miniclue://%d+/content$'
+    for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+      if string.find(child.api.nvim_buf_get_name(buf_id), ref_pattern) ~= nil then helper_buf_id = buf_id end
+    end
+    eq(type(helper_buf_id), 'number')
+    eq(child.api.nvim_get_option_value('modified', { buf = helper_buf_id }), false)
+  end
+
+  validate()
+
+  child.cmd('%bwipeout')
+  validate()
+  child.cmd('%bdelete')
+  validate()
 end
 
 T['Showing keys']['respects `vim.b.miniclue_config`'] = function()
@@ -1840,6 +1886,21 @@ T['Clues']['handles no description'] = function()
   })
 
   type_keys(' ')
+  child.expect_screenshot()
+end
+
+T['Clues']['handles an array of modes'] = function()
+  load_module({
+    clues = { { mode = { 'n', 'x' }, keys = '<Space>a', desc = 'Clue <Space>a' } },
+    triggers = { { mode = { 'n', 'x' }, keys = '<Space>' } },
+    window = { delay = 0 },
+  })
+
+  type_keys(' ')
+  child.expect_screenshot()
+
+  type_keys('<Esc>')
+  type_keys('v', ' ')
   child.expect_screenshot()
 end
 
@@ -2091,9 +2152,6 @@ T['Postkeys']['closes window if postkeys do not end up key querying'] = function
 end
 
 T['Postkeys']['persists window if action changes tabpage'] = function()
-  -- Check this only on Neovim>=0.10, as there are many new built-in mappings
-  if child.fn.has('nvim-0.10') == 0 then return end
-
   load_module({
     clues = { { mode = 'n', keys = '<C-w>T', desc = 'Move to new tabpage', postkeys = '<C-w>' } },
     triggers = { { mode = 'n', keys = '<C-w>' } },
@@ -2209,6 +2267,8 @@ end
 
 T['Querying keys']['respects `<Esc>`/`<C-c>`'] = function()
   make_test_map('n', '<Space>f')
+  make_test_map('n', '<Space><C-c>')
+  make_test_map('n', '<Space><Esc>')
   load_module({ triggers = { { mode = 'n', keys = '<Space>' } } })
   validate_trigger_keymap('n', '<Space>')
 
@@ -2217,9 +2277,14 @@ T['Querying keys']['respects `<Esc>`/`<C-c>`'] = function()
     type_keys(' ', key, 'f')
     child.ensure_normal_mode()
     eq(get_test_map_count('n', ' f'), 0)
+    eq(get_test_map_count('n', ' \3'), 0)
+    eq(get_test_map_count('n', ' ' .. replace_termcodes('<Esc>')), 0)
   end
 
   validate('<Esc>')
+
+  -- <C-c> should stop even if it doesn't make `getcharstr` error
+  child.cmd('nnoremap <C-c> <C-\\><C-n>')
   validate('<C-c>')
 end
 
@@ -3174,10 +3239,25 @@ T['Reproducing keys']['works with macros'] = function()
   validate_trigger_keymap('o', 'i')
 
   -- Should work when creating new buffer inside macro (i.e. auto-creating
-  -- triggers should not intefere)
+  -- triggers should not interfere)
   child.fn.setreg('a', 'word')
   type_keys('qw', ':enew<CR>', 'i', '<C-r>', 'a', '<Esc>', 'q')
   eq(child.fn.getreg('w'), ':enew\ri\18a\27')
+end
+
+T['Reproducing keys']["works with macros and 'mini.jump'"] = function()
+  child.lua("require('mini.jump').setup()")
+  load_module()
+  set_lines({ '  [aaa][bbb][ccc]' })
+
+  type_keys(small_time, 'qq', '0f', '[', 'r(f', ']', 'r)', 'q')
+  eq(get_lines(), { '  (aaa)[bbb][ccc]' })
+
+  type_keys('Q')
+  eq(get_lines(), { '  (aaa)(bbb)[ccc]' })
+
+  type_keys('@q')
+  eq(get_lines(), { '  (aaa)(bbb)(ccc)' })
 end
 
 T['Reproducing keys']['works when key query is executed in presence of longer keymaps'] = function()
@@ -3308,7 +3388,7 @@ T["'mini.nvim' compatibility"]['mini.ai'] = function()
 
   validate_edit1d('(a(b(cc)b)a)', 5, 'd2i)', '(a()a)', 3)
 
-  validate_edit1d('(a(b(cc)b)a)', 5, 'di).', '(a()a)', 3)
+  validate_edit1d('(a(b(cc)b)a)', 5, 'di)l.', '(a()a)', 3)
   validate_edit1d('(aa) (bb)', 1, 'ci)cc<Esc>W.', '(cc) (cc)', 7)
 
   validate_edit1d('(aa) (bb) (cc)', 6, 'dil)', '() (bb) (cc)', 1)
@@ -3564,11 +3644,12 @@ T["'mini.nvim' compatibility"]['mini.indentscope'] = function()
   validate_selection(lines, cursor, 'v]i', { 3, 2 }, { 4, 1 })
   validate_selection(lines, cursor, 'v2]i', { 3, 2 }, { 5, 0 })
 
-  validate_selection(lines, cursor, 'vai', { 2, 1 }, { 4, 1 }, 'V')
-  validate_selection(lines, cursor, 'v2ai', { 1, 0 }, { 5, 0 }, 'V')
+  --typos: ignore
+  validate_selection(lines, cursor, 'vai', { 2, 1 }, { 4, 2 }, 'V')
+  validate_selection(lines, cursor, 'v2ai', { 1, 0 }, { 5, 1 }, 'V')
 
-  validate_selection(lines, cursor, 'vii', { 3, 2 }, { 3, 2 }, 'V')
-  validate_selection(lines, cursor, 'v2ii', { 3, 2 }, { 3, 2 }, 'V')
+  validate_selection(lines, cursor, 'vii', { 3, 2 }, { 3, 3 }, 'V')
+  validate_selection(lines, cursor, 'v2ii', { 3, 2 }, { 3, 3 }, 'V')
 
   -- Operator-pending mode
   validate_edit(lines, cursor, 'd[i', { 'aa', '\tcc', '\tdd', 'ee' }, { 2, 1 })

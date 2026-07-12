@@ -46,7 +46,7 @@ https://github.com/user-attachments/assets/dd3fe2e2-9795-47c1-9479-0b3fa14c6e75
 For full experience needs (still works without any of suggestions):
 
 - Enabled ['mini.icons'](https://nvim-mini.org/mini.nvim/readmes/mini-icons) module to highlight LSP kind (requires Neovim>=0.11). If absent, `MiniCompletion.default_process_items()` does not add highlighting. Also take a look at `MiniIcons.tweak_lsp_kind()`.
-- Enabled ['mini.snippets'](https://nvim-mini.org/mini.nvim/readmes/mini-snippets) module for better snippet handling (**much recommended**). If absent and custom snippet insert is not configured, `vim.snippet.expand()` is used on Neovim>=0.10 (nothing extra is done on earlier versions). See `:h MiniCompletion.default_snippet_insert()`.
+- Enabled ['mini.snippets'](https://nvim-mini.org/mini.nvim/readmes/mini-snippets) module for better snippet handling (**much recommended**). If absent and custom snippet insert is not configured, falls back to `vim.snippet.expand()`. See `:h MiniCompletion.default_snippet_insert()`.
 
 ## Snippets
 
@@ -74,59 +74,73 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+<summary><b>(Recommended)</b> With <a href="https://neovim.io/doc/user/helptag.html?tag=vim.pack">vim.pack</a> (on Neovim 0.12 and newer)</summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | *Follow recommended ‘mini.deps’ installation* |
-    | Stable | *Follow recommended ‘mini.deps’ installation* |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                                         |
-    |--------|----------------------------------------------------------------------|
-    | Main   | `add(‘nvim-mini/mini.completion’)`                                   |
-    | Stable | `add({ source = ‘nvim-mini/mini.completion’, checkout = ‘stable’ })` |
+Main branch:
+
+```lua
+vim.pack.add({ 'https://github.com/nvim-mini/mini.completion' })
+```
+
+Stable branch:
+
+```lua
+vim.pack.add({
+  { src = 'https://github.com/nvim-mini/mini.completion', version = 'stable' },
+})
+```
+
+</details>
+
+<details>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a> (before Neovim 0.12)</summary>
+
+**Full library**
+
+Follow [recommended 'mini.deps' installation](https://nvim-mini.org/mini.nvim/readmes/mini-deps#installation).
+
+**Standalone plugin**:
+
+Main branch:
+
+```lua
+add('nvim-mini/mini.completion')
+```
+
+Stable branch:
+
+```lua
+add({ source = 'nvim-mini/mini.completion', checkout = 'stable' })
+```
 
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                        |
-    |--------|-----------------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.completion', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.completion', version = '*' },`   |
+Main branch:
 
-</details>
+```lua
+{ 'nvim-mini/mini.completion', version = false },
+```
 
-<details>
-<summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
+Stable branch:
 
-- 'mini.nvim' library:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
-    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
-
-- Standalone plugin:
-
-    | Branch | Code snippet                                               |
-    |--------|------------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.completion'`                         |
-    | Stable | `Plug 'nvim-mini/mini.completion', { 'branch': 'stable' }` |
+```lua
+{ 'nvim-mini/mini.completion', version = '*' },
+```
 
 </details>
 
@@ -172,7 +186,7 @@ Here are code snippets for some common installation methods (use only one):
 
     -- A function which takes a snippet as string and inserts it at cursor.
     -- Default: `default_snippet_insert` which tries to use 'mini.snippets'
-    -- and falls back to `vim.snippet.expand` (on Neovim>=0.10).
+    -- and falls back to `vim.snippet.expand`.
     snippet_insert = nil,
   },
 

@@ -5,14 +5,10 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('deps', config) end
 local unload_module = function() child.mini_unload('deps') end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-local islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 
 local test_dir = 'tests/dir-deps'
 local test_dir_absolute = vim.fs.normalize(vim.fn.fnamemodify(test_dir, ':p')):gsub('(.)/$', '%1')
@@ -53,11 +49,6 @@ local validate_not_confirm_buf = function()
 end
 
 -- Common test wrappers
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
 local add = forward_lua('MiniDeps.add')
 local get_session = forward_lua('MiniDeps.get_session')
 
@@ -123,7 +114,7 @@ local validate_git_spawn_log = function(ref_log)
       eq('Real spawn log does not have entry for present reference log entry', ref)
     elseif ref == nil then
       eq(real, 'Reference does not have entry for present spawn log entry')
-    elseif islist(ref) then
+    elseif vim.islist(ref) then
       -- Assume default `git` options
       local args = { '-c', 'gc.auto=0' }
       vim.list_extend(args, ref)
@@ -246,9 +237,8 @@ T['setup()']['creates side effects'] = function()
   load_module()
   local has_highlight = function(group, value) expect.match(child.cmd_capture('hi ' .. group), value) end
 
-  local is_010 = child.fn.has('nvim-0.10') == 1
-  has_highlight('MiniDepsChangeAdded', 'links to ' .. (is_010 and 'Added' or 'diffAdded'))
-  has_highlight('MiniDepsChangeRemoved', 'links to ' .. (is_010 and 'Removed' or 'diffRemoved'))
+  has_highlight('MiniDepsChangeAdded', 'links to Added')
+  has_highlight('MiniDepsChangeRemoved', 'links to Removed')
   has_highlight('MiniDepsHint', 'links to DiagnosticHint')
   has_highlight('MiniDepsInfo', 'links to DiagnosticInfo')
   has_highlight('MiniDepsPlaceholder', 'links to Comment')
@@ -269,7 +259,7 @@ T['setup()']['creates `config` field'] = function()
 
   expect_config('path.package', child.fn.stdpath('data') .. '/site')
   expect_config('path.snapshot', child.fn.stdpath('config') .. '/mini-deps-snap')
-  expect_config('path.log', child.fn.stdpath('state') .. '/mini-deps.log')
+  expect_config('path.log', child.fn.stdpath('log') .. '/mini-deps.log')
 
   expect_config('silent', false)
 end
@@ -284,7 +274,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1779,7 +1769,7 @@ T['update()']['respects `names` argument'] = function()
   validate_notifications({ { '(mini.deps) Nothing to update', 'INFO' } })
 end
 
-T['update()']['valdiates arguments'] = function()
+T['update()']['validates arguments'] = function()
   expect.error(function() update('plugin_1') end, '`names`.*array')
   expect.error(function() update({ 'plugin_1', 1, { name = 'plugin_2' } }) end, '`names`.*strings')
 end

@@ -31,8 +31,8 @@
 ---
 --- This module needs a setup with `require('mini.indentscope').setup({})`
 --- (replace `{}` with your `config` table). It will create global Lua table
---- `MiniIndentscope` which you can use for scripting or manually (with `:lua
---- MiniIndentscope.*`).
+--- `MiniIndentscope` which you can use for scripting or manually (with
+--- `:lua MiniIndentscope.*`).
 ---
 --- See |MiniIndentscope.config| for available config settings.
 ---
@@ -45,17 +45,18 @@
 ---
 --- - [lukas-reineke/indent-blankline.nvim](https://github.com/lukas-reineke/indent-blankline.nvim):
 ---     - Its main functionality is about showing static guides of indent levels.
----     - Implementation of 'mini.indentscope' is similar to
----       'indent-blankline.nvim' (using |extmarks| on first column to be shown
+---     - Implementation of |mini.indentscope| is similar to
+---       `indent-blankline.nvim` (using |extmarks| on first column to be shown
 ---       even on blank lines). They can be used simultaneously, but it will
 ---       lead to one of the visualizations being on top (hiding) of another.
 ---
 --- # Highlight groups ~
+--- *MiniIndentscope-hl-groups*
 ---
 --- - `MiniIndentscopeSymbol` - symbol showing on every line of scope if its
----   indent is multiple of 'shiftwidth'.
+---   indent is multiple of |'shiftwidth'|.
 --- - `MiniIndentscopeSymbolOff` - symbol showing on every line of scope if its
----   indent is not multiple of 'shiftwidth'.
+---   indent is not multiple of |'shiftwidth'|.
 ---   Default: links to `MiniIndentscopeSymbol`.
 ---
 --- To change any highlight group, set it directly with |nvim_set_hl()|.
@@ -530,10 +531,14 @@ MiniIndentscope.textobject = function(use_border)
       start, finish = 'bottom', 'top'
     end
 
+    -- Take into account forced Operator-pending modes ('nov', 'noV', 'no<C-V>')
+    local vis_mode = vim.fn.mode(1):match('^no(.)') or 'V'
     H.exit_visual_mode()
+
     MiniIndentscope.move_cursor(start, use_border, scope)
-    vim.cmd('normal! V')
+    vim.cmd('normal! ' .. vis_mode)
     MiniIndentscope.move_cursor(finish, use_border, scope)
+    vim.cmd('normal! g_')
 
     -- Use `try_as_border = false` to enable chaining
     scope = MiniIndentscope.get_scope(nil, nil, { try_as_border = false })
@@ -615,9 +620,6 @@ H.border_correctors = {
   end,
 }
 
--- Whether or not Nvim supports the virt_text_repeat_linebreak extmark feature
-H.has_wrapped_virt_text = vim.fn.has('nvim-0.10') == 1
-
 -- Helper functionality =======================================================
 -- Settings -------------------------------------------------------------------
 H.setup_config = function(config)
@@ -647,11 +649,11 @@ H.setup_config = function(config)
   return config
 end
 
+--stylua: ignore
 H.apply_config = function(config)
   MiniIndentscope.config = config
   local maps = config.mappings
 
-  --stylua: ignore start
   H.map('n', maps.goto_top, [[<Cmd>lua MiniIndentscope.operator('top', true)<CR>]], { desc = 'Go to indent scope top' })
   H.map('n', maps.goto_bottom, [[<Cmd>lua MiniIndentscope.operator('bottom', true)<CR>]], { desc = 'Go to indent scope bottom' })
 
@@ -667,7 +669,6 @@ H.apply_config = function(config)
   H.map('o', maps.goto_bottom, [[<Cmd>lua MiniIndentscope.operator('bottom')<CR>]], { desc = 'Go to indent scope bottom' })
   H.map('o', maps.object_scope, '<Cmd>lua MiniIndentscope.textobject(false)<CR>', { desc = 'Object scope' })
   H.map('o', maps.object_scope_with_border, '<Cmd>lua MiniIndentscope.textobject(true)<CR>', { desc = 'Object scope with border' })
-  --stylua: ignore start
 end
 
 H.create_autocommands = function()
@@ -962,9 +963,7 @@ H.make_draw_function = function(indicator, opts)
     virt_text_pos = 'overlay',
   }
 
-  if H.has_wrapped_virt_text and vim.wo.breakindent and vim.wo.showbreak == '' then
-    extmark_opts.virt_text_repeat_linebreak = true
-  end
+  if vim.wo.breakindent and vim.wo.showbreak == '' then extmark_opts.virt_text_repeat_linebreak = true end
 
   local current_event_id = opts.event_id
 

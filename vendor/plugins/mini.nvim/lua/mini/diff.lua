@@ -56,6 +56,7 @@
 ---       This module does not (by design).
 ---
 --- # Highlight groups ~
+--- *MiniDiff-hl-groups*
 ---
 --- - `MiniDiffSignAdd`        - "add" hunk lines visualization.
 --- - `MiniDiffSignChange`     - "change" hunk lines visualization.
@@ -138,7 +139,7 @@
 ---
 --- Notes:
 --- - Use |:edit| to reset (disable and re-enable) current buffer.
---- - To work with BOM bytes, set 'bomb' and have `ucs-bom` in 'fileencodings'.
+--- - To work with BOM bytes, set |'bomb'| and have `ucs-bom` in |'fileencodings'|.
 ---
 --- # Overlay ~
 ---
@@ -381,7 +382,8 @@ end
 --- `config.options` contains various customization options.
 ---
 --- `options.algorithm` is a string defining which diff algorithm to use.
---- Default: "histogram". See |vim.diff()| for possible values.
+--- Default: "histogram". See |vim.text.diff()| (|vim.diff()| on Neovim<=0.11)
+--- for possible values.
 ---
 --- `options.indent_heuristic` is a boolean defining whether to use indent
 --- heuristic for a (possibly) more naturally aligned hunks.
@@ -389,7 +391,8 @@ end
 ---
 --- `options.linematch` is a number defining hunk size for which a second
 --- stage diff is executed for a better aligned and more granular hunks.
---- Default: 60. See |vim.diff()| and 'diffopt' for more details.
+--- Default: 60. See |vim.text.diff()| (|vim.diff()| on Neovim<=0.11) and |'diffopt'|
+--- for more details.
 ---
 --- `options.wrap_goto` is a boolean indicating whether to wrap around edges during
 --- hunk navigation (with |MiniDiff.goto_hunk()| or `goto_*` mappings). Like if
@@ -440,10 +443,10 @@ MiniDiff.config = {
 
   -- Various options
   options = {
-    -- Diff algorithm. See `:h vim.diff()`.
+    -- Diff algorithm (see `:h vim.text.diff()`)
     algorithm = 'histogram',
 
-    -- Whether to use "indent heuristic". See `:h vim.diff()`.
+    -- Whether to use "indent heuristic" (see `:h vim.text.diff()`)
     indent_heuristic = true,
 
     -- The amount of second-stage diff to align lines
@@ -647,10 +650,14 @@ MiniDiff.gen_source.git = function()
   local attach = function(buf_id)
     -- Try attaching to a buffer only once
     if H.git_cache[buf_id] ~= nil then return false end
-    -- - Possibly resolve symlinks to get data from the original repo
+
+    -- Possibly resolve symlinks to get data from the original repo
     local path = H.get_buf_realpath(buf_id)
     if path == '' then return false end
 
+    -- Claim Git cache to not try to attach to the non-Git path several times.
+    -- NOTE: Do this after `path==''` check since the same buffer can be reused
+    -- for opening actual file (`nvim` -> `:edit file`).
     H.git_cache[buf_id] = {}
     H.git_start_watching_index(buf_id, path)
   end
@@ -667,6 +674,14 @@ MiniDiff.gen_source.git = function()
     local patch = H.git_format_patch(buf_id, hunks, path_data)
     H.git_apply_patch(path_data, patch)
   end
+
+  -- Ensure to clean source cache for `:edit` to force reattach, since regular
+  -- `disable()` from `on_detach` is not enough as there can be no source
+  -- attached (like for files not in Git repo).
+  local augroup = vim.api.nvim_create_augroup('MiniDiffSourceGit', { clear = true })
+  local clear_buf_cache = function(ev) H.git_cache[ev.buf] = nil end
+  local au_opts = { group = augroup, callback = clear_buf_cache, desc = 'Clear Git cache' }
+  vim.api.nvim_create_autocmd({ 'BufUnload' }, au_opts)
 
   return { name = 'git', attach = attach, detach = detach, apply_hunks = apply_hunks }
 end
@@ -809,7 +824,7 @@ end
 --- Perform action over region defined by marks. Used in mappings.
 ---
 --- Example of a mapping to yank reference lines of hunk range under cursor
---- (assuming default 'config.mappings.textobject'): >lua
+--- (assuming default `config.mappings.textobject`): >lua
 ---
 ---   local rhs = function() return MiniDiff.operator('yank') .. 'gh' end
 ---   vim.keymap.set('n', 'ghy', rhs, { expr = true, remap = true })
@@ -928,9 +943,6 @@ H.style_extmark_data = {
 
 -- Suffix for overlay virtual lines to be highlighted as full line
 H.overlay_suffix = string.rep(' ', vim.o.columns)
-
--- Flag for whether to invalidate extmarks
-H.extmark_invalidate = vim.fn.has('nvim-0.10') == 1 and true or nil
 
 -- Flag for whether to handle virtual lines overflow
 H.extmark_virt_lines_overflow = vim.fn.has('nvim-0.11') == 1 and 'scroll' or nil
@@ -1052,10 +1064,9 @@ H.create_default_hl = function()
     vim.api.nvim_set_hl(0, name, opts)
   end
 
-  local has_core_diff_hl = vim.fn.has('nvim-0.10') == 1
-  hi('MiniDiffSignAdd',        { link = has_core_diff_hl and 'Added' or 'diffAdded' })
-  hi('MiniDiffSignChange',     { link = has_core_diff_hl and 'Changed' or 'diffChanged' })
-  hi('MiniDiffSignDelete',     { link = has_core_diff_hl and 'Removed' or 'diffRemoved'  })
+  hi('MiniDiffSignAdd',        { link = 'Added' })
+  hi('MiniDiffSignChange',     { link = 'Changed' })
+  hi('MiniDiffSignDelete',     { link = 'Removed' })
   hi('MiniDiffOverAdd',        { link = 'DiffAdd' })
   hi('MiniDiffOverChange',     { link = 'DiffText' })
   hi('MiniDiffOverChangeBuf',  { link = 'MiniDiffOverChange'})
@@ -1207,9 +1218,9 @@ H.convert_view_to_extmark_opts = function(view)
   local field, hl_group_prefix = extmark_data.field, extmark_data.hl_group_prefix
   --stylua: ignore
   return {
-    add =    { [field] = hl_group_prefix .. 'Add',    sign_text = signs.add,    priority = view.priority, invalidate = H.extmark_invalidate },
-    change = { [field] = hl_group_prefix .. 'Change', sign_text = signs.change, priority = view.priority, invalidate = H.extmark_invalidate },
-    delete = { [field] = hl_group_prefix .. 'Delete', sign_text = signs.delete, priority = view.priority, invalidate = H.extmark_invalidate },
+    add =    { [field] = hl_group_prefix .. 'Add',    sign_text = signs.add,    priority = view.priority, invalidate = true },
+    change = { [field] = hl_group_prefix .. 'Change', sign_text = signs.change, priority = view.priority, invalidate = true },
+    delete = { [field] = hl_group_prefix .. 'Delete', sign_text = signs.delete, priority = view.priority, invalidate = true },
   }
 end
 
@@ -1488,12 +1499,15 @@ H.compute_worddiff_changed_parts = function(ref_line, buf_line)
   return ref_ranges, buf_ranges
 end
 
+H.str_utfindex = function(s, i) return vim.str_utfindex(s, 'utf-32', i) end
+if vim.fn.has('nvim-0.11') == 0 then H.str_utfindex = function(s, i) return (vim.str_utfindex(s, i)) end end
+
 H.slice_line = function(line)
   -- Intertwine every proper character with '\n'
   local line_len = line:len()
   local sliced, starts, ends
   -- Make short route for a very common case of no multibyte characters
-  if vim.str_utfindex(line) == line_len then
+  if H.str_utfindex(line) == line_len then
     sliced, starts, ends = line:gsub('(.)', '%1\n'), {}, {}
     for i = 1, string.len(line) do
       starts[i], ends[i] = i, i
@@ -1687,7 +1701,6 @@ H.git_start_watching_index = function(buf_id, path)
       return
     end
     MiniDiff.fail_attach(buf_id)
-    H.git_cache[buf_id] = {}
   end)
 
   local process, stdout_feed = nil, {}

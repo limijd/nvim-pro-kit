@@ -5,17 +5,11 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('hipatterns', config) end
 local set_lines = function(...) return child.set_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child, true) end
---stylua: ignore end
-
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 
 -- Module helpers
 local get_hi_namespaces = function()
@@ -122,7 +116,7 @@ end
 
 T['setup()']['validates `config` argument'] = function()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1099,11 +1093,6 @@ T['gen_highlighter']['hex_color()']["works with style 'line'"] = function()
 end
 
 T['gen_highlighter']['hex_color()']["works with style 'inline'"] = function()
-  if child.fn.has('nvim-0.10') == 0 then
-    expect.error(function() enable_hex_color({ style = 'inline' }) end, '"inline".*hex_color.*0%.10')
-    return
-  end
-
   child.set_size(5, 25)
   set_lines({ '#000000 #ffffff' })
 
@@ -1201,6 +1190,22 @@ T['gen_highlighter']['hex_color()']['respects `opts.filter`'] = function()
   child.expect_screenshot()
 end
 
+T['gen_highlighter']['hex_color()']['respects `opts.max_number`'] = function()
+  set_lines({ '#000000', '#000001', '#ffffff' })
+
+  child.lua([[
+    local hipatterns = require('mini.hipatterns')
+    hipatterns.enable(0, {
+      highlighters = {
+        hex_color = hipatterns.gen_highlighter.hex_color({ max_number = 2 }),
+      },
+    })
+  ]])
+
+  update(0)
+  child.expect_screenshot()
+end
+
 T['compute_hex_color_group()'] = new_set()
 
 local compute_hex_color_group = forward_lua([[require('mini.hipatterns').compute_hex_color_group]])
@@ -1242,6 +1247,47 @@ T['compute_hex_color_group()']['persists after `:colorscheme`'] = function()
   child.cmd('colorscheme blue')
   eq(compute_hex_color_group('#000000', 'line'), 'MiniHipatterns_000000_line')
   validate_hl_group('MiniHipatterns_000000_line', 'gui=underline guisp=#000000')
+end
+
+T['compute_hex_color_group()']['works if there was an error creating highlight group'] = function()
+  child.lua('vim.api.nvim_set_hl = function() error("An unknown error") end')
+  eq(compute_hex_color_group('#000000', 'bg'), vim.NIL)
+  -- Should not cache as successful creation
+  eq(compute_hex_color_group('#000000', 'bg'), vim.NIL)
+end
+
+T['compute_hex_color_group()']['respects `opts.max_number`'] = function()
+  -- Needs `setup()` call to create `ColorScheme` autocommand
+  load_module()
+
+  local validate = function(max_number, hex, ref)
+    eq(compute_hex_color_group(hex, 'bg', { max_number = max_number }), ref)
+  end
+
+  validate(2, '#000000', 'MiniHipatterns_000000_bg')
+  validate(2, '#000001', 'MiniHipatterns_000001_bg')
+  validate(2, '#000002', vim.NIL)
+
+  -- Should persist the check
+  validate(2, '#000002', vim.NIL)
+
+  -- Should be able to increase `max_number`
+  validate(3, '#000002', 'MiniHipatterns_000002_bg')
+
+  -- Should reset on `:colorscheme`
+  child.cmd('colorscheme blue')
+  validate(2, '#000000', 'MiniHipatterns_000000_bg')
+  validate(2, '#000001', 'MiniHipatterns_000001_bg')
+  validate(2, '#000002', vim.NIL)
+
+  -- Should count only actually created highlight groups
+  child.lua([[
+    _G.nvim_set_hl_orig = vim.api.nvim_set_hl
+    vim.api.nvim_set_hl = function() error("An unknown error") end
+  ]])
+  validate(3, '#000002', vim.NIL)
+  child.lua('vim.api.nvim_set_hl = _G.nvim_set_hl_orig')
+  validate(3, '#000002', 'MiniHipatterns_000002_bg')
 end
 
 return T
