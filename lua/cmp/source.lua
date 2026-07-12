@@ -355,14 +355,18 @@ source.complete = function(self, ctx, callback)
 
       self.incomplete = response.isIncomplete or false
 
-      if #(response.items or response) > 0 then
+      if type(response.items) ~= 'userdata' and #(response.items or response) > 0 then
         debug.log(self:get_debug_name(), 'retrieve', #(response.items or response))
         local old_offset = self.offset
         local old_entries = self.entries
 
+        response.itemDefaults = misc.ensure_nil(response.itemDefaults)
+
         self.status = source.SourceStatus.COMPLETED
         self.entries = {}
         for _, item in ipairs(response.items or response) do
+          item = misc.ensure_nil(item)
+
           if item.label then
             local e = entry.new(ctx, self, item, response.itemDefaults)
             if not e:is_invalid() then
