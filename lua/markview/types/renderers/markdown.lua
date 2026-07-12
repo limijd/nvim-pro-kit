@@ -40,6 +40,9 @@
 ---
 ---@field preview? string Callout/Alert preview string(shown where `>[!string]` was).
 ---@field preview_hl? string Highlight group for the preview.
+---@field preview_line_hl? string Highlight group for the preview line *background*. Uses `line_hl` when not set.
+---
+---@field line_hl? string Highlight group for the line *background*.
 ---
 ---@field title? boolean Should this callout allow titles(`>[!string] <Title>`)? Disabled by default.
 
@@ -64,7 +67,7 @@
 ---@field sign? boolean Enables signs for the code block?
 ---@field sign_hl? string Highlight group for the sign.
 ---
----@field style "simple" Only highlights the line. Enabled when `wrap` is enabled.
+---@field style "simple" | fun(buf: integer, item: markview.parsed.markdown.code_blocks): "simple" Only highlights the line. Enabled when `wrap` is enabled.
 ---
 ---@field default markview.config.markdown.code_blocks.opts
 ---@field [string] markview.config.markdown.code_blocks.opts
@@ -87,7 +90,7 @@
 ---@field sign? boolean Enables signs for the code block?
 ---@field sign_hl? string Highlight group for the sign.
 ---
----@field style "block" Creates a block around the code block. Disabled when `wrap` is enabled.
+---@field style "block" | fun(buf: integer, item: markview.parsed.markdown.code_blocks): "block" Creates a block around the code block. Disabled when `wrap` is enabled.
 ---
 ---@field default markview.config.markdown.code_blocks.opts
 ---@field [string] markview.config.markdown.code_blocks.opts

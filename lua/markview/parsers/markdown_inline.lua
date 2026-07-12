@@ -1,4 +1,5 @@
 local inline = {};
+local lpeg = vim.lpeg;
 
 --- Queried contents
 ---@type table[]
@@ -119,7 +120,7 @@ end
 
 --- Github like emoji shorthand parser.
 ---@param range markview.parsed.range
-inline.emojis = function (_, TSNode, text, range)
+inline.emoji = function (_, TSNode, text, range)
 	local parent = TSNode:parent();
 
 	while parent do
@@ -210,7 +211,7 @@ end
 ---@param TSNode table
 ---@param text string[]
 ---@param range markview.parsed.range
-inline.highlights = function (_, TSNode, text, range)
+inline.highlight = function (_, TSNode, text, range)
 	local parent = TSNode:parent();
 
 	while parent do
@@ -486,6 +487,67 @@ inline.shortcut_link = function (buffer, TSNode, text, range)
 	});
 end
 
+---|fS "code: LPeg grammar for matching `tags`"
+
+-- NOTE: A tag must not be followed by a `]]`
+--
+-- This is because `internal links` can have `#^section` parts in them which aren't tags.
+-- Tags also don't have a dedicated `TSNode` and must rely in patterns to match.
+
+-- NOTE: Valid characters are `0-9`, `a-z`, `A-Z`, `_` & `-`.
+--
+-- Special cases such as `#1` are not considered tags in **Obsidian**,
+-- but the extra matching required isn't worth the effort in my opinion.
+local tag_text = lpeg.R("az", "AZ", "09") + lpeg.S("_-");
+
+-- NOTE: Tags in Obsidian can't have non-whitespace text before `#`.
+local boundary = -lpeg.B(1) + lpeg.B(lpeg.S(" \t") );
+
+local tag = lpeg.P(boundary) * lpeg.C(
+	lpeg.Cp() * -- Start byte
+	lpeg.P("#") * tag_text^1 *
+	lpeg.Cp() -- End byte
+) * -lpeg.P("]]");
+local tag_pattern = lpeg.Ct( ( tag + 1 )^1 );
+
+---|fE
+
+--- Obsidian-style tags
+---@param text string[]
+---@param range markview.parsed.range
+inline.tag = function (_, _, text, range)
+	for l, line in ipairs(text) do
+		local _col_start = l == 1 and range.col_start or 0;
+		local index = 1;
+		local tags = tag_pattern:match(line);
+
+		while index < #tags do
+			local match = tags[index];
+			local col_start = _col_start + tags[index + 1] - 1;
+			local col_end = _col_start + tags[index + 2] - 1;
+
+			if match and col_start and col_end then
+
+				inline.insert({
+					class = "inline_tag",
+					label = match:gsub("^#", ""),
+					text = { match },
+
+					range = {
+						row_start = range.row_start + (l - 1),
+						col_start = col_start,
+
+						row_end = range.row_start + (l - 1),
+						col_end = col_end
+					}
+				});
+			end
+
+			index = index + 3;
+		end
+	end
+end
+
 --- Uri autolink parser.
 ---@param TSNode table
 ---@param text string[]
@@ -537,11 +599,14 @@ inline.parse = function (buffer, TSTree, from, to)
 	end
 
 	local scanned_queries = vim.treesitter.query.parse("markdown_inline", [[
-		((inline) @markdown_inline.highlights
-			(#lua-match? @markdown_inline.highlights "==.+=="))
+		((inline) @markdown_inline.highlight
+			(#lua-match? @markdown_inline.highlight "==.+=="))
 
-		((inline) @markdown_inline.emojis
-			(#lua-match? @markdown_inline.emojis ":.+:"))
+		((inline) @markdown_inline.emoji
+			(#lua-match? @markdown_inline.emoji ":.+:"))
+
+		((inline) @markdown_inline.tag
+			(#lua-match? @markdown_inline.tag "#[a-zA-Z0-9_-]+"))
 
 		((email_autolink) @markdown_inline.email)
 

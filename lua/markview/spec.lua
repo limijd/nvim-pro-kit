@@ -8,6 +8,8 @@ local spec = {};
 ---@type markview.config
 spec.default = {
 	experimental = {
+		fancy_comments = false,
+
 		date_formats = {
 			"^%d%d%d%d%-%d%d%-%d%d$",      --- YYYY-MM-DD
 			"^%d%d%-%d%d%-%d%d%d%d$",      --- DD-MM-YYYY, MM-DD-YYYY
@@ -187,8 +189,21 @@ spec.default = {
 		debounce = 150,
 		icon_provider = "internal",
 
-		filetypes = { "markdown", "quarto", "rmd", "typst" },
+		filetypes = { "markdown", "quarto", "rmd", "typst", "asciidoc", },
 		ignore_buftypes = { "nofile" },
+		condition = function (buffer)
+			local is_enabled = spec.get({ "experimental", "fancy_comments" }, {
+				fallback = false,
+			});
+
+			if not is_enabled then
+				return false;
+			end
+
+			local success, parser = pcall(vim.treesitter.get_parser, buffer);
+			return success and parser ~= nil;
+		end,
+
 		raw_previews = {},
 
 		modes = { "n", "no", "c" },
@@ -210,6 +225,9 @@ spec.default = {
 
 ---@type string[] Properties that should be sourced *externally*.
 spec.__external_config = {
+	"asciidoc",
+	"asciidoc_inline",
+	"comment",
 	"html",
 	"markdown",
 	"markdown_inline",
@@ -233,6 +251,11 @@ end
 --- Setup function for markview.
 ---@param config markview.config?
 spec.setup = function (config)
+	if package.loaded["markview.renderers.markdown.tostring"] then
+		-- NOTE: Only update the cache used by `tostring()` when config is updated.
+		require("markview.renderers.markdown.tostring").update_cache();
+	end
+
 	spec.config = vim.tbl_deep_extend("force", spec.config, config or {});
 end
 

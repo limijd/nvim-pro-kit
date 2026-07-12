@@ -73,6 +73,7 @@ fts.styles = {
 	["godoc"]                   = { name = "Godoc",                sign = "󰟓 ", sign_hl = "MarkviewPalette5Sign", icon = "󰟓 ", icon_hl = "MarkviewIcon5", border_hl = "MarkviewPalette5Fg" },
 	["gomod"]                   = { name = "Gomod",                sign = "󰏖 ", sign_hl = "MarkviewPalette5Sign", icon = "󰏖 ", icon_hl = "MarkviewIcon5", border_hl = "MarkviewPalette5Fg" },
 	["gprof"]                   = { name = "Gprof",                sign = "󰓅 ", sign_hl = "MarkviewPalette6Sign", icon = "󰓅 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
+	["graphql"]                 = { name = "GraphQL",              sign = "󰡱 ", sign_hl = "MarkviewPalette5Sign", icon = "󰡱 ", icon_hl = "MarkviewIcon5", border_hl = "MarkviewPalette5Fg" },
 	["groovy"]                  = { name = "Groovy",               sign = " ", sign_hl = "MarkviewPalette0Sign", icon = " ", icon_hl = "MarkviewIcon0", border_hl = "MarkviewPalette0Fg" },
 	["hare"]                    = { name = "Hare",                 sign = "󰤇 ", sign_hl = "MarkviewPalette0Sign", icon = "󰤇 ", icon_hl = "MarkviewIcon0", border_hl = "MarkviewPalette0Fg" },
 	["haredoc"]                 = { name = "HareDoc",              sign = "󰤇 ", sign_hl = "MarkviewPalette6Sign", icon = "󰤇 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
@@ -416,6 +417,7 @@ fts.styles = {
 	["nginx"]                   = { name = "nginx.conf Config",    sign = " ", sign_hl = "MarkviewPalette4Sign", icon = " ", icon_hl = "MarkviewIcon4", border_hl = "MarkviewPalette4Fg" },
 	["ninja"]                   = { name = "Ninja",                sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["nix"]                     = { name = "Nix",                  sign = " ", sign_hl = "MarkviewPalette6Sign", icon = " ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
+	["nim"]                     = { name = "Nim",                  sign = " ", sign_hl = "MarkviewPalette4Sign", icon = " ", icon_hl = "MarkviewIcon4", border_hl = "MarkviewPalette4Fg" },
 	["nqc"]                     = { name = "NQC",                  sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["nroff"]                   = { name = "Nroof/Groof",          sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["nsis"]                    = { name = "NSIS",                 sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
@@ -448,8 +450,8 @@ fts.styles = {
 	["perl"]                    = { name = "Perl",                 sign = " ", sign_hl = "MarkviewPalette6Sign", icon = " ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["pf"]                      = { name = "Packet filter Config", sign = " ", sign_hl = "MarkviewPalette3Sign", icon = " ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
 	["pfmain"]                  = { name = "Postfix Config",       sign = " ", sign_hl = "MarkviewPalette3Sign", icon = " ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
-	["php"]                     = { name = "PHP",                  sign = "󰌟 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
-	["phtml"]                   = { name = "PHTML",                sign = "󰌟 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
+	["php"]                     = { name = "PHP",                  sign = "󰌟 ", sign_hl = "MarkviewPalette6Sign", icon = "󰌟 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
+	["phtml"]                   = { name = "PHTML",                sign = "󰌟 ", sign_hl = "MarkviewPalette6Sign", icon = "󰌟 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["pic"]                     = { name = "PIC16F84 Assembler",   sign = " ", sign_hl = "MarkviewPalette6Sign", icon = " ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["pike"]                    = { name = "Pilrc",                sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["pilrc"]                   = { name = "FoamFile",             sign = "󱁕 ", sign_hl = "MarkviewPalette6Sign", icon = "󱁕 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
@@ -469,6 +471,7 @@ fts.styles = {
 	["ppd"]                     = { name = "PPD",                  sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["ppwiz"]                   = { name = "PPWizard",             sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["prescribe"]               = { name = "Kyocera PreScribe2e",  sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
+	["prisma"]                  = { name = "Prisma",               sign = "󰔶 ", sign_hl = "MarkviewPalette4Sign", icon = "󰔶 ", icon_hl = "MarkviewIcon4", border_hl = "MarkviewPalette4Fg" },
 	["privoxy"]                 = { name = "Privoxy",              sign = " ", sign_hl = "MarkviewPalette4Sign", icon = " ", icon_hl = "MarkviewIcon4", border_hl = "MarkviewPalette4Fg" },
 	["procmail"]                = { name = "Procmail",             sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["progress"]                = { name = "Progress 4GL",         sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
@@ -609,6 +612,7 @@ fts.styles = {
 	["sudoers"]                 = { name = "Sudoers Config",       sign = " ", sign_hl = "MarkviewPalette3Sign", icon = " ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
 	["supercollider"]           = { name = "SuperCollider",        sign = "󰆧 ", sign_hl = "MarkviewPalette6Sign", icon = "󰆧 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["svg"]                     = { name = "SVG",                  sign = "󰜡 ", sign_hl = "MarkviewPalette3Sign", icon = "󰜡 ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
+	["svelte"]                  = { name = "Svelte",               sign = " ", sign_hl = "MarkviewPalette1Sign", icon = " ", icon_hl = "MarkviewIcon1", border_hl = "MarkviewPalette1Fg" },
 	["svn"]                     = { name = "Subversion commit",    sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["swayconfig"]              = { name = "Sway Config",          sign = " ", sign_hl = "MarkviewPalette3Sign", icon = " ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
 	["swift"]                   = { name = "Swift",                sign = " ", sign_hl = "MarkviewPalette1Sign", icon = " ", icon_hl = "MarkviewIcon1", border_hl = "MarkviewPalette1Fg" },
@@ -631,11 +635,12 @@ fts.styles = {
 	["template"]                = { name = "Template",             sign = " ", sign_hl = "MarkviewPalette6Sign", icon = " ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["teraterm"]                = { name = "Tera Term",            sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["terminfo"]                = { name = "Terminfo",             sign = " ", sign_hl = "MarkviewPalette6Sign", icon = " ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
+	["terraform"]               = { name = "Terraform",            sign = "󱁢 ", sign_hl = "MarkviewPalette5Sign", icon = "󱁢 ", icon_hl = "MarkviewIcon5", border_hl = "MarkviewPalette5Fg" },
 	["tex"]                     = { name = "TeX",                  sign = " ", sign_hl = "MarkviewPalette0Sign", icon = " ", icon_hl = "MarkviewIcon0", border_hl = "MarkviewPalette0Fg" },
 	["texinfo"]                 = { name = "Texinfo",              sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["texmf"]                   = { name = "Web2C TeX",            sign = " ", sign_hl = "MarkviewPalette0Sign", icon = " ", icon_hl = "MarkviewIcon0", border_hl = "MarkviewPalette0Fg" },
 	["text"]                    = { name = "Text",                 sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
-	["tf"]                      = { name = "Tf",                   sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
+	["tf"]                      = { name = "Terraform",            sign = "󱁢 ", sign_hl = "MarkviewPalette5Sign", icon = "󱁢 ", icon_hl = "MarkviewIcon5", border_hl = "MarkviewPalette5Fg" },
 	["tidy"]                    = { name = "HMTL Tidy Config",     sign = " ", sign_hl = "MarkviewPalette3Sign", icon = " ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
 	["tilde"]                   = { name = "Tilde",                sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["tli"]                     = { name = "TealInfo",             sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
@@ -706,7 +711,7 @@ fts.styles = {
 	["xslt"]                    = { name = "XSLT",                 sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["xxd"]                     = { name = "XXD",                  sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["yacc"]                    = { name = "Yacc",                 sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
-	["yaml"]                    = { name = "YAML",                 sign = "󰅩 ", sign_hl = "MarkviewPalette3Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
+	["yaml"]                    = { name = "YAML",                 sign = "󰅩 ", sign_hl = "MarkviewPalette3Sign", icon = "󰅩 ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
 	["z8a"]                     = { name = "asz80",                sign = " ", sign_hl = "MarkviewPalette6Sign", icon = " ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["zathurarc"]               = { name = "Zathurarc",            sign = "󰯂 ", sign_hl = "MarkviewPalette6Sign", icon = "󰯂 ", icon_hl = "MarkviewIcon6", border_hl = "MarkviewPalette6Fg" },
 	["zig"]                     = { name = "Zig",                  sign = " ", sign_hl = "MarkviewPalette3Sign", icon = " ", icon_hl = "MarkviewIcon3", border_hl = "MarkviewPalette3Fg" },
@@ -781,7 +786,7 @@ fts.get = function (ft)
 	end
 
 	local this_conf = fts.styles[_ft] or fts.styles[ft] or fts.styles.default;
-	conf.name = this_conf.name or string.gsub(ft, "^%w", string.upper) or "Unknown";
+	conf.name = this_conf.name or ( type(ft) == "string" and string.gsub(ft, "^%w", string.upper) or "Unknown" );
 
 	return conf;
 end

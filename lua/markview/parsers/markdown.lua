@@ -60,7 +60,7 @@ markdown.atx_heading = function (buffer, TSNode, text, range)
 
 		Each `atx_heading` creates a `section` in the document.
 		By checking the depth of a `section` & it's sibling `section`s
-		we cab determine the level of a heading.
+		we can determine the level of a heading.
 
 		Level format: 1.1.1.1
 		They are calculated like so,
@@ -672,6 +672,29 @@ local function overlap (row_start)
 	return top_border, border_overlap;
 end
 
+---|fS "feat: LPeg parser for table rows"
+
+local lpeg = vim.lpeg;
+
+local pipe = lpeg.C("|");
+local not_pipe = lpeg.P(1) - lpeg.P("|");
+local esc_pipe = lpeg.P("\\|");
+
+local cont = lpeg.C(
+	( esc_pipe + not_pipe )^1
+);
+local empty_cont = lpeg.C(
+	( esc_pipe + not_pipe )^1
+);
+
+local init_col = pipe * cont * pipe;
+local end_col = cont * pipe^-1;
+local empty_col = empty_cont * pipe;
+
+local ROW = lpeg.Ct( init_col * (empty_col + end_col)^0 );
+
+---|fE
+
 --[[
 LPeg grammar for markdown table rows.
 
@@ -689,29 +712,30 @@ local function lpeg_processor(line)
 	line = line:gsub("^%s*", "");
 	-- line = line:gsub("\\|", "  ");
 
-	local pipe = vim.lpeg.C("|");
-	local not_pipe = vim.lpeg.P(1) - vim.lpeg.P("|");
-	local esc_pipe = vim.lpeg.P("\\|");
-
-	local cont = vim.lpeg.C(
-		( esc_pipe + not_pipe )^1
-	)
-
-	local init_col = pipe * cont * pipe;
-	local end_col = cont * pipe^-1;
-
-	local ROW = vim.lpeg.Ct( init_col * end_col^0 );
-
 	local RESULT = ROW:match(line);
 	local _o = {};
 	local y = 0;
 
-	for _, col in ipairs(RESULT or {}) do
+	for c, col in ipairs(RESULT or {}) do
 		---|fS
 
 		if col == "|" then
 			table.insert(_o, {
 				class = "separator",
+
+				text = col,
+
+				col_start = y,
+				col_end = y + #col,
+			});
+		elseif string.match(col, "%s+") and RESULT[c + 1] == "|" then
+			--[[
+				NOTE: An empty column must be followed by a pipe(`|`).
+
+				See: #473 for the first case.
+			]]
+			table.insert(_o, {
+				class = "column",
 
 				text = col,
 
@@ -847,7 +871,7 @@ markdown.table = function (_, _, text, range)
 
 	--- Line processor.
 	local function line_processor (line)
-		if vim.lpeg then
+		if lpeg then
 			local succes, res = pcall(lpeg_processor, line);
 
 			if succes == false then
@@ -973,11 +997,31 @@ markdown.parse = function (buffer, TSTree, from, to)
 			goto continue;
 		end
 
-		---@type string?
-		local capture_text = vim.treesitter.get_node_text(capture_node, buffer);
+		---@type boolean, string?
+		local got_text, capture_text = pcall(vim.treesitter.get_node_text, capture_node, buffer);
 		local r_start, c_start, r_end, c_end = capture_node:range();
 
-		if capture_text == nil then
+		if not got_text or not capture_text then
+			if not got_text then
+				-- NOTE: On `0.12+`, `get_node_text()` may fail
+				--
+				-- This is due to changes in the tree-sitter implementation.
+				-- We should log these for finding the culprit.
+				--
+				-- See #494
+
+				require("markview.health").print({
+					kind = "WARN",
+
+					from = "parsers/markdown.lua",
+					fn = "parse()",
+
+					message = {
+						{ capture_text or "", "DiagnosticWarn" }
+					}
+				});
+			end
+
 			goto continue;
 		end
 
