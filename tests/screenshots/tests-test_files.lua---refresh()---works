@@ -1,5 +1,5 @@
 --|---------|---------|---------|---------|---------|---------|---------|---------|
-01|┌MOCK_ROOT/tests/dir-files/comm┐                                                
+01|┌K_ROOT/tests/dir-files/common ┐                                                
 02|│ .a-dir                      │                                                
 03|│ a-dir                       │                                                
 04|│ b-dir                       │                                                

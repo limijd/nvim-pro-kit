@@ -5,15 +5,13 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('statusline', config) end
 local unload_module = function() child.mini_unload('statusline') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('statusline', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local set_width = function(width, win_id) child.api.nvim_win_set_width(win_id or 0, width) end
 local type_keys = function(...) return child.type_keys(...) end
---stylua: ignore end
 
 -- Make helpers
 local setup_windows = function()
@@ -143,7 +141,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -316,12 +314,7 @@ T['active()/inactive()']['respects `vim.{g,b}.ministatusline_disable`'] = new_se
 T['section_diagnostics()'] = new_set({ hooks = { pre_case = mock_diagnostics } })
 
 T['section_diagnostics()']['works'] = function()
-  local get_n_attached_clients = function()
-    return child.lua([[
-      return vim.fn.has('nvim-0.10') == 1 and #vim.lsp.get_clients({ bufnr = 0 }) or
-      #vim.lsp.get_active_clients({ bufnr = 0 })
-    ]])
-  end
+  local get_n_attached_clients = function() return child.lua_get('#vim.lsp.get_clients({ bufnr = 0 })') end
   eq(child.lua_get('MiniStatusline.section_diagnostics({})'), ' E4 W3 I2 H1')
 
   -- Should not depend on LSP server attached
@@ -388,12 +381,7 @@ T['section_diagnostics()']['works in not normal buffers'] = function()
 end
 
 T['section_diagnostics()']['is not shown if diagnostics is disabled'] = function()
-  local buf_id = child.api.nvim_get_current_buf()
-  if child.fn.has('nvim-0.10') == 1 then
-    child.diagnostic.enable(false, { bufnr = buf_id })
-  else
-    child.diagnostic.disable(buf_id)
-  end
+  child.diagnostic.enable(false, { bufnr = 0 })
   eq(child.lua_get('MiniStatusline.section_diagnostics({})'), '')
 end
 

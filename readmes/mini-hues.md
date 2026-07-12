@@ -130,6 +130,7 @@ Supported highlight groups:
     - [DanilaMihailov/beacon.nvim](https://github.com/DanilaMihailov/beacon.nvim)
     - [folke/lazy.nvim](https://github.com/folke/lazy.nvim)
     - [folke/noice.nvim](https://github.com/folke/noice.nvim)
+    - [folke/snacks.nvim](https://github.com/folke/snacks.nvim)
     - [folke/todo-comments.nvim](https://github.com/folke/todo-comments.nvim)
     - [folke/trouble.nvim](https://github.com/folke/trouble.nvim)
     - [folke/which-key.nvim](https://github.com/folke/which-key.nvim)
@@ -158,6 +159,7 @@ Supported highlight groups:
     - [rcarriga/nvim-notify](https://github.com/rcarriga/nvim-notify)
     - [rlane/pounce.nvim](https://github.com/rlane/pounce.nvim)
     - [romgrk/barbar.nvim](https://github.com/romgrk/barbar.nvim)
+    - [saghen/blink.cmp](https://github.com/saghen/blink.cmp)
     - [stevearc/aerial.nvim](https://github.com/stevearc/aerial.nvim)
     - [williamboman/mason.nvim](https://github.com/williamboman/mason.nvim)
 
@@ -173,59 +175,73 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+<summary><b>(Recommended)</b> With <a href="https://neovim.io/doc/user/helptag.html?tag=vim.pack">vim.pack</a> (on Neovim 0.12 and newer)</summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | *Follow recommended ‘mini.deps’ installation* |
-    | Stable | *Follow recommended ‘mini.deps’ installation* |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                                   |
-    |--------|----------------------------------------------------------------|
-    | Main   | `add(‘nvim-mini/mini.hues’)`                                   |
-    | Stable | `add({ source = ‘nvim-mini/mini.hues’, checkout = ‘stable’ })` |
+Main branch:
+
+```lua
+vim.pack.add({ 'https://github.com/nvim-mini/mini.hues' })
+```
+
+Stable branch:
+
+```lua
+vim.pack.add({
+  { src = 'https://github.com/nvim-mini/mini.hues', version = 'stable' },
+})
+```
+
+</details>
+
+<details>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a> (before Neovim 0.12)</summary>
+
+**Full library**
+
+Follow [recommended 'mini.deps' installation](https://nvim-mini.org/mini.nvim/readmes/mini-deps#installation).
+
+**Standalone plugin**:
+
+Main branch:
+
+```lua
+add('nvim-mini/mini.hues')
+```
+
+Stable branch:
+
+```lua
+add({ source = 'nvim-mini/mini.hues', checkout = 'stable' })
+```
 
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.hues', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.hues', version = '*' },`   |
+Main branch:
 
-</details>
+```lua
+{ 'nvim-mini/mini.hues', version = false },
+```
 
-<details>
-<summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
+Stable branch:
 
-- 'mini.nvim' library:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
-    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
-
-- Standalone plugin:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.hues'`                         |
-    | Stable | `Plug 'nvim-mini/mini.hues', { 'branch': 'stable' }` |
+```lua
+{ 'nvim-mini/mini.hues', version = '*' },
+```
 
 </details>
 
@@ -241,7 +257,7 @@ Here are code snippets for some common installation methods (use only one):
 ```lua
 -- No need to copy this inside `setup()`. Will be used automatically.
 {
-  -- **Required** base colors as '#rrggbb' hex strings
+  -- REQUIRED base colors as '#rrggbb' hex strings
   background = nil,
   foreground = nil,
 

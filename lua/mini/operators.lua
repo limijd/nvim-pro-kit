@@ -60,6 +60,7 @@
 ---       see |MiniOperators.default_sort_func()|).
 ---
 --- # Highlight groups ~
+--- *MiniOperators-hl-groups*
 ---
 --- - `MiniOperatorsExchangeFrom` - first region to exchange.
 ---
@@ -331,6 +332,7 @@ MiniOperators.evaluate = function(mode)
 
   local evaluate_func = H.get_config().evaluate.func or MiniOperators.default_evaluate_func
   local data = H.get_region_data(mode)
+  if data == nil then return end
   data.reindent_linewise = true
   H.apply_content_func(evaluate_func, data)
 end
@@ -365,12 +367,14 @@ MiniOperators.exchange = function(mode)
   if not H.exchange_has_step_one() then
     -- Store data about first region
     H.cache.exchange.step_one = H.exchange_set_region_extmark(mode, true)
+    if H.cache.exchange.step_one == nil then return end
 
     -- Temporarily remap `<C-c>` to stop the exchange
     H.exchange_set_stop_mapping()
   else
     -- Store data about second region
     H.cache.exchange.step_two = H.exchange_set_region_extmark(mode, false)
+    if H.cache.exchange.step_two == nil then return end
 
     -- Do exchange
     H.exchange_do()
@@ -414,6 +418,7 @@ MiniOperators.multiply = function(mode)
 
   local count = mode == 'visual' and vim.v.count1 or H.cache.multiply.count
   local data = H.get_region_data(mode)
+  if data == nil then return end
   local mark_from, mark_to, submode = data.mark_from, data.mark_to, data.submode
 
   H.with_temp_context({ registers = { 'x', '"' } }, function()
@@ -475,6 +480,7 @@ MiniOperators.replace = function(mode)
   local count = mode == 'visual' and vim.v.count1 or H.cache.replace.count
   local register = mode == 'visual' and vim.v.register or H.cache.replace.register
   local data = H.get_region_data(mode)
+  if data == nil then return '' end
   data.count = count
   data.register = register
   data.reindent_linewise = H.get_config().replace.reindent_linewise
@@ -607,7 +613,7 @@ end
 ---
 --- - Pad pattern in `split_patterns` with `%s*` to include whitespace into separator.
 ---   Example: line "b _ a" with "_" pattern will be sorted as " a_b " (because
----   it is split as "b ", "_", " a" ) while with "%s*_%s*" pattern it results
+---   it is split as "b ", "_", " a" ) while with `%s*_%s*` pattern it results
 ---   into "a _ b" (split as "b", " _ ", "a").
 ---
 ---@param content __operators_content
@@ -626,7 +632,7 @@ MiniOperators.default_sort_func = function(content, opts)
   if not vim.is_callable(compare_fun) then H.error('`opts.compare_fun` should be callable.') end
 
   local split_patterns = opts.split_patterns or { '%s*,%s*', '%s*;%s*', '%s+', '' }
-  if not H.islist(split_patterns) then H.error('`opts.split_patterns` should be array.') end
+  if not vim.islist(split_patterns) then H.error('`opts.split_patterns` should be array.') end
 
   -- Prepare lines to sort
   local lines, submode = content.lines, content.submode
@@ -724,9 +730,10 @@ H.apply_config = function(config)
       remove_lsp_mapping('n', 'grn')
       remove_lsp_mapping('n', 'grr')
       remove_lsp_mapping('n', 'grt')
+      remove_lsp_mapping('n', 'grx')
     end
 
-    if prefix == 'gx' and vim.fn.has('nvim-0.10') == 1 then
+    if prefix == 'gx' then
       remap_builtin_gx('n')
       remap_builtin_gx('x')
     end
@@ -854,6 +861,7 @@ H.exchange_set_region_extmark = function(mode, add_highlight)
 
   -- Compute regular marks for target region
   local region_data = H.get_region_data(mode)
+  if region_data == nil then return end
   local submode = region_data.submode
   local markcoords_from, markcoords_to = H.get_mark(region_data.mark_from), H.get_mark(region_data.mark_to)
 
@@ -1111,6 +1119,7 @@ end
 
 -- General --------------------------------------------------------------------
 H.apply_content_func = function(content_func, data)
+  if data == nil then return end
   local mark_from, mark_to, submode = data.mark_from, data.mark_to, data.submode
   local reindent_linewise = data.reindent_linewise
 
@@ -1146,6 +1155,10 @@ H.do_between_marks = function(operator, data)
   local cache_selection = vim.o.selection
   if data.mode == 'block' and vim.o.selection == 'exclusive' then vim.o.selection = 'inclusive' end
 
+  -- Allow positioning cursor past line end to work for regions with newline
+  local cache_virtualedit = vim.o.virtualedit
+  vim.o.virtualedit = 'onemore'
+
   -- Don't trigger `TextYankPost` event as these yanks are not user-facing
   local is_yank = operator == 'y'
   local cache_eventignore = vim.o.eventignore
@@ -1170,10 +1183,11 @@ H.do_between_marks = function(operator, data)
   end)
 
   vim.o.selection = cache_selection
+  vim.o.virtualedit = cache_virtualedit
   if is_yank then vim.o.eventignore = cache_eventignore end
 end
 
-H.is_content = function(x) return type(x) == 'table' and H.islist(x.lines) and type(x.submode) == 'string' end
+H.is_content = function(x) return type(x) == 'table' and vim.islist(x.lines) and type(x.submode) == 'string' end
 
 -- Marks ----------------------------------------------------------------------
 H.get_region_data = function(mode)
@@ -1185,6 +1199,11 @@ H.get_region_data = function(mode)
 
   local mark_from = selection_is_visual and '<' or '['
   local mark_to = selection_is_visual and '>' or ']'
+
+  -- Detect empty region. NOTE: This doesn't work when cursor is on first line
+  -- and first column, but there doesn't seem to be a better way to do that.
+  local pos_from, pos_to = H.get_mark(mark_from), H.get_mark(mark_to)
+  if pos_to[1] < pos_from[1] or (pos_to[1] == pos_from[1] and pos_to[2] < pos_from[2]) then return end
 
   return { mode = mode, submode = submode, mark_from = mark_from, mark_to = mark_to }
 end
@@ -1199,10 +1218,16 @@ H.get_mark = function(mark_name) return vim.api.nvim_buf_get_mark(0, mark_name) 
 
 H.set_mark = function(mark_name, mark_data) vim.api.nvim_buf_set_mark(0, mark_name, mark_data[1], mark_data[2], {}) end
 
+H.str_utfindex = function(s, i) return vim.str_utfindex(s, 'utf-32', i) end
+if vim.fn.has('nvim-0.11') == 0 then H.str_utfindex = function(s, i) return (vim.str_utfindex(s, i)) end end
+
+H.str_byteindex = function(s, i) return vim.str_byteindex(s, 'utf-32', i) end
+if vim.fn.has('nvim-0.11') == 0 then H.str_byteindex = function(s, i) return vim.str_byteindex(s, i) end end
+
 H.get_next_char_bytecol = function(markcoords)
   local line = vim.fn.getline(markcoords[1])
-  local utf_index = vim.str_utfindex(line, math.min(line:len(), markcoords[2] + 1))
-  return vim.str_byteindex(line, utf_index)
+  local utf_index = H.str_utfindex(line, math.min(line:len(), markcoords[2] + 1))
+  return H.str_byteindex(line, utf_index)
 end
 
 -- Indent ---------------------------------------------------------------------
@@ -1304,9 +1329,6 @@ H.cmd_normal = function(command, opts)
 
   if cancel_redo then H.cancel_redo() end
 end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 -- TODO: Remove after compatibility with Neovim=0.10 is dropped
 H.highlight_range = function(...) vim.hl.range(...) end

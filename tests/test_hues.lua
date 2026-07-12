@@ -5,11 +5,9 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('hues', config) end
 local unload_module = function() child.mini_unload('hues') end
-local reload_module = function(config) unload_module(); load_module(config) end
---stylua: ignore end
+local reload_module = function(config) child.mini_reload('hues', config) end
 
 local validate_hl_group = function(group_name, target)
   eq(child.cmd_capture('highlight ' .. group_name):gsub(' +', ' '), group_name .. ' xxx ' .. target)
@@ -64,7 +62,7 @@ end
 
 T['setup()']['validates `config` argument'] = function()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')

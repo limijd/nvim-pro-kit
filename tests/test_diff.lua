@@ -5,7 +5,6 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('diff', config) end
 local unload_module = function(config) child.mini_unload('diff', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
@@ -14,14 +13,11 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 local new_buf = function() return child.api.nvim_create_buf(true, false) end
 local new_scratch_buf = function() return child.api.nvim_create_buf(false, true) end
 local get_buf = function() return child.api.nvim_get_current_buf() end
 local set_buf = function(buf_id) child.api.nvim_set_current_buf(buf_id) end
---stylua: ignore end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-local islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 local test_dir = 'tests/dir-diff'
 local test_dir_absolute = vim.fs.normalize(vim.fn.fnamemodify(test_dir, ':p')):gsub('(.)/$', '%1')
@@ -32,11 +28,6 @@ local git_git_dir = git_repo_dir .. '/.git-dir'
 local git_dir_path = git_repo_dir .. '/dir-in-git'
 local git_file_basename = 'file-in-git'
 local git_file_path = git_repo_dir .. '/dir-in-git/' .. git_file_basename
-
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
 
 -- Time constants
 local default_watch_debounce_delay = 50
@@ -135,7 +126,7 @@ local validate_git_spawn_log = function(ref_log)
       eq('Real spawn log does not have entry for present reference log entry', ref)
     elseif ref == nil then
       eq(real, 'Reference does not have entry for present spawn log entry')
-    elseif islist(ref) then
+    elseif vim.islist(ref) then
       eq(real, { executable = 'git', options = { args = ref, cwd = real.options.cwd } })
     else
       if real.options.cwd ~= nil then real.options.cwd = child.fs.normalize(real.options.cwd) end
@@ -246,12 +237,11 @@ T['setup()']['creates side effects'] = function()
   -- Highlight groups
   child.cmd('hi clear')
   load_module()
-  local is_010 = child.fn.has('nvim-0.10') == 1
   local validate_hl_group = function(name, pattern) expect.match(child.cmd_capture('hi ' .. name), pattern) end
 
-  validate_hl_group('MiniDiffSignAdd', 'links to ' .. (is_010 and 'Added' or 'diffAdded'))
-  validate_hl_group('MiniDiffSignChange', 'links to ' .. (is_010 and 'Changed' or 'diffChanged'))
-  validate_hl_group('MiniDiffSignDelete', 'links to ' .. (is_010 and 'Removed' or 'diffRemoved'))
+  validate_hl_group('MiniDiffSignAdd', 'links to Added')
+  validate_hl_group('MiniDiffSignChange', 'links to Changed')
+  validate_hl_group('MiniDiffSignDelete', 'links to Removed')
   validate_hl_group('MiniDiffOverAdd', 'links to DiffAdd')
   validate_hl_group('MiniDiffOverChange', 'links to DiffText')
   validate_hl_group('MiniDiffOverChangeBuf', 'links to MiniDiffOverChange')
@@ -300,7 +290,7 @@ end
 
 T['setup()']['validates `config` argument'] = function()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1159,10 +1149,10 @@ T['gen_source']['git()']['reacts to file rename'] = function()
   eq(get_buf_data(0).ref_text, 'Hello\nWorld\n')
 end
 
-T['gen_source']['git()']['should try attaching same buffer exactly once'] = function()
+T['gen_source']['git()']['should try autoattaching exactly once'] = function()
   -- If buffer was not attached on `BufEnter` after it tried, then it should
-  -- stop trying. This is an example of when buffer's file is not in Git repo.
-  -- Should disable/enable file because it might have changed Git repo
+  -- stop trying. This is an example of when buffer's file is not in Git repo
+  -- or a normal buffer not for a file.
   child.lua([[
     _G.stdio_queue = {
       { {} }, -- Get path to repo's Git dir
@@ -1174,16 +1164,44 @@ T['gen_source']['git()']['should try attaching same buffer exactly once'] = func
   local init_buf = get_buf()
   eq(is_buf_enabled(0), false)
 
-  -- Simulate `BufEnter`
-  set_buf(new_scratch_buf())
-  set_buf(init_buf)
-  eq(is_buf_enabled(0), false)
-
   -- Spawn should be done only once (on the first try)
   local ref_git_spawn_log = {
     { args = { 'rev-parse', '--path-format=absolute', '--git-dir' }, cwd = test_dir_absolute },
   }
   validate_git_spawn_log(ref_git_spawn_log)
+  child.lua('_G.spawn_log = {}')
+
+  local nofile_buf = child.api.nvim_create_buf(true, false)
+  set_buf(nofile_buf)
+  eq(is_buf_enabled(0), false)
+
+  validate_git_spawn_log({})
+
+  -- Simulate `BufEnter`
+  set_buf(init_buf)
+  eq(is_buf_enabled(0), false)
+  validate_git_spawn_log({})
+
+  set_buf(nofile_buf)
+  eq(is_buf_enabled(0), false)
+  validate_git_spawn_log({})
+end
+
+T['gen_source']['git()']['tries to reattach on `:edit`'] = function()
+  child.lua([[
+    _G.stdio_queue = {
+      { {} },                            -- Get path to repo's Git dir first time
+      { { 'out', _G.git_dir } },         -- Get path to repo's Git dir second time
+      { { 'out', 'Line 1\nLine 2\n' } }, -- Get reference text
+    }
+    _G.process_mock_data = { { exit_code = 1 } }
+  ]])
+
+  edit(test_file_path)
+  eq(is_buf_enabled(0), false)
+
+  child.cmd('edit')
+  eq(is_buf_enabled(0), true)
 end
 
 T['gen_source']['none()'] = new_set()
@@ -2123,7 +2141,6 @@ T['Visualization']['works when "change" overlaps with "delete"'] = function()
 end
 
 T['Visualization']['reacts to hunk lines delete/move'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Reaction to line delete/move is available on Neovim>=0.10.') end
   child.o.signcolumn = 'yes'
 
   set_lines({ 'aaa', 'bbb', 'uuu', 'vvv', 'ccc', 'ddd' })

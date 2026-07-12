@@ -14,6 +14,9 @@
 ---
 --- - |MiniMisc.resize_window()| to resize current window to its editable width.
 ---
+--- - |MiniMisc.safely()| to execute a function on a condition and warn on error.
+---   Useful to organize |init.lua| in fail-safe sections with simple lazy loading.
+---
 --- - |MiniMisc.setup_auto_root()| to set up automated change of current directory.
 ---
 --- - |MiniMisc.setup_termbg_sync()| to set up terminal background synchronization
@@ -125,7 +128,7 @@ end
 ---@param desc any Entry description.
 ---@param state any Data about current state.
 ---@param opts table|nil Options. Possible fields:
----   - <deepcopy> - (boolean) Whether to apply |vim.deepcopy| to the {state}.
+---   - <deepcopy> - (boolean) Whether to create a copy of tables in {state}.
 ---     Usually helpful to record the exact state during code execution and avoid
 ---     side effects of tables being changed in-place. Default `true`.
 ---
@@ -144,7 +147,7 @@ MiniMisc.log_add = function(desc, state, opts)
   opts = vim.tbl_extend('force', { deepcopy = true }, opts or {})
   local entry = {
     desc = desc,
-    state = opts.deepcopy and vim.deepcopy(state) or state,
+    state = opts.deepcopy and H.copy_tables(state) or state,
     timestamp = 0.000001 * (vim.loop.hrtime() - H.log_cache.start_htime),
   }
   table.insert(H.log_cache.log, entry)
@@ -227,7 +230,7 @@ end
 ---@param win_id number|nil Window identifier (see |win_getid()|) to be resized.
 ---   Default: 0 for current.
 ---@param text_width number|nil Number of editable columns resized window will
----   display. Default: first element of 'colorcolumn' or otherwise 'textwidth'
+---   display. Default: first element of |'colorcolumn'| or otherwise |'textwidth'|
 ---   (using screen width as its default but not more than 79).
 MiniMisc.resize_window = function(win_id, text_width)
   win_id = win_id or 0
@@ -254,6 +257,159 @@ H.default_text_width = function(win_id)
   else
     return textwidth
   end
+end
+
+--- Execute a function on a condition and warn on error
+---
+--- Input function is executed exactly once. Its possible error is captured and is
+--- shown as a |vim.notify()| warning.
+---
+--- Useful to organize |init.lua| in fail-safe sections with simple lazy loading.
+---
+---@param when string When to execute a function. One of:
+---   - `'now'` - immediately.
+---   - `'later'` - queue to be executed soon without blocking the execution of next
+---     code in file. Queued functions are executed in order they are added.
+---   - `'delay:<number>'` - after a specified delay with |vim.defer_fn()|.
+---   - `'event:<events>'` - on whichever specified event is triggered first.
+---   - `'event:<events>~<patterns>` - same as above, but events must match
+---     specified |autocmd-pattern|.
+---   - `'filetype:<filetypes>'` - same as `'event:FileType~<filetypes>'`, but follow
+---     successful function execution with |filetype-detect| for all normal buffers
+---     (if new |ftdetect| scripts were added) and sourcing |ftplugin| (for buffers
+---     matching `<filetypes>`). Intended to be used for loading "language plugins".
+---@param f function Function to execute (without arguments).
+---
+---@usage >lua
+---   MiniMisc.safely('later', function()
+---     vim.notify('This will be executed after the next "now" call')
+---   end)
+---   MiniMisc.safely('now', function() error('This will be a warning') end)
+---
+---   MiniMisc.safely('event:InsertEnter', function()
+---     require('mini.completion').setup()
+---   end)
+---   MiniMisc.safely('event:CmdlineEnter~/', function()
+---     vim.notify('Start searching for the first time')
+---   end)
+---
+---   MiniMisc.safely('filetype:tex,plaintex', function()
+---     -- Load plugin to improve writing LaTeX
+---   end)
+--- <
+MiniMisc.safely = function(when, f)
+  H.check_type('when', when, 'string', false)
+  H.check_type('f', f, 'callable', false)
+
+  if when == 'now' then
+    H.execute_now(f)
+    return
+  end
+
+  -- Compute traceback before delaying execution to provide more info
+  local trace = debug.traceback('', 2)
+
+  if when == 'later' then
+    if #H.safely_cache.later == 0 then vim.schedule(H.execute_later) end
+    table.insert(H.safely_cache.later, { f = f, trace = trace })
+    return
+  end
+
+  local delay = tonumber(when:match('^delay:(%d+)$'))
+  if delay ~= nil then
+    vim.defer_fn(function() H.execute_now(f, trace) end, delay)
+    return
+  end
+
+  local events = when:match('^event:(.+)$')
+  if events then
+    local ev, patt = events:match('^(.+)~(.+)$')
+    local event = vim.split(ev or events, ',', { trimempty = true })
+    local pattern = vim.split(patt or '', ',', { trimempty = true })
+    H.make_defer_autocmd(event, pattern, f, trace)
+    return
+  end
+
+  local filetypes = when:match('^filetype:(.+)$')
+  if filetypes then
+    local ft_arr = vim.split(filetypes, ',')
+    -- NOTE: Needs `vim.schedule_wrap()` for a correct redetect. This also
+    -- prompts using `H.execute_now` and not rely on `H.make_defer_autocmd`.
+    local f_and_redetect = vim.schedule_wrap(function()
+      -- Look out for new 'ftdetect' scripts by comparing before and after
+      local ftdetect_scripts_before = vim.api.nvim_get_runtime_file('ftdetect/*.{vim,lua}', true)
+
+      local ok = H.execute_now(f, trace)
+
+      -- Skip redetect if there was error or detection is disabled
+      if not (ok and vim.g.did_load_filetypes == 1) then return end
+
+      local ftdetect_scripts_after = vim.api.nvim_get_runtime_file('ftdetect/*.{vim,lua}', true)
+      local needs_redetect = not vim.deep_equal(ftdetect_scripts_before, ftdetect_scripts_after)
+      for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
+        H.redetect_filetypes(buf_id, ft_arr, needs_redetect)
+      end
+    end)
+    return H.make_defer_autocmd('FileType', ft_arr, f_and_redetect)
+  end
+
+  H.error('Could not parse `when` in `safely`')
+end
+
+H.execute_now = function(f, init_trace)
+  local ok, err = xpcall(f, function(e) return debug.traceback(e .. '\n', 2) end)
+  if ok then return true end
+  init_trace = init_trace == nil and '' or ('\n\nTraceback of `MiniMisc.safely()` call:\n' .. init_trace)
+  H.notify('Error during safe execution: ' .. err .. init_trace, 'WARN')
+  return false
+end
+
+H.safely_cache = { later = {} }
+
+H.execute_later = function()
+  local timer = assert(vim.loop.new_timer())
+  local f
+  f = vim.schedule_wrap(function()
+    local cb = H.safely_cache.later[1]
+    if cb == nil then
+      if not timer:is_closing() then timer:close() end
+      return
+    end
+
+    table.remove(H.safely_cache.later, 1)
+    H.execute_now(cb.f, cb.trace)
+    timer:start(1, 0, f)
+  end)
+  -- Space out "later" executions to be sure that they don't block anything
+  timer:start(1, 0, f)
+end
+
+H.make_defer_autocmd = function(event, pattern, f, trace)
+  if type(pattern) == 'table' and #pattern == 0 then pattern = nil end
+
+  local au_id
+  local function cb()
+    -- Execute exactly once, not once per event or pattern match
+    -- Delete before executing `f` to account for nested events
+    vim.api.nvim_del_autocmd(au_id)
+    H.execute_now(f, trace)
+  end
+
+  local group = vim.api.nvim_create_augroup('MiniMiscSafely', { clear = false })
+  local opts = { group = group, pattern = pattern, callback = cb, nested = true }
+  au_id = vim.api.nvim_create_autocmd(event, opts)
+end
+
+H.redetect_filetypes = function(buf_id, ft_arr, needs_redetect)
+  if not vim.api.nvim_buf_is_loaded(buf_id) then return end
+
+  vim.api.nvim_buf_call(buf_id, function()
+    -- Try detecting new filetypes
+    if needs_redetect and vim.bo.buftype == '' then vim.cmd('filetype detect') end
+
+    -- Force execution of 'ftplugin' scripts for matched filetypes
+    if vim.tbl_contains(ft_arr, vim.bo.filetype) then vim.bo.filetype = vim.bo.filetype end
+  end)
 end
 
 --- Set up automated change of current directory
@@ -370,25 +526,31 @@ H.root_cache = {}
 --- - Creates autocommands for |ColorScheme| and |VimResume| events, which
 ---   change terminal background to have same color as |guibg| of |hl-Normal|.
 --- - Creates autocommands for |VimLeavePre| and |VimSuspend| events which set
----   terminal background back to the color at the time this function was
----   called first time in current session.
+---   terminal background back to its original color.
 --- - Synchronizes background immediately to allow not depend on loading order.
 ---
 --- Primary use case is to remove possible "frame" around current Neovim instance
 --- which appears if Neovim's |hl-Normal| background color differs from what is
 --- used by terminal emulator itself.
 ---
---- Works only on Neovim>=0.10.
-MiniMisc.setup_termbg_sync = function()
-  -- Handling `'\027]11;?\007'` response was added in Neovim 0.10
-  if vim.fn.has('nvim-0.10') == 0 then return H.notify('`setup_termbg_sync()` requires Neovim>=0.10', 'WARN') end
-
+---@param opts table|nil Options. Possible fields:
+---   - <explicit_reset> `(boolean)` - whether to reset terminal background by
+---     explicitly setting it to the color it had when this function was called.
+---     Set to `true` if terminal emulator doesn't support OSC 111 control sequence.
+---     Default: `false`.
+MiniMisc.setup_termbg_sync = function(opts)
   -- Proceed only if there is a valid stdout to use
   local has_stdout_tty = false
   for _, ui in ipairs(vim.api.nvim_list_uis()) do
     has_stdout_tty = has_stdout_tty or ui.stdout_tty
   end
   if not has_stdout_tty then return end
+
+  opts = vim.tbl_extend('force', { explicit_reset = false }, opts or {})
+
+  -- Choose a method for how terminal emulator background is reset
+  local reset = function() io.stdout:write('\027]111\027\\') end
+  if opts.explicit_reset then reset = function() io.stdout:write('\027]11;' .. H.termbg_init .. '\007') end end
 
   local augroup = vim.api.nvim_create_augroup('MiniMiscTermbgSync', { clear = true })
   local track_au_id, bad_responses, had_proper_response = nil, {}, false
@@ -406,7 +568,6 @@ MiniMisc.setup_termbg_sync = function()
 
     -- Set up reset to the color returned from the very first call
     H.termbg_init = H.termbg_init or termbg
-    local reset = function() io.stdout:write('\027]11;' .. H.termbg_init .. '\007') end
     vim.api.nvim_create_autocmd({ 'VimLeavePre', 'VimSuspend' }, { group = augroup, callback = reset })
 
     -- Set up sync
@@ -455,16 +616,16 @@ end
 ---
 --- When reopening a file this will make sure the cursor is placed back to the
 --- position where you left before. This implements |restore-cursor| in a nicer way.
---- File should have a recognized file type (see 'filetype') and be opened in
---- a normal buffer (see 'buftype').
+--- File should have a recognized file type (see |'filetype'|) and be opened in
+--- a normal buffer (see |'buftype'|).
 ---
---- Note: it relies on file mark data stored in 'shadafile' (see |shada-f|).
+--- Note: it relies on file mark data stored in |'shadafile'| (see |shada-f|).
 --- Be sure to enable it.
 ---
 ---@param opts table|nil Options. Possible fields:
 ---   - <center> - (boolean) Center the window after we restored the cursor.
 ---     Default: `true`.
----   - <ignore_filetype> - Array with file types to be ignored (see 'filetype').
+---   - <ignore_filetype> - Array with file types to be ignored (see |'filetype'|).
 ---     Default: `{ "gitcommit", "gitrebase" }`.
 ---
 ---@usage >lua
@@ -619,15 +780,15 @@ end
 
 --- Add possibility of nested comment leader
 ---
---- This works by parsing 'commentstring' buffer option, extracting
+--- This works by parsing |'commentstring'| buffer option, extracting
 --- non-whitespace comment leader (symbols on the left of commented line), and
---- locally modifying 'comments' option (by prepending `n:<leader>`). Does
---- nothing if 'commentstring' is empty or has comment symbols both in front
---- and back (like "/*%s*/").
+--- locally modifying |'comments'| option (by prepending `n:<leader>`). Does
+--- nothing if |'commentstring'| is empty or has comment symbols both in front
+--- and back (like `/*%s*/`).
 ---
 --- Nested comment leader added with this function is useful for formatting
---- nested comments. For example, have in Lua "first-level" comments with '--'
---- and "second-level" comments with '----'. With nested comment leader second
+--- nested comments. For example, have in Lua "first-level" comments with `--`
+--- and "second-level" comments with `----`. With nested comment leader second
 --- type can be formatted with `gq` in the same way as first one.
 ---
 --- Recommended usage is with |autocmd|: >lua
@@ -635,7 +796,7 @@ end
 ---   local use_nested_comments = function() MiniMisc.use_nested_comments() end
 ---   vim.api.nvim_create_autocmd('BufEnter', { callback = use_nested_comments })
 --- <
---- Note: for most filetypes 'commentstring' option is added only when buffer
+--- Note: for most filetypes |'commentstring'| option is added only when buffer
 --- with this filetype is entered, so using non-current `buf_id` can not lead
 --- to desired effect.
 ---
@@ -768,7 +929,7 @@ H.notify = function(msg, level) vim.notify('(mini.misc) ' .. msg, vim.log.levels
 H.is_valid_buf = function(buf_id) return type(buf_id) == 'number' and vim.api.nvim_buf_is_valid(buf_id) end
 
 H.is_array_of = function(x, predicate)
-  if not H.islist(x) then return false end
+  if not vim.islist(x) then return false end
   for _, v in ipairs(x) do
     if not predicate(v) then return false end
   end
@@ -784,7 +945,8 @@ H.fit_to_width = function(text, width)
   return t_width <= width and text or ('…' .. vim.fn.strcharpart(text, t_width - width + 1, width - 1))
 end
 
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
+H.copy_tables = function(x)
+  return type(x) == 'table' and setmetatable(vim.tbl_map(H.copy_tables, x), getmetatable(x)) or x
+end
 
 return MiniMisc

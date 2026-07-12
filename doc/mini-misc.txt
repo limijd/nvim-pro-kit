@@ -16,6 +16,9 @@ Features the following functions:
 
 - |MiniMisc.resize_window()| to resize current window to its editable width.
 
+- |MiniMisc.safely()| to execute a function on a condition and warn on error.
+  Useful to organize |init.lua| in fail-safe sections with simple lazy loading.
+
 - |MiniMisc.setup_auto_root()| to set up automated change of current directory.
 
 - |MiniMisc.setup_termbg_sync()| to set up terminal background synchronization
@@ -114,7 +117,7 @@ Parameters ~
 {desc} `(any)` Entry description.
 {state} `(any)` Data about current state.
 {opts} `(table|nil)` Options. Possible fields:
-  - <deepcopy> - (boolean) Whether to apply |vim.deepcopy| to the {state}.
+  - <deepcopy> - (boolean) Whether to create a copy of tables in {state}.
     Usually helpful to record the exact state during code execution and avoid
     side effects of tables being changed in-place. Default `true`.
 
@@ -186,9 +189,52 @@ Parameters ~
 {win_id} `(number|nil)` Window identifier (see |win_getid()|) to be resized.
   Default: 0 for current.
 {text_width} `(number|nil)` Number of editable columns resized window will
-  display. Default: first element of 'colorcolumn' or otherwise 'textwidth'
+  display. Default: first element of |'colorcolumn'| or otherwise |'textwidth'|
   (using screen width as its default but not more than 79).
 
+------------------------------------------------------------------------------
+                                                             *MiniMisc.safely()*
+                         `MiniMisc.safely`({when}, {f})
+Execute a function on a condition and warn on error
+
+Input function is executed exactly once. Its possible error is captured and is
+shown as a |vim.notify()| warning.
+
+Useful to organize |init.lua| in fail-safe sections with simple lazy loading.
+
+Parameters ~
+{when} `(string)` When to execute a function. One of:
+  - `'now'` - immediately.
+  - `'later'` - queue to be executed soon without blocking the execution of next
+    code in file. Queued functions are executed in order they are added.
+  - `'delay:<number>'` - after a specified delay with |vim.defer_fn()|.
+  - `'event:<events>'` - on whichever specified event is triggered first.
+  - `'event:<events>~<patterns>` - same as above, but events must match
+    specified |autocmd-pattern|.
+  - `'filetype:<filetypes>'` - same as `'event:FileType~<filetypes>'`, but follow
+    successful function execution with |filetype-detect| for all normal buffers
+    (if new |ftdetect| scripts were added) and sourcing |ftplugin| (for buffers
+    matching `<filetypes>`). Intended to be used for loading "language plugins".
+{f} `(function)` Function to execute (without arguments).
+
+Usage ~
+>lua
+  MiniMisc.safely('later', function()
+    vim.notify('This will be executed after the next "now" call')
+  end)
+  MiniMisc.safely('now', function() error('This will be a warning') end)
+
+  MiniMisc.safely('event:InsertEnter', function()
+    require('mini.completion').setup()
+  end)
+  MiniMisc.safely('event:CmdlineEnter~/', function()
+    vim.notify('Start searching for the first time')
+  end)
+
+  MiniMisc.safely('filetype:tex,plaintex', function()
+    -- Load plugin to improve writing LaTeX
+  end)
+<
 ------------------------------------------------------------------------------
                                                     *MiniMisc.setup_auto_root()*
                 `MiniMisc.setup_auto_root`({names}, {fallback})
@@ -238,7 +284,7 @@ Parameters ~
 
 ------------------------------------------------------------------------------
                                                   *MiniMisc.setup_termbg_sync()*
-                         `MiniMisc.setup_termbg_sync`()
+                      `MiniMisc.setup_termbg_sync`({opts})
 Set up terminal background synchronization
 
 What it does:
@@ -247,15 +293,19 @@ What it does:
 - Creates autocommands for |ColorScheme| and |VimResume| events, which
   change terminal background to have same color as |guibg| of |hl-Normal|.
 - Creates autocommands for |VimLeavePre| and |VimSuspend| events which set
-  terminal background back to the color at the time this function was
-  called first time in current session.
+  terminal background back to its original color.
 - Synchronizes background immediately to allow not depend on loading order.
 
 Primary use case is to remove possible "frame" around current Neovim instance
 which appears if Neovim's |hl-Normal| background color differs from what is
 used by terminal emulator itself.
 
-Works only on Neovim>=0.10.
+Parameters ~
+{opts} `(table|nil)` Options. Possible fields:
+  - <explicit_reset> `(boolean)` - whether to reset terminal background by
+    explicitly setting it to the color it had when this function was called.
+    Set to `true` if terminal emulator doesn't support OSC 111 control sequence.
+    Default: `false`.
 
 ------------------------------------------------------------------------------
                                                *MiniMisc.setup_restore_cursor()*
@@ -264,17 +314,17 @@ Restore cursor position on file open
 
 When reopening a file this will make sure the cursor is placed back to the
 position where you left before. This implements |restore-cursor| in a nicer way.
-File should have a recognized file type (see 'filetype') and be opened in
-a normal buffer (see 'buftype').
+File should have a recognized file type (see |'filetype'|) and be opened in
+a normal buffer (see |'buftype'|).
 
-Note: it relies on file mark data stored in 'shadafile' (see |shada-f|).
+Note: it relies on file mark data stored in |'shadafile'| (see |shada-f|).
 Be sure to enable it.
 
 Parameters ~
 {opts} `(table|nil)` Options. Possible fields:
   - <center> - (boolean) Center the window after we restored the cursor.
     Default: `true`.
-  - <ignore_filetype> - Array with file types to be ignored (see 'filetype').
+  - <ignore_filetype> - Array with file types to be ignored (see |'filetype'|).
     Default: `{ "gitcommit", "gitrebase" }`.
 
 Usage ~
@@ -334,15 +384,15 @@ Return ~
                     `MiniMisc.use_nested_comments`({buf_id})
 Add possibility of nested comment leader
 
-This works by parsing 'commentstring' buffer option, extracting
+This works by parsing |'commentstring'| buffer option, extracting
 non-whitespace comment leader (symbols on the left of commented line), and
-locally modifying 'comments' option (by prepending `n:<leader>`). Does
-nothing if 'commentstring' is empty or has comment symbols both in front
-and back (like "/*%s*/").
+locally modifying |'comments'| option (by prepending `n:<leader>`). Does
+nothing if |'commentstring'| is empty or has comment symbols both in front
+and back (like `/*%s*/`).
 
 Nested comment leader added with this function is useful for formatting
-nested comments. For example, have in Lua "first-level" comments with '--'
-and "second-level" comments with '----'. With nested comment leader second
+nested comments. For example, have in Lua "first-level" comments with `--`
+and "second-level" comments with `----`. With nested comment leader second
 type can be formatted with `gq` in the same way as first one.
 
 Recommended usage is with |autocmd|: >lua
@@ -350,7 +400,7 @@ Recommended usage is with |autocmd|: >lua
   local use_nested_comments = function() MiniMisc.use_nested_comments() end
   vim.api.nvim_create_autocmd('BufEnter', { callback = use_nested_comments })
 <
-Note: for most filetypes 'commentstring' option is added only when buffer
+Note: for most filetypes |'commentstring'| option is added only when buffer
 with this filetype is entered, so using non-current `buf_id` can not lead
 to desired effect.
 

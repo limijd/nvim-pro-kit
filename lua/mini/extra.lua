@@ -1,8 +1,8 @@
---- *mini.extra* Extra 'mini.nvim' functionality
+--- *mini.extra* Extra mini.nvim functionality
 ---
 --- MIT License Copyright (c) 2023 Evgeni Chasnovski
 
---- Extra useful functionality which is not essential enough for other 'mini.nvim'
+--- Extra useful functionality which is not essential enough for other |mini.nvim|
 --- modules to include directly.
 ---
 --- Features:
@@ -22,8 +22,8 @@
 --- - Various highlighters for |mini.hipatterns|. See |MiniExtra.gen_highlighter|.
 ---
 --- Notes:
---- - This module requires only those 'mini.nvim' modules which are needed for
----   a particular functionality: 'mini.pick' for pickers, etc.
+--- - This module requires only those |mini.nvim| modules which are needed for
+---   a particular functionality: |mini.pick| for pickers, etc.
 ---
 --- # Setup ~
 ---
@@ -39,11 +39,11 @@
 --- # Comparisons ~
 ---
 --- - [nvim-telescope/telescope.nvim](https://github.com/nvim-telescope/telescope.nvim):
----     - With |MiniExtra.pickers|, 'mini.pick' is reasonably on par when it comes
+---     - With |MiniExtra.pickers|, |mini.pick| is reasonably on par when it comes
 ---       to built-in pickers.
 ---
 --- - [ibhagwan/fzf-lua](https://github.com/ibhagwan/fzf-lua):
----     - Same as 'nvim-telescope/telescope.nvim'.
+---     - Same as `nvim-telescope/telescope.nvim`.
 ---@tag MiniExtra
 
 ---@diagnostic disable:undefined-field
@@ -178,11 +178,11 @@ end
 --- - `i` textobject selects the scope charwise.
 --- - Differences with |MiniIndentscope.textobject()|:
 ---     - This textobject always treats blank lines on top and bottom of `i`
----       textobject as part of it, while 'mini.indentscope' can configure that.
----     - This textobject can select non-covering scopes, while 'mini.indentscope'
+---       textobject as part of it, while |mini.indentscope| can configure that.
+---     - This textobject can select non-covering scopes, while |mini.indentscope|
 ---       can not (by design).
 ---     - In this textobject scope computation is done only by "casting rays" from
----       top to bottom and not in both ways as in 'mini.indentscope'.
+---       top to bottom and not in both ways as in |mini.indentscope|.
 ---       This works in most common scenarios and doesn't work only if indent of
 ---       of the bottom border is expected to be larger than the top.
 ---
@@ -199,15 +199,16 @@ MiniExtra.gen_ai_spec.indent = function() return H.ai_indent_spec end
 ---
 ---@return __extra_ai_spec_return
 MiniExtra.gen_ai_spec.line = function()
-  return function(ai_type)
-    local line_num = vim.fn.line('.')
-    local line = vim.fn.getline(line_num)
+  return function(ai_type, _, opts)
+    local lnum_from = vim.fn.line('.')
+    local lnum_to = lnum_from + opts.n_times - 1
+    local line_from, line_to = vim.fn.getline(lnum_from), vim.fn.getline(lnum_to)
     -- Ignore indentation for `i` textobject
-    local from_col = ai_type == 'a' and 1 or (line:match('^(%s*)'):len() + 1)
+    local col_from = ai_type == 'a' and 1 or (line_from:match('^(%s*)'):len() + 1)
     -- Don't select `\n` past the line to operate within a line
-    local to_col = line:len()
+    local col_to = line_to:len()
 
-    return { from = { line = line_num, col = from_col }, to = { line = line_num, col = to_col } }
+    return { from = { line = lnum_from, col = col_from }, to = { line = lnum_to, col = col_to } }
   end
 end
 
@@ -286,7 +287,7 @@ MiniExtra.gen_highlighter = {}
 ---@param extmark_opts any Proper `extmark_opts` field for `highlighter`.
 ---   See |MiniHipatterns.config|.
 MiniExtra.gen_highlighter.words = function(words, group, extmark_opts)
-  if not H.islist(words) then H.error('`words` should be an array.') end
+  if not vim.islist(words) then H.error('`words` should be an array.') end
   if not (type(group) == 'string' or vim.is_callable(group)) then H.error('`group` should be string or callable.') end
   local pattern = vim.tbl_map(function(x)
     if type(x) ~= 'string' then H.error('All elements of `words` should be strings.') end
@@ -297,7 +298,7 @@ end
 
 --- |mini.pick| pickers
 ---
---- A table with 'mini.pick' pickers (which is a hard dependency).
+--- A table with |mini.pick| pickers (which is a hard dependency).
 --- Notes:
 --- - All have the same signature:
 ---     - <local_opts> - optional table with options local to picker.
@@ -396,13 +397,13 @@ MiniExtra.pickers.colorschemes = function(local_opts, opts)
   -- Infer data to show
   local all_cs = vim.fn.getcompletion('', 'color')
   local items = local_opts.names or all_cs
-  if not H.islist(items) then H.error('`names` should be array of color scheme names') end
+  if not vim.islist(items) then H.error('`names` should be array of color scheme names') end
   for _, item in ipairs(items) do
     if not vim.tbl_contains(all_cs, item) then H.error(vim.inspect(item) .. ' is not a color scheme name') end
   end
 
   local hl_groups = local_opts.preview_hl_groups
-  if hl_groups ~= nil and not H.islist(hl_groups) then H.error('`preview_hl_groups` should be array') end
+  if hl_groups ~= nil and not vim.islist(hl_groups) then H.error('`preview_hl_groups` should be array') end
 
   -- Compute original color scheme to restore
   local bg_orig = vim.o.background
@@ -440,7 +441,7 @@ end
 
 --- Neovim commands picker
 ---
---- Pick from Neovim built-in (|Ex-commands|) and |user-commands|.
+--- Pick from Neovim built-in (|Ex-command|) and |user-commands|.
 --- Notes:
 --- - Preview shows information about the command (if available).
 --- - Choosing either executes command (if reliably known that it doesn't need
@@ -678,7 +679,7 @@ end
 --- - `MiniExtra.pickers.git_commits()` - all commits from parent Git
 ---   repository of |current-directory|.
 --- - `MiniExtra.pickers.git_commits({ path = 'subdir' })` - commits affecting
----   files from 'subdir' subdirectory.
+---   files from `subdir` subdirectory.
 --- - `:Pick git_commits path='%'` commits affecting current file.
 ---
 ---@param local_opts __extra_pickers_local_opts
@@ -728,20 +729,20 @@ end
 
 --- Git files picker
 ---
---- Pick from Git files using `git ls-files`.
+--- Pick from Git files using `git ls-files` using standard ignore rules.
 --- __extra_pickers_git_notes
 ---
 --- Examples:
 ---
 --- - `MiniExtra.pickers.git_files({ scope = 'ignored' })` - ignored files from
 ---   parent Git repository of |current-directory|.
---- - `:Pick git_files path='subdir' scope='modified'` - files from 'subdir'
----   subdirectory which are ignored by Git.
+--- - `:Pick git_files path='subdir' scope='modified'` - files from `subdir`
+---   subdirectory which differ from Git index.
 ---
 ---@param local_opts __extra_pickers_local_opts
 ---   Possible fields:
 ---   __extra_pickers_git_path
----   - <scope> `(string)` - files scope to show. One of
+---   - <scope> `(string)` - files scope to show. One of:
 ---       - "tracked"   (`--cached`   Git flag).
 ---       - "modified"  (`--modified` Git flag).
 ---       - "untracked" (`--others`   Git flag).
@@ -761,20 +762,21 @@ MiniExtra.pickers.git_files = function(local_opts, opts)
 
   -- Compute path to repo with target path (as it might differ from current)
   local path, path_type = H.git_normalize_path(local_opts.path, 'git_files')
-  H.git_get_repo_dir(path, path_type, 'git_files')
+  local repo_dir = H.git_get_repo_dir(path, path_type, 'git_files')
+  if local_opts.path == nil then path = repo_dir end
   local path_dir = path_type == 'directory' and path or vim.fn.fnamemodify(path, ':h')
 
   -- Define source
   local show = H.pick_get_config().source.show or H.show_with_icons
 
-  --stylua: ignore
-  local command = ({
-    tracked   = { 'git', '-C', path_dir, 'ls-files', '--cached' },
-    modified  = { 'git', '-C', path_dir, 'ls-files', '--modified' },
-    untracked = { 'git', '-C', path_dir, 'ls-files', '--others' },
-    ignored   = { 'git', '-C', path_dir, 'ls-files', '--others', '--ignored', '--exclude-standard' },
-    deleted   = { 'git', '-C', path_dir, 'ls-files', '--deleted' },
+  local args = ({
+    tracked = { '--cached', '--exclude-standard' },
+    modified = { '--modified', '--exclude-standard' },
+    untracked = { '--others', '--exclude-standard' },
+    ignored = { '--others', '--ignored', '--exclude-standard' },
+    deleted = { '--deleted', '--exclude-standard' },
   })[local_opts.scope]
+  local command = vim.list_extend({ 'git', '-C', path_dir, '-c', 'core.quotepath=false', 'ls-files' }, args)
 
   local name = string.format('Git files (%s)', local_opts.scope)
   local default_source = { name = name, cwd = path_dir, show = show }
@@ -846,16 +848,16 @@ MiniExtra.pickers.git_hunks = function(local_opts, opts)
   return pick.builtin.cli({ command = command, postprocess = postprocess }, opts)
 end
 
---- Matches from 'mini.hipatterns' picker
+--- Matches from |mini.hipatterns| picker
 ---
 --- Pick from |mini.hipatterns| matches using |MiniHipatterns.get_matches()|.
 --- Notes:
---- - Requires 'mini.hipatterns'.
+--- - Requires |mini.hipatterns|.
 --- - Highlighter identifier is highlighted with its highlight group.
 ---
 ---@param local_opts __extra_pickers_local_opts
 ---   Possible fields:
----   - <scope> `(string)` - one of "all" (buffers with enabled 'mini.hipatterns')
+---   - <scope> `(string)` - one of "all" (buffers with enabled |mini.hipatterns|)
 ---     or "current" (buffer). Default: "all".
 ---   - <highlighters> `(table|nil)` - highlighters for which to find matches.
 ---     Forwarded to |MiniHipatterns.get_matches()|. Default: `nil`.
@@ -868,7 +870,7 @@ MiniExtra.pickers.hipatterns = function(local_opts, opts)
   if not has_hipatterns then H.error([[`pickers.hipatterns` requires 'mini.hipatterns' which can not be found.]]) end
 
   local_opts = vim.tbl_deep_extend('force', { highlighters = nil, scope = 'all' }, local_opts or {})
-  if local_opts.highlighters ~= nil and not H.islist(local_opts.highlighters) then
+  if local_opts.highlighters ~= nil and not vim.islist(local_opts.highlighters) then
     H.error('`local_opts.highlighters` should be an array of highlighter identifiers.')
   end
   local highlighters = local_opts.highlighters
@@ -981,7 +983,7 @@ MiniExtra.pickers.history = function(local_opts, opts)
     local cur_match = MiniPick.get_picker_matches().current
     local cur_scope, cur_item = cur_match:match('^(.) (.*)$')
     if not (cur_scope == ':' or cur_scope == '/' or cur_scope == '?') then return end
-    vim.schedule(function() vim.api.nvim_input(cur_scope .. cur_item) end)
+    vim.schedule(function() vim.api.nvim_input(cur_scope .. cur_item:gsub('<', '<LT>')) end)
     return true
   end
   local mappings = { edit_command = { char = '<C-e>', func = edit_command } }
@@ -1229,6 +1231,63 @@ MiniExtra.pickers.lsp = function(local_opts, opts)
   vim.lsp.buf[scope](buf_lsp_opts)
 end
 
+--- Manual pages
+---
+--- Pick manual page (like described in |ft-man-plugin|).
+--- Notes:
+--- - Depends on |:Man| command to preview and choose items.
+--- - Shows page in the target window. Use |MiniPick-actions-choose| to split.
+---
+---@param local_opts __extra_pickers_local_opts
+---   Not used at the moment.
+---@param opts __extra_pickers_opts
+---
+---@return __extra_pickers_return
+MiniExtra.pickers.manpages = function(local_opts, opts)
+  local pick = H.validate_pick('manpages')
+  if vim.fn.exists(':Man') ~= 2 then H.error('`manpages` picker needs `:Man` command') end
+
+  local latest_man_buf_id
+  local show_man = function(win_id, item, is_preview)
+    -- table.insert(_G.log, { item, name, section })
+    local name, section = (item or ''):match('^(.-)%s-%((.-)%)')
+    if name == nil or section == nil then return end
+    -- - Use first command
+    name = name:gsub(',.*$', '')
+    -- - Extract first valid section. NOTE: using only digits is not enough
+    --   (for example, `man 1 man` and `man 1p man` are different).
+    section = section:match('%w+') or ''
+
+    -- Show man page directly in the target window
+    vim.api.nvim_win_call(win_id, function() vim.cmd('hide Man ' .. section .. ' ' .. name) end)
+
+    -- Ensure proper choose. Possibly undo `buflisted=false` from preview.
+    if not is_preview then
+      vim.bo.buflisted = true
+      return
+    end
+
+    -- Ensure proper preview buffer
+    vim.bo.buflisted, vim.bo.bufhidden, vim.bo.matchpairs = false, 'wipe', ''
+    vim.b.minicursorword_disable = true
+    vim.b.miniindentscope_disable = true
+    -- - Modify after `:Man` to not have "Buffer with this name already exists"
+    vim.api.nvim_buf_set_name(0, 'minipick://' .. vim.api.nvim_get_current_buf() .. '/preview')
+  end
+
+  local preview = function(buf_id, item) show_man(vim.fn.win_findbuf(buf_id)[1], item, true) end
+  local choose = function(item) show_man(MiniPick.get_picker_state().windows.target, item) end
+
+  -- Set necessary environment variables for `vim.loop.spawn` (as it doesn't
+  -- inherit environment variables)
+  local env = { 'MANWIDTH=999' }
+  table.insert(env, vim.env.PATH ~= nil and ('PATH=' .. vim.env.PATH) or nil)
+  table.insert(env, vim.env.MANPATH ~= nil and ('MANPATH=' .. vim.env.MANPATH) or nil)
+  local source = { name = 'Manpages', choose = choose, preview = preview }
+  opts = vim.tbl_deep_extend('force', { source = source }, opts or {})
+  return pick.builtin.cli({ command = { 'man', '-k', '.' }, spawn_opts = { env = env } }, opts)
+end
+
 --- Neovim marks picker
 ---
 --- Pick and preview position of Neovim |mark|s.
@@ -1284,7 +1343,7 @@ MiniExtra.pickers.oldfiles = function(local_opts, opts)
   local pick = H.validate_pick('oldfiles')
   local_opts = vim.tbl_deep_extend('force', { current_dir = false, preserve_order = false }, local_opts or {})
   local oldfiles = vim.v.oldfiles
-  if not H.islist(oldfiles) then H.error('`pickers.oldfiles` picker needs valid `v:oldfiles`.') end
+  if not vim.islist(oldfiles) then H.error('`pickers.oldfiles` picker needs valid `v:oldfiles`.') end
 
   local show_all = not local_opts.current_dir
   local items = vim.schedule_wrap(function()
@@ -1349,7 +1408,7 @@ MiniExtra.pickers.options = function(local_opts, opts)
     local has_value, value = pcall(function()
       return vim.api.nvim_win_call(target_win_id, function() return vim[value_source][item.info.name] end)
     end)
-    -- TODO: consider removing after Neovim<=0.10 compatibility is dropped
+    -- TODO: consider removing after Neovim=0.10 compatibility is dropped
     if not has_value then value = '<Option is deprecated (will be removed in later Neovim versions)>' end
 
     local lines = { 'Value:', unpack(vim.split(vim.inspect(value), '\n')), '', 'Info:' }
@@ -1497,11 +1556,11 @@ MiniExtra.pickers.treesitter = function(local_opts, opts)
   return H.pick_start(items, { source = { name = 'Tree-sitter nodes' } }, opts)
 end
 
---- Visit paths from 'mini.visits' picker
+--- Visit paths from |mini.visits| picker
 ---
 --- Pick paths from |mini.visits| using |MiniVisits.list_paths()|.
 --- Notes:
---- - Requires 'mini.visits'.
+--- - Requires |mini.visits|.
 ---
 --- Examples:
 ---
@@ -1556,12 +1615,12 @@ MiniExtra.pickers.visit_paths = function(local_opts, opts)
   return H.pick_start(items, { source = default_source }, opts)
 end
 
---- Visit labels from 'mini.visits' picker
+--- Visit labels from |mini.visits| picker
 ---
 --- Pick labels from |mini.visits| using |MiniVisits.list_labels()|
 --- and |MiniVisits.list_paths()|.
 --- Notes:
---- - Requires 'mini.visits'.
+--- - Requires |mini.visits|.
 --- - Preview shows target visit paths filtered to those having previewed label.
 --- - Choosing essentially starts |MiniExtra.pickers.visit_paths()| for paths
 ---   with the chosen label.
@@ -1741,9 +1800,9 @@ H.pick_start = function(items, default_opts, opts)
   return pick.start(opts_final)
 end
 
-H.pick_highlight_line = function(buf_id, line, hl_group, priority)
+H.pick_highlight_line = function(buf_id, line, hl_group, priority, start_col)
   local opts = { end_row = line, end_col = 0, hl_mode = 'blend', hl_group = hl_group, priority = priority }
-  vim.api.nvim_buf_set_extmark(buf_id, H.ns_id.pickers, line - 1, 0, opts)
+  vim.api.nvim_buf_set_extmark(buf_id, H.ns_id.pickers, line - 1, start_col or 0, opts)
 end
 
 H.pick_prepend_position = function(item)
@@ -1760,6 +1819,7 @@ H.pick_prepend_position = function(item)
   local text = item.text or ''
   local suffix = text == '' and '' or ('│ ' .. text)
   item.text = string.format('%s│%s│%s%s', path, item.lnum or 1, item.col or 1, suffix)
+  item.text_start_col = text ~= '' and (item.text:len() - text:len()) or nil
   return item
 end
 
@@ -1969,7 +2029,8 @@ H.lsp_make_opts = function(source, opts)
       add_decor_data(item)
       item.kind_orig = nil
     end
-    table.sort(items, H.lsp_items_compare)
+    -- Preserve order for queried methods as server can return deliberate order
+    if not vim.startswith(source, 'workspace_symbol') then table.sort(items, H.lsp_items_compare) end
     return items
   end
 
@@ -1987,7 +2048,8 @@ H.lsp_make_opts = function(source, opts)
 
     H.pick_clear_namespace(buf_id, H.ns_id.pickers)
     for i, item in ipairs(items_to_show) do
-      H.pick_highlight_line(buf_id, i, item.hl, 199)
+      -- Highlight only after position text to emphasize symbol data
+      H.pick_highlight_line(buf_id, i, item.hl, 199, item.text_start_col)
     end
   end
 
@@ -2212,8 +2274,5 @@ H.short_path = function(path, cwd)
   cwd = cwd:sub(-1) == '/' and cwd or (cwd .. '/')
   return vim.startswith(path, cwd) and path:sub(cwd:len() + 1) or vim.fn.fnamemodify(path, ':~')
 end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 return MiniExtra

@@ -5,7 +5,6 @@ local expect, eq, no_eq = helpers.expect, helpers.expect.equality, helpers.expec
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('keymap', config) end
 local unload_module = function() child.mini_unload('keymap') end
 local set_cursor = function(...) return child.set_cursor(...) end
@@ -14,16 +13,13 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
+local validate_edit = function(...) return child.validate_edit(...) end
+local validate_edit1d = function(...) return child.validate_edit1d(...) end
 
 local test_dir = 'tests/dir-keymap'
 
 -- Common test wrappers
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
 local mock_plugin = function(name) child.cmd('noautocmd set rtp+=tests/dir-keymap/mock-plugins/' .. name) end
 
 local mock_test_steps = function(method_name)
@@ -74,23 +70,6 @@ local validate_log_and_clean = function(ref)
   child.lua('_G.log = {}')
 end
 
-local validate_edit = function(lines_before, cursor_before, keys, lines_after, cursor_after)
-  child.ensure_normal_mode()
-  set_lines(lines_before)
-  set_cursor(cursor_before[1], cursor_before[2])
-
-  type_keys(keys)
-
-  eq(get_lines(), lines_after)
-  eq(get_cursor(), cursor_after)
-
-  child.ensure_normal_mode()
-end
-
-local validate_edit1d = function(line_before, col_before, keys, line_after, col_after)
-  validate_edit({ line_before }, { 1, col_before }, keys, { line_after }, { 1, col_after })
-end
-
 local validate_jumps = function(key, ref_pos_seq)
   -- Should keep initial mode (relevant for Insert mode)
   local start_mode = child.fn.mode()
@@ -139,7 +118,7 @@ end
 
 T['setup()']['validates `config` argument'] = function()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -682,7 +661,7 @@ T['map_multistep()']['built-in steps']['increase_indent'] = function()
   -- - Visual mode (cursor should be exactly on indent)
   local validate_vis_mode = function(key, before_line, before_col, after_line, after_col)
     validate_edit1d(before_line, before_col, key .. '<Tab>', after_line, after_col)
-    eq(child.fn.mode(), 'n')
+    child.ensure_normal_mode()
   end
 
   validate_vis_mode('v', 'abc', 0, 'abc', 0)
@@ -726,7 +705,7 @@ T['map_multistep()']['built-in steps']['decrease_indent'] = function()
   -- - Visual mode (cursor should be exactly on indent)
   local validate_vis_mode = function(key, before_line, before_col, after_line, after_col)
     validate_edit1d(before_line, before_col, key .. '<S-Tab>', after_line, after_col)
-    eq(child.fn.mode(), 'n')
+    child.ensure_normal_mode()
   end
 
   validate_vis_mode('v', 'abc', 0, 'abc', 0)
@@ -804,8 +783,6 @@ T['map_multistep()']['built-in steps']['hungry_bs'] = function()
 end
 
 T['map_multistep()']['built-in steps']['vimsnippet_next'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('`vim.snippet` is available only on Neovim>=0.10') end
-
   -- Make sure to not test built-in <Tab> mappings from Neovim>=0.11
   pcall(child.cmd, 'iunmap <Tab>')
   pcall(child.cmd, 'sunmap <Tab>')
@@ -835,8 +812,6 @@ T['map_multistep()']['built-in steps']['vimsnippet_next'] = function()
 end
 
 T['map_multistep()']['built-in steps']['vimsnippet_prev'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('`vim.snippet` is available only on Neovim>=0.10') end
-
   -- Make sure to not test built-in <Tab> mappings from Neovim>=0.11
   pcall(child.cmd, 'iunmap <S-Tab>')
   pcall(child.cmd, 'sunmap <S-Tab>')
@@ -1080,6 +1055,7 @@ T['map_multistep()']['built-in steps']['nvimautopairs_cr'] = function()
   eq(get_lines(), { '', '' })
 
   mock_plugin('nvim-autopairs')
+  child.bo.autoindent = false
 
   -- Should respect pairs
   type_keys('()', '<Left>')

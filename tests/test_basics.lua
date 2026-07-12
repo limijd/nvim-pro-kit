@@ -5,14 +5,12 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('basics', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
---stylua: ignore end
 
 -- Output test set ============================================================
 local T = new_set({
@@ -61,7 +59,7 @@ end
 
 T['setup()']['validates `config` argument'] = function()
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -85,15 +83,8 @@ T['toggle_diagnostic()'] = new_set()
 local toggle_diagnostic = function() return child.lua_get('MiniBasics.toggle_diagnostic()') end
 
 T['toggle_diagnostic()']['works'] = function()
-  if child.fn.has('nvim-0.10') == 1 then
-    child.lua('vim.diagnostic.enable = function(enable) vim.b.diag_status = enable and "enabled" or "disabled" end')
-    child.lua('vim.diagnostic.is_enabled = function(enable) return vim.b.diag_status ~= "disabled" end')
-  else
-    child.lua('vim.diagnostic.enable = function() vim.b.diag_status = "enabled" end')
-    child.lua('vim.diagnostic.disable = function() vim.b.diag_status = "disabled" end')
-    child.lua('vim.diagnostic.is_disabled = function() return vim.b.diag_status == "disabled" end')
-  end
-
+  child.lua('vim.diagnostic.enable = function(enable) vim.b.diag_status = enable and "enabled" or "disabled" end')
+  child.lua('vim.diagnostic.is_enabled = function(enable) return vim.b.diag_status ~= "disabled" end')
   load_module()
 
   -- Should disable on per-buffer basis
@@ -123,18 +114,9 @@ end
 
 T['toggle_diagnostic()']['works if initially disabled'] = function()
   load_module()
-  local buf_id = child.api.nvim_get_current_buf()
+  local is_disabled = function() return not child.diagnostic.is_enabled({ bufnr = 0 }) end
 
-  local disable, is_disabled
-  if child.fn.has('nvim-0.10') == 1 then
-    disable = function() child.diagnostic.enable(false, { bufnr = buf_id }) end
-    is_disabled = function() return not child.diagnostic.is_enabled({ bufnr = buf_id }) end
-  else
-    disable = function() child.diagnostic.disable(buf_id) end
-    is_disabled = function() return child.diagnostic.is_disabled(buf_id) end
-  end
-
-  disable()
+  child.diagnostic.enable(false, { bufnr = 0 })
   eq(is_disabled(), true)
   toggle_diagnostic()
   eq(is_disabled(), false)
@@ -148,8 +130,6 @@ T['Options'] = new_set()
 T['Options']['work'] = function()
   -- Basic options (should be set by default)
   eq(child.g.mapleader, vim.NIL)
-  -- - `termguicolors` is enabled in Neovim=0.10 by default (if possible)
-  if child.fn.has('nvim-0.10') == 0 then eq(child.o.termguicolors, false) end
   eq(child.o.number, false)
   eq(child.o.signcolumn, 'auto')
   eq(child.o.fillchars, '')
@@ -160,7 +140,6 @@ T['Options']['work'] = function()
   load_module()
 
   eq(child.g.mapleader, ' ')
-  if child.fn.has('nvim-0.10') == 0 then eq(child.o.termguicolors, true) end
   eq(child.o.number, true)
   eq(child.o.signcolumn, 'yes')
   eq(child.o.fillchars, 'eob: ')
@@ -466,6 +445,8 @@ T['Mappings']['Basic']['gV'] = function()
   set_lines({ 'aaa', 'bbb', 'ccc' })
   set_cursor(1, 0)
   type_keys('yy', 'p')
+  -- - Add location to the jumplist
+  type_keys('gg')
 
   -- - Result selection should not depend on latest Visual selection type
   set_cursor(1, 0)
@@ -476,6 +457,10 @@ T['Mappings']['Basic']['gV'] = function()
   eq(child.fn.mode(), 'V')
 
   child.ensure_normal_mode()
+
+  -- - Selection should not have overwritten jumplist
+  type_keys('<C-o>')
+  eq(get_cursor(), { 1, 0 })
 
   -- Blockwise mode
   set_lines({ 'aaa', 'bbb', 'ccc' })
@@ -625,15 +610,8 @@ T['Mappings']['Toggle options']['shows feedback about new value'] = function()
 end
 
 T['Mappings']['Toggle options']['works with diagnostic'] = function()
-  if child.fn.has('nvim-0.10') == 1 then
-    child.lua('vim.diagnostic.enable = function(enable) vim.b.diag_status = enable and "enabled" or "disabled" end')
-    child.lua('vim.diagnostic.is_enabled = function(enable) return vim.b.diag_status ~= "disabled" end')
-  else
-    child.lua('vim.diagnostic.enable = function() vim.b.diag_status = "enabled" end')
-    child.lua('vim.diagnostic.disable = function() vim.b.diag_status = "disabled" end')
-    child.lua('vim.diagnostic.is_disabled = function() return vim.b.diag_status == "disabled" end')
-  end
-
+  child.lua('vim.diagnostic.enable = function(enable) vim.b.diag_status = enable and "enabled" or "disabled" end')
+  child.lua('vim.diagnostic.is_enabled = function(enable) return vim.b.diag_status ~= "disabled" end')
   load_module()
 
   -- Should disable on per-buffer basis
@@ -803,9 +781,9 @@ T['Autocommands'] = new_set()
 
 T['Autocommands']['work'] = function()
   child.lua([[
-    local on_yank = function() _G.been_here = true end
     local module = vim.fn.has('nvim-0.11') == 1 and vim.hl or vim.highlight
-    module.on_yank = on_yank
+    local hl_op_name = vim.fn.has('nvim-0.13') == 1 and 'hl_op' or 'on_yank'
+    module[hl_op_name] = function() _G.been_here = true end
   ]])
   load_module()
 

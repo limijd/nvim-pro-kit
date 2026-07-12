@@ -39,6 +39,7 @@
 ---     - [DanilaMihailov/beacon.nvim](https://github.com/DanilaMihailov/beacon.nvim)
 ---     - [folke/lazy.nvim](https://github.com/folke/lazy.nvim)
 ---     - [folke/noice.nvim](https://github.com/folke/noice.nvim)
+---     - [folke/snacks.nvim](https://github.com/folke/snacks.nvim)
 ---     - [folke/todo-comments.nvim](https://github.com/folke/todo-comments.nvim)
 ---     - [folke/trouble.nvim](https://github.com/folke/trouble.nvim)
 ---     - [folke/which-key.nvim](https://github.com/folke/which-key.nvim)
@@ -67,13 +68,14 @@
 ---     - [rcarriga/nvim-notify](https://github.com/rcarriga/nvim-notify)
 ---     - [rlane/pounce.nvim](https://github.com/rlane/pounce.nvim)
 ---     - [romgrk/barbar.nvim](https://github.com/romgrk/barbar.nvim)
+---     - [saghen/blink.cmp](https://github.com/saghen/blink.cmp)
 ---     - [stevearc/aerial.nvim](https://github.com/stevearc/aerial.nvim)
 ---     - [williamboman/mason.nvim](https://github.com/williamboman/mason.nvim)
 ---
 --- # Setup ~
 ---
 --- This module needs a setup with `require('mini.hues').setup({})` and
---- **mandatory `background` and `foreground` fields** (add more fields to fit
+--- MANDATORY `background` AND `foreground` FIELDS (add more fields to fit
 --- your taste). It will create global Lua table `MiniHues` which you can use
 --- for scripting or manually (with `:lua MiniHues.*`).
 ---
@@ -82,8 +84,8 @@
 --- This module doesn't have runtime options, so using `vim.b.minihues_config`
 --- will have no effect here.
 ---
---- Example:
---- >
+--- Example: >lua
+---
 ---   require('mini.hues').setup({
 ---     background = '#11262d',
 ---     foreground = '#c0c8cc',
@@ -101,14 +103,16 @@
 --- - Using `setup()` doesn't actually create a colorscheme. It basically
 ---   creates a coordinated set of |highlight-groups|. To create your own scheme:
 ---     - Put "myscheme.lua" file (name after your chosen theme name) inside
----       any "colors" directory reachable from 'runtimepath' ("colors" inside
+---       any "colors" directory reachable from |'runtimepath'| ("colors" inside
 ---       your Neovim config directory is usually enough).
 ---     - Inside "myscheme.lua" call `require('mini.hues').setup()` with your
 ---       palette and only after that set |g:colors_name| to "myscheme".
 ---
 --- - This module doesn't define |cterm-colors| for implementation simplicity.
----   Use |mini.colors| module, |MiniColors-colorscheme:add_cterm_attributes()|
----   in particular.
+---   It only works if |'termguicolors'| is enabled (should be done automatically
+---   if the terminal emulator supporst 24-bit colors). If not possible,
+---   use |MiniColors-colorscheme:add_cterm_attributes()| from |mini.colors|
+---   to define custom color scheme with 16-color support.
 ---@tag MiniHues
 
 --- Bundled color schemes
@@ -123,8 +127,7 @@
 ---   carefully selected) colors.
 ---
 ---   It is essentially a combination of calls to |MiniHues.setup()| and
----   |MiniHues.gen_random_base_colors()| with a slight adjustments for
----   'background' value.
+---   |MiniHues.gen_random_base_colors()| with slight adjustments for |'background'|.
 ---
 ---   Activate it as regular |:colorscheme|. Get currently active config with
 ---   `:lua print(vim.inspect(MiniHues.config))`.
@@ -238,7 +241,7 @@ end
 ---   setup({ background = '#11262d', foreground = '#c0c8cc', accent = 'blue' })
 --- <
 MiniHues.config = {
-  -- **Required** base colors as '#rrggbb' hex strings
+  -- REQUIRED base colors as '#rrggbb' hex strings
   background = nil,
   foreground = nil,
 
@@ -315,7 +318,7 @@ MiniHues.config = {
 --- Notes:
 --- - Some output colors can have not exact values of generated Oklch channels.
 ---   This is due to actually computed colors being impossible to represent via
----   '#rrggbb' hex string. In this case a process called gamut clipping is done
+---   `'#rrggbb'` hex string. In this case a process called gamut clipping is done
 ---   to reduce lightness and chroma in optimal way while maintaining same hue.
 ---   For more information see |MiniColors-gamut-clip|.
 ---
@@ -423,7 +426,7 @@ MiniHues.make_palette = function(config)
   return res
 end
 
--- stylua: ignore
+--stylua: ignore
 --- Apply palette
 ---
 --- Create color scheme highlight groups and terminal colors based on supplied
@@ -536,7 +539,7 @@ MiniHues.apply_palette = function(palette, plugins, opts)
   hi('QuickFixLine',   { fg=nil,       bg=nil,       bold=true })
   hi('Search',         { fg=p.bg,      bg=p.accent })
   hi('SignColumn',     { fg=p.bg_mid2, bg=nil })
-  hi('SpecialKey',     { fg=p.bg_mid2, bg=nil })
+  hi('SpecialKey',     { fg=p.accent,  bg=nil })
   hi('SpellBad',       { fg=nil,       bg=nil,       sp=p.red,    undercurl=true })
   hi('SpellCap',       { fg=nil,       bg=nil,       sp=p.cyan,   undercurl=true })
   hi('SpellLocal',     { fg=nil,       bg=nil,       sp=p.yellow, undercurl=true })
@@ -690,219 +693,149 @@ MiniHues.apply_palette = function(palette, plugins, opts)
   hi('markdownH5', { link='@markup.heading.5' })
   hi('markdownH6', { link='@markup.heading.6' })
 
-  -- Tree-sitter
-  -- Sources:
-  -- - `:h treesitter-highlight-groups`
-  -- - https://github.com/nvim-treesitter/nvim-treesitter/blob/master/CONTRIBUTING.md#highlights
-  hi('@text.literal',   { link='Special' })
-  hi('@text.reference', { link='Identifier' })
-  hi('@text.title',     { link='Title' })
-  hi('@text.uri',       { link='Underlined' })
-  hi('@text.todo',      { link='Todo' })
-  hi('@text.note',      { link='MoreMsg' })
-  hi('@text.warning',   { link='WarningMsg' })
-  hi('@text.danger',    { link='ErrorMsg' })
-  hi('@text.strong',    { fg=nil, bg=nil, bold=true          })
-  hi('@text.emphasis',  { fg=nil, bg=nil, italic=true        })
-  hi('@text.strike',    { fg=nil, bg=nil, strikethrough=true })
-  hi('@text.underline', { link='Underlined' })
+  -- Tree-sitter. Source: `:h treesitter-highlight-groups`.
+  hi('@variable',                   { fg=p.fg,   bg=nil })
+  hi('@variable.builtin',           { link='Special' })
+  hi('@variable.parameter',         { fg=p.blue, bg=nil })
+  hi('@variable.parameter.builtin', { link='@variable.builtin' })
+  hi('@variable.member',            { link='Identifier' })
 
-  hi('@comment',     { link='Comment' })
-  hi('@punctuation', { link='Delimiter' })
+  hi('@constant',         { link='Constant' })
+  hi('@constant.builtin', { link='Special' })
+  hi('@constant.macro',   { link='Macro' })
 
-  hi('@constant',          { link='Constant' })
-  hi('@constant.builtin',  { link='Special' })
-  hi('@constant.macro',    { link='Macro' })
-  hi('@define',            { link='Define' })
-  hi('@macro',             { link='Macro' })
-  hi('@string',            { link='String' })
-  hi('@string.escape',     { link='SpecialChar' })
-  hi('@string.special',    { link='SpecialChar' })
+  hi('@module',         { link='Identifier' })
+  hi('@module.builtin', { link='@variable.builtin' })
+  hi('@label',          { link='Label' })
+
+  hi('@string',                { link='String' })
+  hi('@string.documentation',  { link='@string' })
+  hi('@string.regexp',         { link='SpecialChar' })
+  hi('@string.escape',         { link='SpecialChar' })
+  hi('@string.special',        { link='SpecialChar' })
+  hi('@string.special.symbol', { link='@constant' })
+  hi('@string.special.path',   { link='Directory' })
+  hi('@string.special.url',    { link='@markup.link.url' })
+
   hi('@character',         { link='Character' })
   hi('@character.special', { link='SpecialChar' })
-  hi('@number',            { link='Number' })
-  hi('@boolean',           { link='Boolean' })
-  hi('@float',             { link='Float' })
+
+  hi('@boolean',      { link='Boolean' })
+  hi('@number',       { link='Number' })
+  hi('@number.float', { link='Float' })
+
+  hi('@type',            { link='Type' })
+  hi('@type.builtin',    { link='Special' })
+  hi('@type.definition', { link='Typedef' })
+
+  hi('@attribute',         { link='Macro' })
+  hi('@attribute.builtin', { link='Special' })
+  hi('@property',          { link='Identifier' })
 
   hi('@function',         { link='Function' })
   hi('@function.builtin', { link='Special' })
   hi('@function.call',    { link='Function' })
   hi('@function.macro',   { link='Macro' })
-  hi('@parameter',        { fg=p.blue, bg=nil })
-  hi('@method',           { link='Function' })
-  hi('@method.call',      { link='Function' })
-  hi('@field',            { link='Identifier' })
-  hi('@property',         { link='Identifier' })
-  hi('@constructor',      { link='Special' })
 
-  hi('@conditional',    { link='Conditional' })
-  hi('@repeat',         { link='Repeat' })
-  hi('@label',          { link='Label' })
-  hi('@operator',       { link='Operator' })
-  hi('@keyword',        { link='Keyword' })
-  hi('@keyword.return', { fg=p.orange, bg=nil, bold=true })
-  hi('@exception',      { link='Exception' })
+  hi('@function.method',      { link='Function' })
+  hi('@function.method.call', { link='Function' })
 
-  hi('@variable',         { fg=p.fg, bg=nil })
-  hi('@variable.builtin', { link='Special' })
-  hi('@type',             { link='Type' })
-  hi('@type.builtin',     { link='Special' })
-  hi('@type.definition',  { link='Typedef' })
-  hi('@storageclass',     { link='StorageClass' })
-  hi('@structure',        { link='Structure' })
-  hi('@namespace',        { link='Identifier' })
-  hi('@include',          { link='Include' })
-  hi('@preproc',          { link='PreProc' })
-  hi('@debug',            { link='Debug' })
-  hi('@tag',              { link='Tag' })
+  hi('@constructor', { link='Special' })
+  hi('@operator',    { link='Operator' })
 
-  hi('@symbol', { link='Keyword' })
-  hi('@none',   {})
+  hi('@keyword',           { link='Keyword' })
+  hi('@keyword.coroutine', { link='@keyword' })
+  hi('@keyword.function',  { link='@keyword' })
+  hi('@keyword.operator',  { link='@keyword' })
+  hi('@keyword.import',    { fg=p.blue,   bg=nil, bold=true })
+  hi('@keyword.type',      { link='@keyword' })
+  hi('@keyword.modifier',  { link='@keyword' })
+  hi('@keyword.repeat',    { link='@keyword' })
+  hi('@keyword.return',    { fg=p.orange, bg=nil, bold=true })
+  hi('@keyword.debug',     { fg=p.cyan,   bg=nil, bold=true })
+  hi('@keyword.exception', { link='@keyword' })
+
+  hi('@keyword.conditional',         { link='@keyword' })
+  hi('@keyword.conditional.ternary', { link='@keyword' })
+
+  hi('@keyword.directive',        { fg=p.blue, bg=nil, bold=true })
+  hi('@keyword.directive.define', { link='@keyword.directive' })
+
+  hi('@punctuation.delimiter', { link='Delimiter' })
+  hi('@punctuation.bracket',   { link='@punctuation.delimiter' })
+  hi('@punctuation.special',   { link='Special' })
+
+  hi('@comment',               { link='Comment' })
+  hi('@comment.documentation', { link='@comment' })
+
+  hi('@comment.error',   { link='ErrorMsg' })
+  hi('@comment.warning', { link='WarningMsg' })
+  hi('@comment.todo',    { link='Todo' })
+  hi('@comment.note',    { link='MoreMsg' })
+
+  hi('@markup.strong',        { fg=nil, bg=nil, bold=true })
+  hi('@markup.italic',        { fg=nil, bg=nil, italic=true })
+  hi('@markup.strikethrough', { fg=nil, bg=nil, strikethrough=true })
+  hi('@markup.underline',     { fg=nil, bg=nil, underline=true })
+
+  hi('@markup.heading',   { link='Title' })
+  hi('@markup.heading.1', { fg=p.orange, bg=nil })
+  hi('@markup.heading.2', { fg=p.yellow, bg=nil })
+  hi('@markup.heading.3', { fg=p.green,  bg=nil })
+  hi('@markup.heading.4', { fg=p.cyan,   bg=nil })
+  hi('@markup.heading.5', { fg=p.azure,  bg=nil })
+  hi('@markup.heading.6', { fg=p.blue,   bg=nil })
+
+  hi('@markup.quote',       { link='@string.special' })
+  hi('@markup.math',        { link='@string.special' })
+
+  hi('@markup.link',       { link='Identifier' })
+  hi('@markup.link.label', { link='@markup.link' })
+  hi('@markup.link.url',   { fg=p.fg, bg=nil, underline=true })
+
+  hi('@markup.raw',       { link='Special' })
+  hi('@markup.raw.block', { link='@markup.raw' })
+
+  hi('@markup.list',           { link='@punctuation.special' })
+  hi('@markup.list.checked',   { link='DiagnosticOk' })
+  hi('@markup.list.unchecked', { link='DiagnosticWarn' })
+
+  hi('@diff.plus',  { link='Added' })
+  hi('@diff.minus', { link='Removed' })
+  hi('@diff.delta', { link='Changed' })
+
+  hi('@tag',           { link='Tag' })
+  hi('@tag.builtin',   { link='Special' })
+  hi('@tag.attribute', { link='@tag' })
+  hi('@tag.delimiter', { link='Delimiter' })
+
+  hi('@none', {})
+
+  -- Tree-sitter for selected languages
+  -- - Vimdoc (built-in help)
+  hi('@markup.heading.1.delimiter.vimdoc', { fg=p.bg_mid2, bg=nil, bold=true })
+  hi('@markup.heading.2.delimiter.vimdoc', { fg=p.bg_mid2, bg=nil, bold=true })
+  hi('@markup.heading.4.vimdoc',           { link='Title' })
+  hi('@string.special.vimdoc',             { link='@constant' })
 
   -- Semantic tokens. Source: `:h lsp-semantic-highlight`.
-  hi('@lsp.type.class',         { link='@structure' })
+  hi('@lsp.type.class',         { link='Structure' })
   hi('@lsp.type.decorator',     { link='@function' })
   hi('@lsp.type.enum',          { link='@type' })
   hi('@lsp.type.enumMember',    { link='@constant' })
   hi('@lsp.type.function',      { link='@function' })
   hi('@lsp.type.interface',     { link='@type' })
-  hi('@lsp.type.macro',         { link='@macro' })
-  hi('@lsp.type.method',        { link='@method' })
-  hi('@lsp.type.namespace',     { link='@namespace' })
-  hi('@lsp.type.parameter',     { link='@parameter' })
+  hi('@lsp.type.macro',         { link='Macro' })
+  hi('@lsp.type.method',        { link='@function.method' })
+  hi('@lsp.type.namespace',     { link='@module' })
+  hi('@lsp.type.parameter',     { link='@variable.parameter' })
   hi('@lsp.type.property',      { link='@property' })
-  hi('@lsp.type.struct',        { link='@structure' })
+  hi('@lsp.type.struct',        { link='Structure' })
   hi('@lsp.type.type',          { link='@type' })
   hi('@lsp.type.typeParameter', { link='@type.definition' })
   hi('@lsp.type.variable',      { link='@variable' })
 
   hi('@lsp.mod.deprecated',     { fg=p.red, bg=nil })
-
-  -- New tree-sitter groups
-  if vim.fn.has('nvim-0.10') == 1 then
-    -- Sources:
-    -- - `:h treesitter-highlight-groups`
-    -- - https://github.com/nvim-treesitter/nvim-treesitter/commit/1ae9b0e4558fe7868f8cda2db65239cfb14836d0
-    -- NOTE: commented groups are the same as in Neovim<0.10 defined earlier
-
-    -- @variable
-    -- @variable.builtin
-    hi('@variable.parameter', { link='@parameter' })
-    hi('@variable.member',    { link='@field' })
-
-    -- @constant
-    -- @constant.builtin
-    -- @constant.macro
-
-    hi('@module',         { link='@namespace' })
-    hi('@module.builtin', { link='@variable.builtin' })
-    -- @label
-
-    -- @string
-    hi('@string.documentation',  { link='@string' })
-    hi('@string.regexp',         { link='SpecialChar' })
-    -- @string.escape
-    -- @string.special
-    hi('@string.special.symbol', { link='@constant' })
-    hi('@string.special.path',   { link='Directory' })
-    hi('@string.special.url',    { link='@markup.link.url' })
-    hi('@string.special.vimdoc', { link='@constant' })
-
-    -- @character
-    -- @character.special
-
-    -- @boolean
-    -- @number
-    hi('@number.float', { link='@float' })
-
-    -- @type
-    -- @type.builtin
-    -- @type.definition
-    hi('@type.qualifier', { link='StorageClass' })
-
-    hi('@attribute', { link='Macro' })
-    -- @property
-
-    -- @function
-    -- @function.builtin
-    -- @function.call
-    -- @function.macro
-
-    hi('@function.method',      { link='@method' })
-    hi('@function.method.call', { link='@method.call' })
-
-    -- @constructor
-    -- @operator
-
-    -- @keyword
-    hi('@keyword.coroutine', { link='@keyword' })
-    hi('@keyword.function',  { link='@keyword' })
-    hi('@keyword.operator',  { link='@keyword' })
-    hi('@keyword.import',    { fg=p.blue, bg=nil, bold=true })
-    hi('@keyword.storage',   { fg=p.fg,   bg=nil, bold=true })
-    hi('@keyword.repeat',    { link='@keyword' })
-    -- @keyword.return
-    hi('@keyword.debug',     { fg=p.cyan, bg=nil, bold=true })
-    hi('@keyword.exception', { link='@keyword' })
-
-    hi('@keyword.conditional',         { link='@keyword' })
-    hi('@keyword.conditional.ternary', { link='keyword' })
-
-    hi('@keyword.directive',        { fg=p.blue, bg=nil, bold=true })
-    hi('@keyword.directive.define', { link='@keyword.directive' })
-
-    hi('@punctuation.delimiter', { link='@punctuation' })
-    hi('@punctuation.bracket',   { link='@punctuation' })
-    hi('@punctuation.special',   { link='Special' })
-
-    -- @comment
-    hi('@comment.documentation', { link='@comment' })
-
-    hi('@comment.error',   { link='@text.danger' })
-    hi('@comment.warning', { link='@text.warning' })
-    hi('@comment.todo',    { link='@text.todo' })
-    hi('@comment.note',    { link='@text.note' })
-
-    hi('@markup.strong',        { link='@text.strong' })
-    hi('@markup.italic',        { link='@text.emphasis' })
-    hi('@markup.strikethrough', { link='@text.strike' })
-    hi('@markup.underline',     { link='@text.underline' })
-
-    hi('@markup.heading',   { link='@text.title' })
-    hi('@markup.heading.1', { fg=p.orange, bg=nil })
-    hi('@markup.heading.2', { fg=p.yellow, bg=nil })
-    hi('@markup.heading.3', { fg=p.green,  bg=nil })
-    hi('@markup.heading.4', { fg=p.cyan,   bg=nil })
-    hi('@markup.heading.5', { fg=p.azure,  bg=nil })
-    hi('@markup.heading.6', { fg=p.blue,   bg=nil })
-
-    hi('@markup.heading.1.delimiter.vimdoc', { fg=p.bg_mid2, bg=nil, bold=true })
-    hi('@markup.heading.2.delimiter.vimdoc', { fg=p.bg_mid2, bg=nil, bold=true })
-    hi('@markup.heading.4.vimdoc', { link='Title' })
-
-    hi('@markup.quote',       { link='@string.special' })
-    hi('@markup.math',        { link='@string.special' })
-    hi('@markup.environment', { link='@module' })
-
-    hi('@markup.link',       { link='@text.reference' })
-    hi('@markup.link.label', { link='@markup.link' })
-    hi('@markup.link.url',   { fg=p.fg, bg=nil, underline=true })
-
-    hi('@markup.raw',       { link='@text.literal' })
-    hi('@markup.raw.block', { link='@markup.raw' })
-
-    hi('@markup.list',           { link='@punctuation.special' })
-    hi('@markup.list.checked',   { link='DiagnosticOk' })
-    hi('@markup.list.unchecked', { link='DiagnosticWarn' })
-
-    hi('@diff.plus',  { link='diffAdded' })
-    hi('@diff.minus', { link='diffRemoved' })
-    hi('@diff.delta', { link='diffChanged' })
-
-    -- @tag
-    hi('@tag.attribute', { link='@tag' })
-    hi('@tag.delimiter', { link='@punctuation' })
-  end
 
   -- Plugins
   -- nvim-mini/mini.nvim
@@ -918,6 +851,13 @@ MiniHues.apply_palette = function(palette, plugins, opts)
     hi('MiniClueNextKeyWithPostkeys', { link='DiagnosticFloatingError' })
     hi('MiniClueSeparator',           { link='DiagnosticFloatingInfo' })
     hi('MiniClueTitle',               { link='FloatTitle' })
+
+    hi('MiniCmdlinePeekBorder', { link='FloatBorder' })
+    hi('MiniCmdlinePeekLineNr', { link='DiagnosticSignWarn' })
+    hi('MiniCmdlinePeekNormal', { link='NormalFloat' })
+    hi('MiniCmdlinePeekSep',    { link='SignColumn' })
+    hi('MiniCmdlinePeekSign',   { link='DiagnosticSignHint' })
+    hi('MiniCmdlinePeekTitle',  { link='FloatTitle' })
 
     hi('MiniCompletionActiveParameter',    { link='LspSignatureActiveParameter' })
     hi('MiniCompletionDeprecated',         { link='DiagnosticDeprecated' })
@@ -973,6 +913,15 @@ MiniHues.apply_palette = function(palette, plugins, opts)
 
     hi('MiniIndentscopeSymbol',    { fg=p.accent, bg=nil })
     hi('MiniIndentscopeSymbolOff', { fg=p.red,    bg=nil })
+
+    hi('MiniInputAdded',   { link='DiagnosticFloatingOk' })
+    hi('MiniInputBorder',  { link='FloatBorder' })
+    hi('MiniInputCaret',   { link='MiniInputPrompt' })
+    hi('MiniInputHide',    { link='DiagnosticFloatingWarn' })
+    hi('MiniInputHint',    { link='DiagnosticFloatingHint' })
+    hi('MiniInputNormal',  { link='NormalFloat' })
+    hi('MiniInputPrompt',  { link='DiagnosticFloatingInfo' })
+    hi('MiniInputSpecial', { link='DiagnosticFloatingWarn' })
 
     hi('MiniJump', { fg=nil, bg=nil, sp=p.accent, undercurl=true })
 
@@ -1089,8 +1038,23 @@ MiniHues.apply_palette = function(palette, plugins, opts)
   end
 
   if has_integration('folke/noice.nvim') then
+    --typos: ignore
     hi('NoiceCmdlinePopupBorder', { fg=p.azure,  bg=nil })
+    --typos: ignore
     hi('NoiceConfirmBorder',      { fg=p.yellow, bg=nil })
+  end
+
+  if has_integration('folke/snacks.nvim') then
+    hi('SnacksPickerBufFlags',           { link='Comment' })
+    hi('SnacksPickerDir',                { link='Comment' })
+    hi('SnacksPickerGitStatusIgnored',   { link='Comment' })
+    hi('SnacksPickerGitStatusUntracked', { link='Comment' })
+    hi('SnacksPickerKeymapRhs',          { link='Comment' })
+    hi('SnacksPickerListCursorLine',     { link='CursorLine' })
+    hi('SnacksPickerPathHidden',         { link='Comment' })
+    hi('SnacksPickerPathIgnored',        { link='Comment' })
+    hi('SnacksPickerTotals',             { link='Comment' })
+    hi('SnacksPickerUnselected',         { link='Comment' })
   end
 
   -- folke/trouble.nvim
@@ -1175,6 +1139,7 @@ MiniHues.apply_palette = function(palette, plugins, opts)
     hi('LSOutlinePreviewBorder', { fg=p.accent,  bg=nil })
     hi('OutlineDetail',          { fg=p.bg_mid2, bg=nil })
     hi('OutlineFoldPrefix',      { fg=p.yellow,  bg=nil })
+    --typos: ignore
     hi('OutlineIndentEvn',       { fg=p.fg_mid2, bg=nil })
     hi('OutlineIndentOdd',       { fg=p.fg,      bg=nil })
   end
@@ -1510,6 +1475,37 @@ MiniHues.apply_palette = function(palette, plugins, opts)
     hi('BufferVisibleTarget',  { fg=p.fg,     bg=p.bg_mid2, bold=true })
   end
 
+  if has_integration('saghen/blink.cmp') then
+    hi('BlinkCmpLabelDeprecated', { link='Comment' })
+    hi('BlinkCmpLabelMatch',      { fg=nil,  bg=nil, bold=true })
+
+    hi('BlinkCmpKindClass',         { link='Type' })
+    hi('BlinkCmpKindColor',         { link='Special' })
+    hi('BlinkCmpKindConstant',      { link='Constant' })
+    hi('BlinkCmpKindConstructor',   { link='Type' })
+    hi('BlinkCmpKindEnum',          { link='Structure' })
+    hi('BlinkCmpKindEnumMember',    { link='Structure' })
+    hi('BlinkCmpKindEvent',         { link='Exception' })
+    hi('BlinkCmpKindField',         { link='Structure' })
+    hi('BlinkCmpKindFile',          { link='Tag' })
+    hi('BlinkCmpKindFolder',        { link='Directory' })
+    hi('BlinkCmpKindFunction',      { link='Function' })
+    hi('BlinkCmpKindInterface',     { link='Structure' })
+    hi('BlinkCmpKindKeyword',       { link='Keyword' })
+    hi('BlinkCmpKindMethod',        { link='Function' })
+    hi('BlinkCmpKindModule',        { link='Structure' })
+    hi('BlinkCmpKindOperator',      { link='Operator' })
+    hi('BlinkCmpKindProperty',      { link='Structure' })
+    hi('BlinkCmpKindReference',     { link='Tag' })
+    hi('BlinkCmpKindSnippet',       { link='Special' })
+    hi('BlinkCmpKindStruct',        { link='Structure' })
+    hi('BlinkCmpKindText',          { link='Normal' })
+    hi('BlinkCmpKindTypeParameter', { link='Type' })
+    hi('BlinkCmpKindUnit',          { link='Special' })
+    hi('BlinkCmpKindValue',         { link='Identifier' })
+    hi('BlinkCmpKindVariable',      { link='Delimiter' })
+  end
+
   -- stevearc/aerial.nvim
   -- Everything works correctly out of the box
 
@@ -1564,7 +1560,7 @@ MiniHues.get_palette = function() return vim.deepcopy(H.palette) end
 --- and heuristically picked lightness-chroma values.
 ---
 --- You can recreate a similar functionality but tweaked to your taste
---- using |mini.colors|: >
+--- using |mini.colors|: >lua
 ---
 ---   local convert = require('mini.colors').convert
 ---   local hue = math.random(0, 359)
@@ -1572,18 +1568,18 @@ MiniHues.get_palette = function() return vim.deepcopy(H.palette) end
 ---     background = convert({ l = 15, c = 3, h = hue }, 'hex'),
 ---     foreground = convert({ l = 80, c = 1, h = hue }, 'hex'),
 ---   }
----
+--- <
 --- Notes:
---- - Respects 'background' (uses different lightness and chroma values for
+--- - Respects |'background'| (uses different lightness and chroma values for
 ---   "dark" and "light" backgrounds).
 ---
 --- - When used during startup, might require usage of `math.randomseed()` for
----   proper random generation. For example: >
+---   proper random generation. For example: >lua
 ---
 ---   local hues = require('mini.hues')
 ---   math.randomseed(vim.loop.hrtime())
 ---   hues.setup(hues.gen_random_base_colors())
----
+--- <
 ---@param opts table|nil Options. Possible values:
 ---   - <gen_hue> `(function)` - callable which will return single number for
 ---     output hue. Can be used to limit which hues will be generated.
@@ -1621,7 +1617,7 @@ H.saturation_values = { 'low', 'lowmedium', 'medium', 'mediumhigh', 'high' }
 H.accent_values = { 'bg', 'fg', 'red', 'orange', 'yellow', 'green', 'cyan', 'azure', 'blue', 'purple' }
 
 -- Cusps for Oklch color space. See 'mini.colors' for more details.
---stylua: ignore start
+--stylua: ignore
 ---@diagnostic disable
 ---@private
 H.cusps = {
@@ -1672,7 +1668,6 @@ H.cusps = {
   {28.31,66.63},{28.16,66.50},{27.97,66.33},{27.78,66.17},{27.64,66.05},{27.49,65.94},{27.33,65.77},{27.20,65.66},
   {27.04,65.51},{26.92,65.40},{26.81,65.30},{26.66,65.16},{26.55,65.06},{26.45,64.96},{26.35,64.87},
 }
---stylua: ignore end
 
 -- Latest applied palette
 H.palette = nil

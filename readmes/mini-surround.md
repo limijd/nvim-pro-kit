@@ -40,10 +40,10 @@ https://github.com/user-attachments/assets/e91b6e16-7a9c-44aa-afb4-7e07efc3e811
     - Find surrounding with `sf` or `sF` (move cursor right or left).
     - Highlight surrounding with `sh`.
 - Surrounding is identified by a single character as both "input" (in `delete` and `replace` start, `find`, and `highlight`) and "output" (in `add` and `replace` end):
-    - 'f' - function call (string of alphanumeric symbols or '_' or '.' followed by balanced '()'). In "input" finds function call, in "output" prompts user to enter function name.
-    - 't' - tag. In "input" finds tag with same identifier, in "output" prompts user to enter tag name.
-    - All symbols in brackets '()', '[]', '{}', '<>". In "input' represents balanced brackets (open - with whitespace pad, close - without), in "output" - left and right parts of brackets.
-    - '?' - interactive. Prompts user to enter left and right parts.
+    - `f` - function call (string of alphanumeric symbols or `_` or `.` followed by balanced `()`). In "input" finds function call, in "output" prompts user to enter function name.
+    - `t` - tag. In "input" finds tag with same identifier, in "output" prompts user to enter tag name.
+    - All symbols in brackets `()`, `[]`, `{}`, `<>`. In "input" represents balanced brackets (open - with whitespace pad, close - without), in "output" - left and right parts of brackets.
+    - `?` - interactive. Prompts user to enter left and right parts.
     - All other single character identifiers (supported by `getcharstr()`) represent surrounding with identical left and right parts.
 - Configurable search methods to find not only covering but possibly next, previous, or nearest surrounding. See more in help for `MiniSurround.config`.
 - All actions involving finding surrounding (delete, replace, find, highlight) can be used with suffix that changes search method to find previous/last. See more in help for `MiniSurround.config`.
@@ -60,59 +60,73 @@ There are two branches to install from:
 Here are code snippets for some common installation methods (use only one):
 
 <details>
-<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a></summary>
+<summary><b>(Recommended)</b> With <a href="https://neovim.io/doc/user/helptag.html?tag=vim.pack">vim.pack</a> (on Neovim 0.12 and newer)</summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | *Follow recommended ‘mini.deps’ installation* |
-    | Stable | *Follow recommended ‘mini.deps’ installation* |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                                       |
-    |--------|--------------------------------------------------------------------|
-    | Main   | `add(‘nvim-mini/mini.surround’)`                                   |
-    | Stable | `add({ source = ‘nvim-mini/mini.surround’, checkout = ‘stable’ })` |
+Main branch:
+
+```lua
+vim.pack.add({ 'https://github.com/nvim-mini/mini.surround' })
+```
+
+Stable branch:
+
+```lua
+vim.pack.add({
+  { src = 'https://github.com/nvim-mini/mini.surround', version = 'stable' },
+})
+```
+
+</details>
+
+<details>
+<summary>With <a href="https://nvim-mini.org/mini.nvim/readmes/mini-deps">mini.deps</a> (before Neovim 0.12)</summary>
+
+**Full library**
+
+Follow [recommended 'mini.deps' installation](https://nvim-mini.org/mini.nvim/readmes/mini-deps#installation).
+
+**Standalone plugin**:
+
+Main branch:
+
+```lua
+add('nvim-mini/mini.surround')
+```
+
+Stable branch:
+
+```lua
+add({ source = 'nvim-mini/mini.surround', checkout = 'stable' })
+```
 
 </details>
 
 <details>
 <summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
 
-- 'mini.nvim' library:
+**Full library**
 
-    | Branch | Code snippet                                  |
-    |--------|-----------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.nvim', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.nvim', version = '*' },`   |
+Follow ['mini.nvim' installation](https://nvim-mini.org/mini.nvim#installation).
 
-- Standalone plugin:
+**Standalone plugin**
 
-    | Branch | Code snippet                                      |
-    |--------|---------------------------------------------------|
-    | Main   | `{ 'nvim-mini/mini.surround', version = false },` |
-    | Stable | `{ 'nvim-mini/mini.surround', version = '*' },`   |
+Main branch:
 
-</details>
+```lua
+{ 'nvim-mini/mini.surround', version = false },
+```
 
-<details>
-<summary>With <a href="https://github.com/junegunn/vim-plug">junegunn/vim-plug</a></summary>
+Stable branch:
 
-- 'mini.nvim' library:
-
-    | Branch | Code snippet                                         |
-    |--------|------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.nvim'`                         |
-    | Stable | `Plug 'nvim-mini/mini.nvim', { 'branch': 'stable' }` |
-
-- Standalone plugin:
-
-    | Branch | Code snippet                                             |
-    |--------|----------------------------------------------------------|
-    | Main   | `Plug 'nvim-mini/mini.surround'`                         |
-    | Stable | `Plug 'nvim-mini/mini.surround', { 'branch': 'stable' }` |
+```lua
+{ 'nvim-mini/mini.surround', version = '*' },
+```
 
 </details>
 
@@ -128,9 +142,9 @@ Here are code snippets for some common installation methods (use only one):
 ```lua
 -- No need to copy this inside `setup()`. Will be used automatically.
 {
-  -- Add custom surroundings to be used on top of builtin ones. For more
-  -- information with examples, see `:h MiniSurround.config`.
-  custom_surroundings = nil,
+  -- Custom surroundings to be used on top of builtin ones.
+  -- For more information with examples, see `:h MiniSurround.config`.
+  custom_surroundings = {},
 
   -- Duration (in ms) of highlight when calling `MiniSurround.highlight()`
   highlight_duration = 500,

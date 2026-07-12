@@ -23,7 +23,7 @@ All well-intentioned, polite, and respectful contributions are always welcome! T
 
 - Try to make commit message as concise as possible while giving enough information about nature of a change. Think about whether it will be easy to understand in one year time when browsing through commit history.
 
-- Single commit should change either zero or one module, or affect all modules (i.e. enforcing some universal rule but not necessarily change files). Changes for two or more modules should be split in several module-specific commits.
+- Single commit should change either one modules (usually the case), zero modules (i.e. changing project level documentation), or all modules (i.e. enforcing some universal rule). Changes for two or more modules should be split in several module-specific commits.
 
 - Use [Conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) style:
     - Messages should have the following structure:
@@ -48,8 +48,8 @@ All well-intentioned, polite, and respectful contributions are always welcome! T
     - `[optional scope]`, if present, should be done in parenthesis `()`. If commit changes single module (as it usually should), using scope with module name is **mandatory**. If commit enforces something for all modules, use `ALL` scope.
     - Breaking change, if present, should be expressed with `!` before `:`.
     - `<description>` is a change overview in imperative, present tense ("change" not "changed" nor "changes"). Should result into first line under 72 characters. Should start with not capitalized word and NOT end with sentence ending punctuation (i.e. one of `.,?!;`).
-    - `[optional body]`, if present, should contain details and motivation about the change in plain language. Should be formatted to have maximum 80 characters in line.
-    - `[optional footer(s)]`, if present, should be instruction(s) to Git or Github. Use "Resolve #xxx" on separate line if this commit resolves issue or PR.
+    - `[optional body]`, if present, should contain *a list* with details and motivation about the change in plain language. Should start with mandatory `Details:` line, as it might help to parse the body better. Each line should have maximum 80 characters. List's bullet points should be formatted with a two space indent.
+    - `[optional footer(s)]`, if present, should be instruction(s) to Git or Github. Use "Resolve #xxx" or "Related to #yyy" on a separate line if this commit resolves/relates to issue/PR. Prefer GitHub instructions first (like `Resolve #xxx` and `Related to #yyy`), then Git ones (like `Co-authored-by: Neo McVim <neo.mcvim@email.com>`).
 
 - Use module's function and field names without module's name. Like `add()` and not `MiniSurround.add()`.
 
@@ -62,17 +62,24 @@ feat(deps): add folds in update confirmation buffer
 ```
 fix(jump): make operator not delete one character if target is not found
 
-One main goal is to do that in a dot-repeatable way, because this is very
-likely to be repeated after an unfortunate first try.
+Details:
+- One main goal is to do that in a dot-repeatable way, because this is very
+  likely to be repeated after an unfortunate first try.
+
+- This happens because expression mapping returns expression `v<Cmd>...<CR>`.
+  If the command does nothing, `v` is still effectively selects single cell.
 
 Resolve #688
+
+Co-authored-by: Neo McVim <neo.mcvim@gmail.com>
 ```
 
 ```
 refactor(bracketed): do not source 'vim.treesitter' on `require()`
 
-Although less explicit, this considerably reduces startup footprint of
-'mini.bracketed' in isolation.
+Details:
+- Although less explicit, this considerably reduces startup footprint of
+  'mini.bracketed' in isolation.
 ```
 
 ```
@@ -86,14 +93,15 @@ test(ALL): update screenshots to work on Nightly
 ### Automated commit linting
 
 - To lint messages of already done commits, execute `scripts/lintcommit-ci.sh <git-log-range>`. For example, to lint currently latest commit use `scripts/lintcommit-ci.sh HEAD~..HEAD`.
-- To lint commit message before doing commit, install [`pre-commit`](https://pre-commit.com/#install) and enable it with `pre-commit install --hook-type commit-msg` (from the root directory). NOTE: requires `nvim` executable. If it throws (usually descriptive) error - recommit with proper message.
+- To lint commit message before `git commit`, run `make init-git-hooks` from the root directory and commit with message. NOTE: requires `nvim` executable. If it throws (usually descriptive) error - recommit with proper message.
 
 ## Generating help file
 
 If your contribution updates annotations used to generate help file, please regenerate it. You can make this with one of the following (assuming current directory being project root):
 
-- From command line execute `make documentation`.
+- From command line execute `make gendoc`.
 - Inside Neovim instance run `:luafile scripts/minidoc.lua` or `:lua require('mini.doc').generate()`.
+- Check that annotations result in consistent help files by executing `make lintdoc` from the command line.
 
 ## Testing
 
@@ -129,7 +137,26 @@ This project uses [StyLua](https://github.com/JohnnyMorganz/StyLua) version 2.1.
 - [Install StyLua](https://github.com/JohnnyMorganz/StyLua#installation). NOTE: use `v2.1.0`.
 - Format with it. Currently there are two ways to do this:
     - Manually run `stylua .` from the root directory of this project.
-    - Install [`pre-commit`](https://pre-commit.com/#install) and enable it with `pre-commit install` (from the root directory). This will auto-format relevant code before making commits.
+    - Run `make init-git-hooks` from the root directory and try to commit. This will auto-format relevant code before making commits.
+
+Notes:
+
+- To ignore certain part of the code, add `--stylua: ignore` line about the target statement. For example, adding this line above `local x = {...}` will ignore formatting for the whole (possibly multiline) `{...}` content.
+- Prefer using `--stylua: ignore` over `--stylua: ignore start` + `--stylua: ignore end` blocks. The former is usually enough and is easier to locate where this takes effect.
+
+    Only use `start`+`end` if there is a need to ignore several consecutive statements which is a *small* portion of outer statement (like several `local x = ...` inside a large function) or if there is no outer statement. If the portion is sufficiently large, prefer a single `--stylua: ignore` above a parent statement.
+
+## Spell checking
+
+This project uses [`typos`](https://github.com/crate-ci/typos) for an automated spell checking (as constant `docs(xxx): fix typo` commits add noise to `git log`, which is bad for users that read it before updating the plugin). It is designed to check common spelling errors (with a low false positive rate) in regular text and code comments+strings.
+
+There is a [project specific config](./.typos.toml). Among other things, it adds a way to locally ignore known false positive spelling problems in Lua code:
+- Add line `--typos: ignore` above the target line.
+- Append `--typos: ignore-line` to the target line.
+
+Prefer using `--typos: ignore` as it aligns better with `--stylua: ignore`. Use `--typos: ignore-line` to preserve pretty code block aligning or ability to alphabetically sort lines. If there are a lot of instances of the same spelling problem, add it globally in `.typos.toml`: either per language or file (follow already present examples).
+
+To check for typos locally, [install `typos`](https://github.com/crate-ci/typos/releases) and run `make lintspell`.
 
 ## List of highlight groups
 
@@ -147,6 +174,14 @@ Here is a list of all highlight groups defined inside 'mini.nvim' modules. See d
     - `MiniClueNextKeyWithPostkeys`
     - `MiniClueSeparator`
     - `MiniClueTitle`
+
+- 'mini.cmdline':
+    - `MiniCmdlinePeekBorder`
+    - `MiniCmdlinePeekLineNr`
+    - `MiniCmdlinePeekNormal`
+    - `MiniCmdlinePeekSep`
+    - `MiniCmdlinePeekSign`
+    - `MiniCmdlinePeekTitle`
 
 - 'mini.completion':
     - `MiniCompletionActiveParameter`
@@ -210,6 +245,16 @@ Here is a list of all highlight groups defined inside 'mini.nvim' modules. See d
 - 'mini.indentscope':
     - `MiniIndentscopeSymbol`
     - `MiniIndentscopeSymbolOff`
+
+- 'mini.input':
+    - `MiniInputAdded`
+    - `MiniInputBorder`
+    - `MiniInputCaret`
+    - `MiniInputHide`
+    - `MiniInputHint`
+    - `MiniInputNormal`
+    - `MiniInputPrompt`
+    - `MiniInputSpecial`
 
 - 'mini.jump':
     - `MiniJump`

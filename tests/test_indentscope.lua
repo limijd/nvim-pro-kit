@@ -5,17 +5,15 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('indentscope', config) end
 local unload_module = function() child.mini_unload('indentscope') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('indentscope', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child, true) end
---stylua: ignore end
 
 -- Data =======================================================================
 -- Reference text
@@ -113,7 +111,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -550,8 +548,6 @@ T['draw()']['does not round time of every animation step'] = function()
 end
 
 T['draw()']['shows symbols on wrapped lines without overlapping'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('virt_text_repeat_linebreak is supported for Neovim>=0.10') end
-
   child.set_size(10, 15)
   child.lua('MiniIndentscope.config.draw.animation = function() return 0 end')
   set_lines({ 'aa', '  aa', '  ' .. string.rep('a ', 15), '  aa', 'aa' })
@@ -974,6 +970,7 @@ T['Textobject']['works in Visual mode'] = new_set({
     { 'vii', 4, 6 },
     { 'v2ii', 4, 6 },
     -- `object_scope_with_border`
+    --typos: ignore
     { 'vai', 3, 7 },
     { 'v2ai', 2, 8 },
     { 'v100ai', 1, 9 },
@@ -986,11 +983,23 @@ T['Textobject']['works in Visual mode'] = new_set({
   end,
 })
 
+T['Textobject']['properly sets cursor in Visual mode'] = function()
+  set_lines({ 'aa', '  bb', '  cc  ', 'ee' })
+  set_cursor(2, 0)
+  type_keys('v', 'ii', 'v')
+  -- Should be on the last non-whitespace character, as it makes forced
+  -- charwise selection more usable
+  eq(get_cursor(), { 3, 3 })
+  type_keys('c')
+  eq(get_lines(), { 'aa', '    ', 'ee' })
+end
+
 T['Textobject']['works in Operator-pending mode'] = new_set({
   parametrize = {
     { 'dii', 'viid' },
     { '2dii', 'v2iid' },
     { 'd2ii', 'viid' },
+    --typos: ignore
     { 'dai', 'vaid' },
     { '2dai', 'v2aid' },
     { 'd2ai', 'v2aid' },
@@ -1011,6 +1020,23 @@ T['Textobject']['works in Operator-pending mode'] = new_set({
     eq(data_tried, data_ref)
   end,
 })
+
+T['Textobject']['works in forced Operator-pending mode'] = function()
+  local validate = function(keys, ref_lines)
+    set_lines({ 'aa', '  bb', '  cc  ', 'dd', 'ee' })
+    set_cursor(2, 0)
+    type_keys(keys)
+    eq(get_lines(), ref_lines)
+  end
+
+  validate('dvii', { 'aa', '    ', 'dd', 'ee' })
+  validate('dvai', { '', 'ee' })
+  validate('dVii', { 'aa', 'dd', 'ee' })
+  --typos: ignore
+  validate('dVai', { 'ee' })
+  validate('d<C-v>ii', { 'aa', '  ', '    ', 'dd', 'ee' })
+  validate('d<C-v>ai', { '', 'bb', 'cc  ', '', 'ee' })
+end
 
 T['Textobject']['works with different mappings'] = function()
   reload_module({ mappings = { object_scope = 'II', object_scope_with_border = 'AI' } })

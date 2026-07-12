@@ -5,7 +5,6 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('align', config) end
 local unload_module = function() child.mini_unload('align') end
 local set_cursor = function(...) return child.set_cursor(...) end
@@ -14,7 +13,6 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
 
 local set_config_steps = function(tbl)
   for key, value in pairs(tbl) do
@@ -41,6 +39,15 @@ local validate_step = function(var_name, step_name)
   eq(child.lua_get(('vim.is_callable(%s.action)'):format(var_name)), true)
 end
 
+local validate_miniinput = function(prompt, scope, input)
+  local out = child.lua([[
+    local state = MiniInput.get_state()
+    if state == nil then return {} end
+    return { state.opts.prompt, state.opts.scope, state.input }
+  ]])
+  eq(out, { prompt, scope, input })
+end
+
 local get_latest_message = function() return child.cmd_capture('1messages') end
 
 local get_mode = function() return child.api.nvim_get_mode()['mode'] end
@@ -51,7 +58,7 @@ local eq_tostring = function(var_name1, var_name2)
 end
 
 -- Time constants
-local helper_message_delay, error_message_force_delay = 1000, 500
+local show_state_delay, error_message_force_delay = 1000, 500
 local small_time = helpers.get_time_const(10)
 
 -- Output test set
@@ -125,7 +132,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -197,14 +204,13 @@ T['align_strings()']['respects `opts.split_pattern`'] = function()
   )
 end
 
+--stylua: ignore
 T['align_strings()']['respects `opts.justify_side` argument'] = function()
   -- Single string
-  --stylua: ignore start
   validate_align_strings({ 'a=b', 'aaa=b' }, { split_pattern = '=', justify_side = 'left' },   { 'a  =b', 'aaa=b' })
   validate_align_strings({ 'a=b', 'aaa=b' }, { split_pattern = '=', justify_side = 'center' }, { ' a =b', 'aaa=b' })
   validate_align_strings({ 'a=b', 'aaa=b' }, { split_pattern = '=', justify_side = 'right' },  { '  a=b', 'aaa=b' })
   validate_align_strings({ 'a=b', 'aaa=b' }, { split_pattern = '=', justify_side = 'none' },   { 'a=b',   'aaa=b' })
-  --stylua: ignore end
 
   -- Array of strings (should be recycled)
   validate_align_strings(
@@ -279,7 +285,7 @@ T['align_strings()']['respects `steps.pre_split` argument'] = function()
   -- Should validate that step correctly modified in place
   step_str = [[MiniAlign.new_step('tmp', function(strings) strings[1] = 1 end)]]
   cmd = string.format([[MiniAlign.align_strings({ 'a=b', 'aa=b' }, {}, { pre_split = { %s } })]], step_str)
-  expect.error(child.lua, 'Step `tmp` of `pre_split` should preserve structure of `strings`.', cmd)
+  expect.error(function() child.lua(cmd) end, 'Step `tmp` of `pre_split` should preserve structure of `strings`.')
 
   -- Uses `MiniAlign.config.steps` as default
   set_config_steps({ pre_split = [[{ MiniAlign.new_step('tmp', function(strings) strings[1] = 'a=b' end) }]] })
@@ -314,7 +320,7 @@ T['align_strings()']['respects `steps.split` argument'] = function()
   -- Should validate that step's output is convertible to parts
   step_str = [[MiniAlign.new_step('tmp', function(strings) return { { 'a', 1 }, {'aa', 'b'} } end)]]
   cmd = string.format([[MiniAlign.align_strings({ 'a=b', 'aa=b' }, {}, { split = %s })]], step_str)
-  expect.error(child.lua, 'convertible to parts', cmd)
+  expect.error(function() child.lua(cmd) end, 'convertible to parts')
 
   -- Is called with `opts`
   step_str = [[MiniAlign.new_step('tmp', function(strings, opts) return MiniAlign.as_parts(opts.tmp) end)]]
@@ -334,11 +340,8 @@ T['align_strings()']['respects `steps.pre_justify` argument'] = function()
   -- Should validate that step correctly modified in place
   step_str = [[MiniAlign.new_step('tmp', function(parts) parts[1][1] = 1 end)]]
   cmd = string.format([[MiniAlign.align_strings({ 'a=b', 'aa=b' }, {}, { pre_justify = { %s } })]], step_str)
-  expect.error(
-    child.lua,
-    vim.pesc('Step `tmp` of `pre_justify` should preserve structure of `parts`. See `:h MiniAlign.as_parts()`.'),
-    cmd
-  )
+  local ref_text = 'Step `tmp` of `pre_justify` should preserve structure of `parts`. See `:h MiniAlign.as_parts()`.'
+  expect.error(function() child.lua(cmd) end, vim.pesc(ref_text))
 
   -- Uses `MiniAlign.config.steps` as default
   set_config_steps({ pre_justify = [[{ MiniAlign.new_step('tmp', function(parts) parts[1][1] = 'xxx' end) }]] })
@@ -369,11 +372,8 @@ T['align_strings()']['respects `steps.justify` argument'] = function()
   -- Should validate that step correctly modified in place
   step_str = [[MiniAlign.new_step('tmp', function(parts) parts[1][1] = 1 end)]]
   cmd = string.format([[MiniAlign.align_strings({ 'a=b', 'aa=b' }, {}, { justify = %s })]], step_str)
-  expect.error(
-    child.lua,
-    vim.pesc('Step `tmp` of `justify` should preserve structure of `parts`. See `:h MiniAlign.as_parts()`.'),
-    cmd
-  )
+  local ref_text = 'Step `tmp` of `justify` should preserve structure of `parts`. See `:h MiniAlign.as_parts()`.'
+  expect.error(function() child.lua(cmd) end, vim.pesc(ref_text))
 
   -- Is called with `opts`
   step_str = [[MiniAlign.new_step('tmp', function(parts, opts) parts[1][1] = opts.tmp end)]]
@@ -393,11 +393,8 @@ T['align_strings()']['respects `steps.pre_merge` argument'] = function()
   -- Should validate that step correctly modified in place
   step_str = [[MiniAlign.new_step('tmp', function(parts) parts[1][1] = 1 end)]]
   cmd = string.format([[MiniAlign.align_strings({ 'a=b', 'aa=b' }, {}, { pre_merge = { %s } })]], step_str)
-  expect.error(
-    child.lua,
-    vim.pesc('Step `tmp` of `pre_merge` should preserve structure of `parts`. See `:h MiniAlign.as_parts()`.'),
-    cmd
-  )
+  local ref_text = 'Step `tmp` of `pre_merge` should preserve structure of `parts`. See `:h MiniAlign.as_parts()`.'
+  expect.error(function() child.lua(cmd) end, vim.pesc(ref_text))
 
   -- Uses `MiniAlign.config.steps` as default
   set_config_steps({ pre_merge = [[{ MiniAlign.new_step('tmp', function(parts) parts[1][1] = 'xxx' end) }]] })
@@ -426,7 +423,7 @@ T['align_strings()']['respects `steps.merge` argument'] = function()
   -- Should validate that output is an array of strings
   step_str = [[MiniAlign.new_step('tmp', function(parts) return { 'a', 1 } end)]]
   cmd = string.format([[MiniAlign.align_strings({ 'a=b', 'aa=b' }, {}, { merge = %s })]], step_str)
-  expect.error(child.lua, vim.pesc('Output of `merge` step should be array of strings.'), cmd)
+  expect.error(function() child.lua(cmd) end, vim.pesc('Output of `merge` step should be array of strings.'))
 
   -- Is called with `opts`
   step_str = [[MiniAlign.new_step('tmp', function(parts, opts) return { opts.tmp } end)]]
@@ -671,6 +668,7 @@ T['as_parts()']['`trim()` method']['validates arguments'] = function()
   expect.error(function() child.lua([[parts.trim('both', 'a')]]) end, err_pattern)
 end
 
+--stylua: ignore
 T['as_parts()']['`trim()` method']['respects `direction` argument'] = function()
   local validate = function(direction, output)
     child.lua([[parts = MiniAlign.as_parts({ { ' a ', ' b ', ' c', 'd ', 'e' }, { '  f ' } })]])
@@ -678,14 +676,13 @@ T['as_parts()']['`trim()` method']['respects `direction` argument'] = function()
     eq(child.lua_get('parts'), output)
   end
 
-  --stylua: ignore start
   validate('both',  { { ' a',  'b',   'c',  'd',  'e' }, { '  f' } })
   validate('left',  { { ' a ', 'b ',  'c',  'd ', 'e' }, { '  f ' } })
   validate('right', { { ' a',  ' b',  ' c', 'd',  'e' }, { '  f' } })
   validate('none',  { { ' a ', ' b ', ' c', 'd ', 'e' }, { '  f ' } })
-  --stylua: ignore end
 end
 
+--stylua: ignore
 T['as_parts()']['`trim()` method']['respects `indent` argument'] = function()
   local validate = function(indent, output)
     child.lua([[parts = MiniAlign.as_parts({ { ' a ', ' b ' }, { '  c ', ' d ' } })]])
@@ -693,12 +690,10 @@ T['as_parts()']['`trim()` method']['respects `indent` argument'] = function()
     eq(child.lua_get('parts'), output)
   end
 
-  --stylua: ignore start
   validate('keep',   { { ' a',  'b' }, { '  c', 'd' } })
   validate('low',    { { ' a',  'b' }, { ' c',  'd' } })
   validate('high',   { { '  a', 'b' }, { '  c', 'd' } })
   validate('remove', { { 'a',   'b' }, { 'c',   'd' } })
-  --stylua: ignore end
 end
 
 T['new_step()'] = new_set()
@@ -746,14 +741,10 @@ T['gen_step']['default_split()']['works'] = function()
 end
 
 T['gen_step']['default_split()']['verifies relevant options'] = function()
-  expect.error(
-    function() child.lua([[MiniAlign.align_strings({ 'a' }, { split_pattern = 1 }, {})]]) end,
-    'Option `split_pattern`.*string or array of strings'
-  )
-  expect.error(
-    function() child.lua([[MiniAlign.align_strings({ 'a' }, { split_exclude_patterns = 1 }, {})]]) end,
-    'Option `split_exclude_patterns`.*array of strings'
-  )
+  local pat = 'Option `split_pattern`.*string or array of strings'
+  expect.error(function() child.lua('MiniAlign.align_strings({ "a" }, { split_pattern = 1 }, {})') end, pat)
+  pat = 'Option `split_exclude_patterns`.*array of strings'
+  expect.error(function() child.lua('MiniAlign.align_strings({ "a" }, { split_exclude_patterns = 1 }, {})') end, pat)
 end
 
 T['gen_step']['default_split()']['allows split Lua pattern'] = function()
@@ -762,10 +753,8 @@ T['gen_step']['default_split()']['allows split Lua pattern'] = function()
 end
 
 T['gen_step']['default_split()']['verifies bad split pattern'] = function()
-  expect.error(
-    function() child.lua([[MiniAlign.align_strings({ 'a ' }, { split_pattern = '%f[%s]' })]]) end,
-    vim.pesc('(mini.align) Pattern "%f[%s]" can not advance search.')
-  )
+  local pat = vim.pesc('(mini.align) Pattern "%f[%s]" can not advance search.')
+  expect.error(function() child.lua('MiniAlign.align_strings({ "a " }, { split_pattern = "%f[%s]" })') end, pat)
 end
 
 T['gen_step']['default_split()']['works with different number of output parts'] = function()
@@ -855,6 +844,7 @@ T['gen_step']['default_justify()'] = new_set({
   },
 })
 
+--stylua: ignore
 T['gen_step']['default_justify()']['works'] = function()
   -- Returns proper step
   child.lua([[step = MiniAlign.gen_step.default_justify()]])
@@ -863,12 +853,10 @@ T['gen_step']['default_justify()']['works'] = function()
   -- Single string
   set_config_opts({ split_pattern = '=' })
 
-  --stylua: ignore start
   validate_align_strings({ 'a=b', 'aaa=b' }, { justify_side = 'left' },   { 'a  =b', 'aaa=b' })
   validate_align_strings({ 'a=b', 'aaa=b' }, { justify_side = 'center' }, { ' a =b', 'aaa=b' })
   validate_align_strings({ 'a=b', 'aaa=b' }, { justify_side = 'right' },  { '  a=b', 'aaa=b' })
   validate_align_strings({ 'a=b', 'aaa=b' }, { justify_side = 'none' },   { 'a=b',   'aaa=b' })
-  --stylua: ignore end
 
   -- Array of strings (should be recycled)
   set_config_opts({ split_pattern = '%s*=' })
@@ -881,32 +869,28 @@ T['gen_step']['default_justify()']['works'] = function()
 end
 
 T['gen_step']['default_justify()']['verifies relevant options'] = function()
-  expect.error(
-    function() child.lua([[MiniAlign.align_strings({ 'a' }, { justify_side = 1 }, {})]]) end,
-    'Option `justify_side`.*one of.*or array'
-  )
+  local pat = 'Option `justify_side`.*one of.*or array'
+  expect.error(function() child.lua('MiniAlign.align_strings({ "a" }, { justify_side = 1 }, {})') end, pat)
 end
 
+--stylua: ignore
 T['gen_step']['default_justify()']['works with multibyte characters'] = function()
   set_config_opts({ split_pattern = '=' })
 
-  --stylua: ignore start
   validate_align_strings({ 'ы=ю', 'ыыы=ююю' }, { justify_side = 'left' },   { 'ы  =ю',   'ыыы=ююю' })
   validate_align_strings({ 'ы=ю', 'ыыы=ююю' }, { justify_side = 'center' }, { ' ы = ю',  'ыыы=ююю' })
   validate_align_strings({ 'ы=ю', 'ыыы=ююю' }, { justify_side = 'right' },  { '  ы=  ю', 'ыыы=ююю' })
   validate_align_strings({ 'ы=ю', 'ыыы=ююю' }, { justify_side = 'none' },   { 'ы=ю',     'ыыы=ююю' })
-  --stylua: ignore end
 end
 
+--stylua: ignore
 T['gen_step']['default_justify()']['does not add trailing whitespace'] = function()
   set_config_opts({ split_pattern = '=' })
 
-  --stylua: ignore start
   validate_align_strings({ 'a=b', '', 'a=bbb' }, { justify_side = 'left' },   { 'a=b',   '', 'a=bbb' })
   validate_align_strings({ 'a=b', '', 'a=bbb' }, { justify_side = 'center' }, { 'a= b',  '', 'a=bbb' })
   validate_align_strings({ 'a=b', '', 'a=bbb' }, { justify_side = 'right' },  { 'a=  b', '', 'a=bbb' })
   validate_align_strings({ 'a=b', '', 'a=bbb' }, { justify_side = 'none' },   { 'a=b',   '', 'a=bbb' })
-  --stylua: ignore end
 
   -- Also shouldn't add trailing whitespace in multicharacter split
   validate_align_strings({ 'aa==bb', 'c=' }, { split_pattern = '=+' }, { 'aa==bb', 'c =' })
@@ -968,10 +952,8 @@ T['gen_step']['default_merge()']['works in edge cases'] = function()
 end
 
 T['gen_step']['default_merge()']['verifies relevant options'] = function()
-  expect.error(
-    function() child.lua([[MiniAlign.align_strings({ 'a' }, { merge_delimiter = 1 }, {})]]) end,
-    'Option `merge_delimiter`.*string or array of strings'
-  )
+  local pat = 'Option `merge_delimiter`.*string or array of strings'
+  expect.error(function() child.lua('MiniAlign.align_strings({ "a" }, { merge_delimiter = 1 }, {})') end, pat)
 end
 
 T['gen_step']['default_merge()']['does not merge empty strings in parts'] = function()
@@ -1012,10 +994,8 @@ T['gen_step']['filter()']['works'] = function()
 end
 
 T['gen_step']['filter()']['validates input'] = function()
-  expect.error(
-    function() child.lua([[MiniAlign.gen_step.filter('(')]]) end,
-    [[%(mini%.align%) "%(" is not a valid filter expression]]
-  )
+  local pat = '%(mini%.align%) "%(" is not a valid filter expression'
+  expect.error(function() child.lua('MiniAlign.gen_step.filter("(")') end, pat)
 end
 
 T['gen_step']['filter()']['handles special input'] = function()
@@ -1073,14 +1053,10 @@ T['gen_step']['ignore_split()']['works'] = function()
 end
 
 T['gen_step']['ignore_split()']['validates input'] = function()
-  expect.error(
-    function() child.lua([[MiniAlign.gen_step.ignore_split('(')]]) end,
-    [[Argument `patterns`.*array of strings]]
-  )
-  expect.error(
-    function() child.lua([[MiniAlign.gen_step.ignore_split({}, 1)]]) end,
-    [[Argument `exclude_comment`.*boolean]]
-  )
+  local pat = 'Argument `patterns`.*array of strings'
+  expect.error(function() child.lua('MiniAlign.gen_step.ignore_split("(")') end, pat)
+  pat = 'Argument `exclude_comment`.*boolean'
+  expect.error(function() child.lua('MiniAlign.gen_step.ignore_split({}, 1)') end, pat)
 end
 
 T['gen_step']['ignore_split()']['respects `patterns` argument'] = function()
@@ -1348,8 +1324,10 @@ T['Align']['treats non-config modifier as explicit split pattern'] = function()
 end
 
 T['Align']['stops on `<Esc>` and `<C-c>`'] = function()
+  -- <C-c> should stop even if it doesn't make `getcharstr` error
+  child.cmd('nnoremap <C-c> <C-\\><C-n>')
   for _, stop_key in ipairs({ '<Esc>', '<C-c>' }) do
-    validate_keys({ 'a_b', 'aa_b' }, { 'Vj', 'ga', stop_key }, { 'a_b', 'aa_b' })
+    validate_keys({ 'a\3b', 'aa\3b' }, { 'ga', 'ip', stop_key }, { 'a\3b', 'aa\3b' })
     eq(get_mode(), 'n')
   end
 end
@@ -1386,10 +1364,10 @@ T['Align']['validates steps after each modifier'] = function()
   set_lines({ 'a_b', 'aa_b' })
   set_cursor(1, 0)
   type_keys('Vj', 'ga')
-  expect.error(type_keys, 'pre_split.*array of steps', { 'e', '_' })
+  expect.error(function() type_keys('e', '_') end, 'pre_split.*array of steps')
 end
 
-T['Align']['prompts helper message after one idle second'] = new_set({
+T['Align']['shows state after one idle second'] = new_set({
   parametrize = { { 'Normal' }, { 'Visual' } },
 }, {
   test = function(test_mode)
@@ -1408,44 +1386,44 @@ T['Align']['prompts helper message after one idle second'] = new_set({
     local keys = test_mode == 'Normal' and { 'ga', 'Vip' } or { 'Vip', 'ga' }
     type_keys(unpack(keys))
 
-    sleep(helper_message_delay - small_time)
-    -- Should show no message
+    sleep(show_state_delay - small_time)
+    -- Should show no state
     expect_screenshot()
     type_keys('j')
-    -- Should show message of modifier 'j'
+    -- Should show state of modifier 'j'
     expect_screenshot()
     type_keys('r')
     -- Should show effect of hitting `r` and redraw if `showmode` is set (which
     -- it is by default)
-    sleep(helper_message_delay - small_time)
-    -- Should still not show helper message
+    sleep(show_state_delay - small_time)
+    -- Should still not show state
     expect_screenshot()
     sleep(small_time + small_time)
-    -- Should now show helper message
+    -- Should now show state
     expect_screenshot()
 
-    -- Should show message immediately if it was already shown
+    -- Should show state immediately if it was already shown
     type_keys('j', 'c')
     expect_screenshot()
 
-    -- Ending alignment should remove shown message
+    -- Ending alignment should remove shown state
     type_keys('_')
     expect_screenshot()
   end,
 })
 
-T['Align']['helper message does not cause hit-enter-prompt'] = function()
+T['Align']['showing state does not cause hit-enter-prompt'] = function()
   child.set_size(6, 20)
   child.o.cmdheight = 2
   set_lines({ 'a_b', 'aa_b' })
   set_cursor(1, 0)
 
   type_keys('ga', 'Vj')
-  sleep(helper_message_delay + small_time)
+  sleep(show_state_delay + small_time)
   child.expect_screenshot()
 end
 
-T['Align']['cleans command line only if helper message was shown'] = function()
+T['Align']['cleans command line only if state was shown'] = function()
   child.set_size(12, 20)
   child.cmd([[echo 'My echo']])
   validate_keys({ 'a_b', 'aa_b' }, { 'ga', 'ip', '_' }, { 'a _b', 'aa_b' })
@@ -1516,7 +1494,7 @@ T['Align']['respects `config.silent`'] = function()
   set_cursor(1, 0)
   type_keys('Vip', 'ga')
 
-  sleep(helper_message_delay + small_time)
+  sleep(show_state_delay + small_time)
   child.expect_screenshot()
 end
 
@@ -1554,7 +1532,7 @@ T['Align with preview']['works'] = new_set({
     })[test_mode]
     type_keys(init_keys)
 
-    -- Should show helper message immediately
+    -- Should show state immediately
     child.expect_screenshot()
 
     -- Should show result and not stop preview
@@ -1567,7 +1545,7 @@ T['Align with preview']['works'] = new_set({
     type_keys('m', '-', '<CR>')
     child.expect_screenshot()
 
-    -- Hitting `<CR>` accepts current result and echoed status helper message
+    -- Hitting `<CR>` accepts current result and echoes status
     type_keys('<CR>')
     -- This should start Insert mode and not right justify by 'a'
     type_keys('a')
@@ -1575,7 +1553,7 @@ T['Align with preview']['works'] = new_set({
   end,
 })
 
-T['Align with preview']['correctly shows all steps in helper message'] = function()
+T['Align with preview']['correctly shows all steps in status'] = function()
   child.set_size(12, 30)
   child.o.cmdheight = 5
 
@@ -1751,6 +1729,22 @@ T['Modifiers']['s']['allows empty input'] = function()
   eq(get_lines(), { '  a_b', 'aaa_b' })
 end
 
+T['Modifiers']['s']["works with 'mini.input'"] = function()
+  child.lua('require("mini.input").setup()')
+
+  set_lines({ 'a_b', 'aaa_b' })
+  set_cursor(1, 0)
+  type_keys('ga', 'ip')
+
+  type_keys('s')
+  validate_miniinput('(mini.align) Enter split Lua pattern', 'editor', '')
+  type_keys('_')
+  validate_miniinput('(mini.align) Enter split Lua pattern', 'editor', '_')
+  type_keys('<CR>')
+  validate_miniinput(nil, nil, nil)
+  eq(get_lines(), { 'a  _b', 'aaa_b' })
+end
+
 T['Modifiers']['j'] = new_set()
 
 T['Modifiers']['j']['works'] = new_set({
@@ -1785,6 +1779,9 @@ T['Modifiers']['j']['stops on `<Esc>` and `<C-c>`'] = function()
   end
 
   validate('<Esc>')
+
+  -- <C-c> should stop even if it doesn't make `getcharstr` error
+  child.cmd('nnoremap <C-c> <C-\\><C-n>')
   validate('<C-c>')
 end
 
@@ -1818,6 +1815,23 @@ T['Modifiers']['m']['allows empty input'] = function()
   eq(get_lines(), { 'a  _b', 'aaa_b' })
 end
 
+T['Modifiers']['m']["works with 'mini.input'"] = function()
+  child.lua('require("mini.input").setup()')
+
+  set_lines({ 'a_b', 'aaa_b' })
+  set_cursor(1, 0)
+  type_keys('ga', 'ip')
+
+  type_keys('m')
+  validate_miniinput('(mini.align) Enter merge delimiter', 'editor', '')
+  type_keys('--')
+  validate_miniinput('(mini.align) Enter merge delimiter', 'editor', '--')
+  type_keys('<CR>')
+  validate_miniinput(nil, nil, nil)
+  type_keys('_')
+  eq(get_lines(), { 'a  --_--b', 'aaa--_--b' })
+end
+
 T['Modifiers']['f'] = new_set()
 
 T['Modifiers']['f']['works'] = function()
@@ -1845,6 +1859,23 @@ T['Modifiers']['f']['allows empty input'] = function()
   -- Should result into having `''` as special input (filter step without actual filtering)
   type_keys('f', '<CR>')
   child.expect_screenshot()
+end
+
+T['Modifiers']['f']["works with 'mini.input'"] = function()
+  child.lua('require("mini.input").setup()')
+
+  set_lines({ 'a_b', 'aa_b', 'aaa_b' })
+  set_cursor(1, 0)
+  type_keys('ga', 'ip')
+
+  type_keys('f')
+  validate_miniinput('(mini.align) Enter filter expression', 'editor', '')
+  type_keys('row ~= 1')
+  validate_miniinput('(mini.align) Enter filter expression', 'editor', 'row ~= 1')
+  type_keys('<CR>')
+  validate_miniinput(nil, nil, nil)
+  type_keys('_')
+  eq(get_lines(), { 'a_b', 'aa _b', 'aaa_b' })
 end
 
 T['Modifiers']['i'] = new_set()

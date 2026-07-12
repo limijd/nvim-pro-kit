@@ -6,7 +6,6 @@ local eq_partial_tbl = helpers.expect.equality_partial_tbl
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('snippets', config) end
 local unload_module = function() child.mini_unload('snippets') end
 local set_cursor = function(...) return child.set_cursor(...) end
@@ -15,10 +14,10 @@ local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
+local forward_lua = function(fun_str) return helpers.forward_lua(child, fun_str) end
 local new_buf = function() return child.api.nvim_create_buf(true, false) end
 local get_buf = function() return child.api.nvim_get_current_buf() end
 local set_buf = function(buf_id) child.api.nvim_set_current_buf(buf_id) end
---stylua: ignore end
 
 local test_dir = 'tests/dir-snippets'
 local test_dir_absolute = vim.fn.fnamemodify(test_dir, ':p'):gsub('\\', '/'):gsub('(.)/$', '%1')
@@ -26,20 +25,7 @@ local test_dir_absolute = vim.fn.fnamemodify(test_dir, ':p'):gsub('\\', '/'):gsu
 -- Time constants
 local small_time = helpers.get_time_const(10)
 
--- Tweak `expect_screenshot()` to test only on Neovim>=0.10 (as it has inline
--- extmarks support). Use `child.expect_screenshot_orig()` for original testing.
-child.expect_screenshot_orig = child.expect_screenshot
-child.expect_screenshot = function(opts)
-  if child.fn.has('nvim-0.10') == 0 then return end
-  child.expect_screenshot_orig(opts)
-end
-
 -- Common test wrappers
-local forward_lua = function(fun_str)
-  local lua_cmd = fun_str .. '(...)'
-  return function(...) return child.lua_get(lua_cmd, { ... }) end
-end
-
 local get = forward_lua('MiniSnippets.session.get')
 local get_all = function() return get(true) end
 local jump = forward_lua('MiniSnippets.session.jump')
@@ -199,13 +185,14 @@ T['setup()']['creates side effects'] = function()
   child.cmd('hi DiagnosticUnderlineWarn guisp=#ffff00 gui=undercurl cterm=undercurl')
   child.cmd('hi DiagnosticUnderlineInfo guisp=#0000ff gui=underdotted cterm=underline')
   child.cmd('hi DiagnosticUnderlineHint guisp=#00ffff gui=underdashed cterm=underdashed')
-  child.cmd('hi DiagnosticUnderlineOk guifg=#00ff00 guibg=#000000')
+  child.cmd('hi DiagnosticUnderlineOk guifg=#00ff00 guibg=#000000 guisp=NONE')
   load_module()
   local has_highlight = function(group, value) expect.match(child.cmd_capture('hi ' .. group), value) end
 
   has_highlight('MiniSnippetsCurrent', 'gui=underdouble guisp=#ffff00')
   has_highlight('MiniSnippetsCurrentReplace', 'gui=underdouble guisp=#ff0000')
   has_highlight('MiniSnippetsFinal', 'gui=underdouble')
+  eq(child.cmd_capture('hi MiniSnippetsFinal'):find('guisp'), nil)
   has_highlight('MiniSnippetsUnvisited', 'gui=underdouble guisp=#00ffff')
   has_highlight('MiniSnippetsVisited', 'gui=underdouble guisp=#0000ff')
 end
@@ -234,7 +221,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -1310,9 +1297,7 @@ T['default_prepare()']['uses proper default context'] = function()
   child.bo.filetype = 'myft'
   validate_context({ buf_id = cur_buf, lang = 'myft' })
 
-  -- With present tree-sitter should use local parser lanuage
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Testing on Neovim>=0.10 is easier with built-in parsers') end
-
+  -- With present tree-sitter should use local parser language
   child.bo.filetype = 'vim'
   child.lua('vim.treesitter.start()')
   set_lines({
@@ -2096,7 +2081,6 @@ T['session.get()']['works'] = function()
   eq_partial_tbl(get_extmark(session.extmark_id), ref_extmark)
 
   -- Should have proper node structure with correct extmarks attached to nodes
-  local has_inline_extmarks = child.fn.has('nvim-0.10') == 1
   --stylua: ignore
   local ref_nodes = {
     { text = 'T1=', extmark = { row = 0, col = 0, end_row = 0, end_col = 3 } },
@@ -2109,8 +2093,8 @@ T['session.get()']['works'] = function()
           tabstop = '2',
           extmark = {
             row = 0, col = 4, end_row = 0, end_col = 4,
-            virt_text = has_inline_extmarks and { { '$', 'MiniSnippetsCurrentReplace' } } or nil,
-            virt_text_pos = has_inline_extmarks and 'inline' or nil,
+            virt_text = { { '$', 'MiniSnippetsCurrentReplace' } },
+            virt_text_pos = 'inline',
           },
           placeholder = {
             { text = '', extmark = { row = 0, col = 4, end_row = 0, end_col = 4 } }
@@ -2124,8 +2108,8 @@ T['session.get()']['works'] = function()
       placeholder = { { text = '', extmark = { row = 0, col = 5, end_row = 0, end_col = 5 } } },
       extmark = {
         row = 0, col = 5, end_row = 0, end_col = 5,
-        virt_text = has_inline_extmarks and { { '∎', 'MiniSnippetsFinal' } } or nil,
-        virt_text_pos = has_inline_extmarks and 'inline' or nil,
+        virt_text = { { '∎', 'MiniSnippetsFinal' } },
+        virt_text_pos = 'inline',
       }
     }
   }
@@ -2420,6 +2404,34 @@ T['session.stop()']['hides completion popup'] = function()
   eq(child.fn.mode(), 'i')
 end
 
+T['session.stop()']['ensures next nested session is valid'] = function()
+  -- Invalid next session is last
+  set_lines({ '', '' })
+  set_cursor(2, 0)
+  default_insert({ body = 'T1=$1 T0=$0' })
+  type_keys('<Up>')
+  default_insert({ body = 'U1=$1 U0=$0' })
+
+  type_keys('<Esc>', 'G', 'dd', 'gg')
+  stop()
+  validate_no_active_session()
+
+  ensure_clean_state()
+
+  -- Invalid next session is not last
+  set_lines({ '', '', '' })
+  set_cursor(2, 0)
+  default_insert({ body = 'T1=$1 T0=$0' })
+  type_keys('<Down>')
+  default_insert({ body = 'U1=$1 U0=$0' })
+  type_keys('<Up><Up>')
+  default_insert({ body = 'V1=$1 V0=$0' })
+
+  type_keys('<Esc>', 'G', 'dd', 'gg')
+  stop()
+  child.expect_screenshot()
+end
+
 T['parse()'] = new_set()
 
 local parse = forward_lua('MiniSnippets.parse')
@@ -2435,6 +2447,14 @@ T['parse()']['works'] = function()
   )
   -- Should allow array of strings
   eq(parse({ 'aa', '$1', '$var' }), { { text = 'aa\n' }, { tabstop = '1' }, { text = '\n' }, { var = 'var' } })
+
+  -- Should work with multibyte characters
+  eq(parse('фt🬗 ${1:фt🬗}「${2:」}'), {
+    { text = 'фt🬗 ' },
+    { tabstop = '1', placeholder = { { text = 'фt🬗' } } },
+    { text = '「' },
+    { tabstop = '2', placeholder = { { text = '」' } } },
+  })
 end
 
 --stylua: ignore
@@ -3306,11 +3326,7 @@ end
 
 local validate_attached_clients = function(buf_id, ref_client_ids)
   child.lua('_G.buf_id = ' .. buf_id)
-  local attached = child.lua([[
-    local get_active_clients = vim.fn.has('nvim-0.10') == 1 and vim.lsp.get_clients or vim.lsp.get_active_clients
-    return vim.tbl_keys(get_active_clients({ bufnr = _G.buf_id }))
-  ]])
-  eq(attached, ref_client_ids)
+  eq(child.lua_get('vim.tbl_keys(vim.lsp.get_clients({ bufnr = _G.buf_id }))'), ref_client_ids)
 end
 
 T['start_lsp_server()']['works'] = function()
@@ -3521,6 +3537,9 @@ T['Session']['persists after `:edit`'] = function()
   child.cmd('write')
   child.cmd('edit')
   sleep(small_time)
+
+  -- Ensure expect_screenshot succeeds regardless of actual path
+  child.o.statusline = 'Dummy statusline'
 
   -- Should preserve both highlighting and data
   validate_active_session()
@@ -3770,7 +3789,6 @@ T['Session']['highlighting'] = new_set()
 local validate_tabstop_hl = function(ref_extmark_data, session)
   session = session or get()
   local buf_id, ns_id = session.buf_id, session.ns_id
-  local has_inline_extmarks = child.fn.has('nvim-0.10') == 1
 
   local out = {}
   local record_tabstop_extmark
@@ -3790,13 +3808,6 @@ local validate_tabstop_hl = function(ref_extmark_data, session)
     end
   end
   record_tabstop_extmark(session.nodes)
-
-  if not has_inline_extmarks then
-    ref_extmark_data = vim.tbl_map(function(x)
-      x.virt_text, x.virt_text_pos = nil, nil
-      return x
-    end, vim.deepcopy(ref_extmark_data))
-  end
 
   eq(out, ref_extmark_data)
 end
@@ -4166,7 +4177,6 @@ T['Session']['linked tabstops']['are updated immediately when typing'] = functio
   child.expect_screenshot()
 
   -- Even multiline
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('Multiline text sync has issues with cursor on Neovim<0.10') end
   type_keys('<CR>')
   validate_state('i', { 'T1=ab', '_T1=ab', '' }, { 2, 0 })
   child.expect_screenshot()
@@ -4647,6 +4657,15 @@ T['Session']['nesting']['session stack is properly cleaned when buffer is unload
   eq_partial_tbl(get_au_log(), ref_au_log_partial)
 end
 
+T['Session']['nesting']['handles several non-valid session'] = function()
+  start_session('T1=$1 T0=$0')
+  start_session('U1=$1 U0=$0')
+  eq(get_lines(), { 'T1=U1= U0= T0=' })
+  type_keys('<Esc>', 'dd')
+  validate_no_active_session()
+  eq(child.cmd_capture('messages'), '')
+end
+
 T['Interaction with built-in completion'] = new_set()
 
 T['Interaction with built-in completion']['popup removal during insert'] = function()
@@ -4691,7 +4710,7 @@ T['Interaction with built-in completion']['preserves popup on autoclose'] = func
   validate_pumvisible()
 end
 
-T['Interaction with built-in completion']['no affect of "exausted" popup during jump'] = function()
+T['Interaction with built-in completion']['no affect of "exhausted" popup during jump'] = function()
   default_insert({ body = 'abc $1 $2' })
   type_keys('a', '<C-n>', 'x')
   validate_no_pumvisible()
@@ -4734,6 +4753,21 @@ T['Interaction with built-in completion']['cycling through candidates'] = functi
   -- See https://github.com/neovim/neovim/pull/31475
   if child.fn.has('nvim-0.10.3') == 1 then validate_state('i', { 'aa bb', '' }, { 2, 0 }) end
   validate_pumvisible()
+end
+
+T['Interaction with built-in completion']['allows pressing <C-n>/<C-p> after jump'] = function()
+  local validate = function(key)
+    set_lines({ '' })
+    default_insert({ body = '$1 $2 $0' })
+    type_keys('abc')
+    jump('next')
+    validate_no_pumvisible()
+    type_keys(key)
+    validate_state('i', { 'abc  ' }, { 1, 4 })
+  end
+
+  validate('<C-n>')
+  validate('<C-p>')
 end
 
 T['Various snippets'] = new_set()
@@ -5323,7 +5357,6 @@ T['Examples']['<Tab>/<S-Tab> mappings'] = function()
 end
 
 T['Examples']['using `vim.snippet.expand()`'] = function()
-  if child.fn.has('nvim-0.10') == 0 then MiniTest.skip('`vim.snippet` is present only in Neovim>=0.10') end
   child.lua([[
     require('mini.snippets').setup({
       snippets = { { prefix = 't', body = 'T1=$1 T2=${2:<two>}' } },
@@ -5342,7 +5375,7 @@ T['Examples']['using `vim.snippet.expand()`'] = function()
   ]])
 
   type_keys('i', 't', '<C-j>')
-  -- SHould not have active session from `default_insert()`
+  -- Should not have active session from `default_insert()`
   validate_no_active_session()
   validate_state('i', { 'T1= T2=<two>' }, { 1, 3 })
   type_keys('t1')

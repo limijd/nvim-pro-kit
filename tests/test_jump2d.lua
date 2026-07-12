@@ -5,17 +5,15 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('jump2d', config) end
 local unload_module = function() child.mini_unload('jump2d') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('jump2d', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child) end
 local get_latest_message = function() return child.cmd_capture('1messages') end
---stylua: ignore end
 
 -- Make helpers
 -- Window setups
@@ -81,7 +79,7 @@ local setup_two_windows = function()
 end
 
 -- Time constants
-local helper_message_delay = 1000
+local reminder_delay = 1000
 local small_time = helpers.get_time_const(10)
 
 -- Output test set ============================================================
@@ -152,7 +150,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -203,20 +201,36 @@ T['setup()']['properly handles `config.mappings`'] = function()
 end
 
 T['setup()']['resets <CR> mapping in quickfix window'] = function()
-  child.set_size(20, 50)
   set_lines({ 'Hello World' })
-  child.cmd([[cexpr ['Hello', 'Quickfix'] | copen]])
-  -- Should create not remappable buffer-local mapping
+  child.cmd('cexpr ["Hello", "Quickfix"] | copen')
+  -- Should create not remapped buffer-local mapping
   expect.match(child.cmd_capture('nmap <CR>'), '%*@<CR>')
+
+  -- Should not override already present buffer-local mapping
+  child.cmd('au FileType qf nnoremap <buffer> <CR> <Cmd>echo "Hello"<CR>')
+  reload_module()
+  child.cmd('cexpr ["Hello", "Quickfix"] | copen')
+  -- Should not create buffer-local mapping if its already present
+  expect.match(child.cmd_capture('nmap <CR>'), '<Cmd>echo "Hello"<CR>')
 end
 
 T['setup()']['resets <CR> mapping in command-line window'] = function()
-  type_keys([[:call append(0, 'Hello')<CR>]])
+  type_keys(':call append(0, "Hello")<CR>')
   set_lines({})
   type_keys('q:')
   set_cursor(1, 0)
   type_keys('<CR>')
   eq(child.get_lines(), { 'Hello', '' })
+
+  -- Should not override already present buffer-local mapping
+  child.cmd('au CmdwinEnter * nnoremap <buffer> <CR> <Cmd><CR>')
+  reload_module()
+  type_keys('q:')
+  local buf_id = child.api.nvim_get_current_buf()
+  set_cursor(1, 0)
+  type_keys('<CR>')
+  eq(child.api.nvim_get_current_buf(), buf_id)
+  eq(child.get_lines(), { 'call append(0, "Hello")', '' })
 end
 
 T['start()'] = new_set({
@@ -356,14 +370,14 @@ T['start()']['jumps immediately to single spot'] = function()
   child.expect_screenshot()
 end
 
-T['start()']['prompts helper message after one idle second'] = function()
+T['start()']['shows reminder after one idle second'] = function()
   -- Helps create hit-enter-prompt
   child.set_size(5, 60)
 
   child.lua([[MiniJump2d.config.labels = 'jk']])
 
   start()
-  sleep(helper_message_delay + small_time)
+  sleep(reminder_delay + small_time)
 
   -- Should show helper message without adding it to `:messages` and causing
   -- hit-enter-prompt
@@ -376,15 +390,17 @@ T['start()']['prompts helper message after one idle second'] = function()
   child.expect_screenshot()
 
   -- Should show message for every key in sequence
-  sleep(helper_message_delay + small_time)
+  sleep(reminder_delay + small_time)
   child.expect_screenshot()
 end
 
 T['start()']['stops jumping if not label was typed'] = new_set({
-  -- <C-c> shouldn't result into error
   parametrize = { { '<Down>' }, { '<Esc>' }, { '<C-c>' } },
 }, {
   test = function(key)
+    -- <C-c> should stop even if it doesn't make `getcharstr` error
+    child.cmd('nnoremap <C-c> <C-\\><C-n>')
+
     set_cursor(1, 0)
     start()
 
@@ -883,7 +899,7 @@ T['start()']['respects `config.silent`'] = function()
   child.set_size(10, 20)
 
   start()
-  sleep(helper_message_delay + small_time)
+  sleep(reminder_delay + small_time)
 
   -- Should not show helper message
   child.expect_screenshot()
@@ -1213,8 +1229,11 @@ T['builtin_opts.single_character']['handles special user input'] = new_set({
   parametrize = { { '<C-c>' }, { '<Esc>' }, { '<CR>' } },
 }, {
   test = function(key)
+    -- <C-c> should stop even if it doesn't make `getcharstr` error
+    child.cmd('nnoremap <C-c> <C-\\><C-n>')
+
     set_cursor(1, 0)
-    set_lines({ 'x_x y_y zzz' })
+    set_lines({ 'x_x y_y zzz \3' })
     start_single_char()
     type_keys(10, key)
 
@@ -1223,13 +1242,13 @@ T['builtin_opts.single_character']['handles special user input'] = new_set({
   end,
 })
 
-T['builtin_opts.single_character']['prompts helper message after one idle second'] = function()
+T['builtin_opts.single_character']['shows reminder after one idle second'] = function()
   -- Helps create hit-enter-prompt
   child.set_size(5, 50)
 
   start_single_char()
   eq(get_latest_message(), '')
-  sleep(helper_message_delay - small_time)
+  sleep(reminder_delay - small_time)
   eq(get_latest_message(), '')
   sleep(small_time + small_time)
 
@@ -1312,6 +1331,28 @@ T['builtin_opts.query']['works in edge cases'] = function()
   -- Should add only 3 spots
   type_keys(10, 'aa<CR>', 'c')
   eq(get_cursor(), { 1, 4 })
+end
+
+T['builtin_opts.query']["works with 'mini.input'"] = function()
+  child.lua('require("mini.input").setup()')
+  local validate_miniinput = function(prompt, scope, input)
+    local out = child.lua([[
+      local state = MiniInput.get_state()
+      if state == nil then return {} end
+      return { state.opts.prompt, state.opts.scope, state.input }
+    ]])
+    eq(out, { prompt, scope, input })
+  end
+
+  set_lines({ 'xyzxy' })
+  start_query()
+  validate_miniinput('(mini.jump2d) Enter query to search', 'cursor', '')
+  type_keys('xy')
+  validate_miniinput('(mini.jump2d) Enter query to search', 'cursor', 'xy')
+  type_keys('<CR>')
+  validate_miniinput(nil)
+  type_keys('b')
+  eq(get_cursor(), { 1, 3 })
 end
 
 return T

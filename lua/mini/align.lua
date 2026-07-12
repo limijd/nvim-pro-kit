@@ -56,33 +56,33 @@
 --- # Comparisons ~
 ---
 --- - [junegunn/vim-easy-align](https://github.com/junegunn/vim-easy-align):
----     - 'mini.align' is mostly designed after 'junegunn/vim-easy-align', so
+---     - |mini.align| is mostly designed after `junegunn/vim-easy-align`, so
 ---       there are a lot of similarities.
 ---     - Both plugins allow users to change alignment options interactively by
 ---       pressing modifier keys (albeit completely different default ones).
----       'junegunn/vim-easy-align' has those modifiers fixed, while 'mini.align'
+---       `junegunn/vim-easy-align` has those modifiers fixed, while |mini.align|
 ---       allows their full customization. See |MiniAlign.config| for examples.
----     - 'junegunn/vim-easy-align' is designed to treat delimiters differently
----       than other parts of strings. 'mini.align' doesn't distinguish split
+---     - `junegunn/vim-easy-align` is designed to treat delimiters differently
+---       than other parts of strings. |mini.align| doesn't distinguish split
 ---       parts from one another by design: splitting is allowed to be done
 ---       based on some other logic than by splitting on delimiters.
----     - 'junegunn/vim-easy-align' initially aligns by only first delimiter.
----       'mini.align' initially aligns by all delimiter.
----     - 'junegunn/vim-easy-align' implements special filtering by delimiter
----       row number. 'mini.align' has builtin filtering based on Lua code
+---     - `junegunn/vim-easy-align` initially aligns by only first delimiter.
+---       |mini.align| initially aligns by all delimiter.
+---     - `junegunn/vim-easy-align` implements special filtering by delimiter
+---       row number. |mini.align| has builtin filtering based on Lua code
 ---       supplied by user in modifier phase. See |MiniAlign.gen_step.filter()|
----       and 'f' builtin modifier.
----     - 'mini.align' treats any non-registered modifier as a plain delimiter
----       pattern, while 'junegunn/vim-easy-align' does not.
----     - 'mini.align' exports core Lua function used for aligning strings
+---       and `f` builtin modifier.
+---     - |mini.align| treats any non-registered modifier as a plain delimiter
+---       pattern, while `junegunn/vim-easy-align` does not.
+---     - |mini.align| exports core Lua function used for aligning strings
 ---       (|MiniAlign.align_strings()|).
 --- - [godlygeek/tabular](https://github.com/godlygeek/tabular):
----     - 'godlygeek/tabular' is mostly designed around single command which is
----       customized by printing its parameters. 'mini.align' implements
+---     - `godlygeek/tabular` is mostly designed around single command which is
+---       customized by printing its parameters. |mini.align| implements
 ---       different concept of interactive alignment through pressing
 ---       customizable single character modifiers.
----     - 'godlygeek/tabular' can detect region upon which alignment can be
----       desirable. 'mini.align' does not by design: use Visual selection or
+---     - `godlygeek/tabular` can detect region upon which alignment can be
+---       desirable. |mini.align| does not by design: use Visual selection or
 ---       textobject/motion to explicitly define region to align.
 ---
 --- # Disabling ~
@@ -131,7 +131,7 @@
 --- or blockwise ("block", `<C-v>`, |blockwise-visual|)
 ---@tag MiniAlign-glossary
 
---- There are two main processes implemented in 'mini.align': strings alignment
+--- There are two main processes implemented in |mini.align|: strings alignment
 --- and interactive region alignment. See |MiniAlign-glossary| for more information
 --- about used terms.
 ---
@@ -205,9 +205,9 @@
 --- See more in |MiniAlign-modifiers-builtin| and |MiniAlign-examples|.
 ---
 --- Notes:
---- - Visual blockwise selection works best with 'virtualedit' equal to "block"
+--- - Visual blockwise selection works best with |'virtualedit'| equal to "block"
 ---   or "all".
---- - Alignment with preview works best with 'showmode' disabled.
+--- - Alignment with preview works best with |'showmode'| disabled.
 ---@tag MiniAlign-algorithm
 
 --- Overview of builtin modifiers
@@ -371,7 +371,7 @@
 
 --- Copy lines in modifiable buffer, initiate alignment with preview (`gAip`)
 --- and try typing suggested key sequences.
---- These are modified examples taken from 'junegunn/vim-easy-align'.
+--- These are modified examples taken from `junegunn/vim-easy-align`.
 ---
 --- # Equal sign ~
 ---
@@ -457,13 +457,13 @@ end
 --- - Has signature `(steps, opts)` and should modify any of its input in place.
 ---
 --- Examples:
---- - Modifier function used for default 'i' modifier: >lua
+--- - Modifier function used for default `i` modifier: >lua
 ---
 ---   function(steps, _)
 ---     table.insert(steps.pre_split, MiniAlign.gen_step.ignore_split())
 ---   end
 --- <
---- - Tweak 't' modifier to use highest indentation instead of keeping it: >lua
+--- - Tweak `t` modifier to use highest indentation instead of keeping it: >lua
 ---
 ---   require('mini.align').setup({
 ---     modifiers = {
@@ -475,7 +475,7 @@ end
 ---   })
 --- <
 --- - Tweak `j` modifier to cycle through available "justify_side" option
----   values (like in 'junegunn/vim-easy-align'): >lua
+---   values (like in `junegunn/vim-easy-align`): >lua
 ---
 ---   require('mini.align').setup({
 ---     modifiers = {
@@ -533,17 +533,15 @@ MiniAlign.config = {
     --minidoc_replace_end
     --minidoc_replace_start ['j'] = --<function: choose justify side>,
     ['j'] = function(_, opts)
-      -- stylua: ignore
+      --stylua: ignore
       H.echo({
         { 'Select justify: ', 'ModeMsg' }, { 'l', 'Question' }, { 'eft, ' },
         { 'c', 'Question' }, { 'enter, ' }, { 'r', 'Question' }, { 'ight, ' },
         { 'n', 'Question' }, { 'one' }
       })
       local ok, char = pcall(vim.fn.getcharstr)
-      if not ok or char == '\27' then return end
-
       local direction = ({ l = 'left', c = 'center', r = 'right', n = 'none' })[char]
-      if direction == nil then return end
+      if not ok or direction == nil then return end
       opts.justify_side = direction
     end,
     --minidoc_replace_end
@@ -596,7 +594,7 @@ MiniAlign.config = {
         { 'j', 'Question' }, { 'ustify, ' }, { 'm', 'Question' }, { 'erge' },
       })
       local ok, char = pcall(vim.fn.getcharstr)
-      if not ok or char == '\27' then return end
+      if not ok then return nil end
 
       if char == 's' then table.remove(steps.pre_split, #steps.pre_split) end
       if char == 'j' then table.remove(steps.pre_justify, #steps.pre_justify) end
@@ -1182,7 +1180,7 @@ end
 ---   `split_exclude_patterns` as is. Default: `{ [[".-"]] }` (excludes strings
 ---   for most cases).
 ---@param exclude_comment boolean|nil Whether to add comment pattern to
----   `split_exclude_patterns`. Comment pattern is derived from 'commentstring'
+---   `split_exclude_patterns`. Comment pattern is derived from |'commentstring'|
 ---   option. Default: `true`.
 ---
 ---@return table A step named "ignore" and with appropriate callable action.
@@ -1336,22 +1334,21 @@ H.setup_config = function(config)
   return config
 end
 
+--stylua: ignore
 H.apply_config = function(config)
   MiniAlign.config = config
 
-  --stylua: ignore start
   H.map('n', config.mappings.start, H.make_action_normal(false), { expr = true, desc = 'Align' })
   H.map('x', config.mappings.start, H.make_action_visual(false), { desc = 'Align' })
 
   H.map('n', config.mappings.start_with_preview, H.make_action_normal(true), { expr = true, desc = 'Align with preview' })
   H.map('x', config.mappings.start_with_preview, H.make_action_visual(true), { desc = 'Align with preview' })
-  --stylua: ignore end
 end
 
 H.is_disabled = function() return vim.g.minialign_disable == true or vim.b.minialign_disable == true end
 
 H.get_config = function()
-  -- Using `tbl_deep_extend()` works even in presense of `steps.pre_*` arrays
+  -- Using `tbl_deep_extend()` works even in presence of `steps.pre_*` arrays
   -- because default ones are empty.
   return vim.tbl_deep_extend('force', MiniAlign.config, vim.b.minialign_config or {})
 end
@@ -1729,8 +1726,8 @@ H.region_get_text = function(region, mode)
     local res, lines = {}, H.get_lines(from.line - 1, to.line)
     for i, l in ipairs(lines) do
       local lnum = from.line + i - 1
-      local left_col = H.virtcol2col(lnum, left_virtcol)
-      local right_col = H.virtcol2col(lnum, right_virtcol)
+      local left_col = vim.fn.virtcol2col(0, lnum, left_virtcol)
+      local right_col = vim.fn.virtcol2col(0, lnum, right_virtcol)
       right_col = right_col + H.str_utf_end(l, right_col)
 
       table.insert(res, l:sub(left_col, right_col))
@@ -1763,12 +1760,11 @@ H.region_set_text = function(region, mode, text)
     local lines = H.get_lines(from.line - 1, to.line)
     for i, l in ipairs(lines) do
       local lnum = from.line + i - 1
-      local left_col = H.virtcol2col(lnum, left_virtcol)
-      local right_col = H.virtcol2col(lnum, right_virtcol)
+      local left_col = vim.fn.virtcol2col(0, lnum, left_virtcol)
+      local right_col = vim.fn.virtcol2col(0, lnum, right_virtcol)
       right_col = right_col + H.str_utf_end(l, right_col)
 
       -- Adjust columns to not go outside of line
-      -- TODO: Remove after compatibility with Neovim=0.9 is dropped
       left_col, right_col = math.max(left_col - 1, 0), math.min(right_col, l:len())
       H.set_text(lnum - 1, left_col, lnum - 1, right_col, { text[i] })
     end
@@ -1797,44 +1793,38 @@ end
 -- Work with user interaction -------------------------------------------------
 H.user_modifier = function(with_preview, msg_chunks)
   -- Get from user single character modifier
-  local needs_help_msg = true
+  local needs_show_state = true
   local delay = (H.cache.msg_shown or with_preview) and 0 or 1000
   vim.defer_fn(function()
-    if not needs_help_msg then return end
+    if not needs_show_state then return end
 
-    table.insert(msg_chunks, { ' Enter modifier' })
+    table.insert(msg_chunks, { ' Press modifier' })
     H.echo(msg_chunks)
     H.cache.msg_shown = true
   end, delay)
   local ok, char = pcall(vim.fn.getcharstr)
-  needs_help_msg = false
+  needs_show_state = false
 
-  -- Terminate if couldn't get input (like with <C-c>) or it is `<Esc>`
-  if not ok or char == '\27' then return nil end
+  -- Terminate if couldn't get input (like with <C-c>) or on `<Esc>`
+  if not ok or char == '' or char == '\3' or char == '\27' then return nil end
   return char
 end
 
 H.user_input = function(prompt, text)
-  -- Register temporary keystroke listener to distinguish between cancel with
-  -- `<Esc>` and immediate `<CR>`.
-  local on_key = vim.on_key or vim.register_keystroke_callback
+  prompt = '(mini.align) ' .. prompt
+  if _G.MiniInput ~= nil then return MiniInput.get({ prompt = prompt, scope = 'editor', init_keys = { text } }) end
+
+  -- Use `on_key` to distinguish cancel with `<Esc>` and immediate `<CR>`
   local was_cancelled = false
-  on_key(function(key)
-    if key == '\27' then was_cancelled = true end
-  end, H.ns_id.input)
+  vim.on_key(function(key) was_cancelled = was_cancelled or key == '\27' end, H.ns_id.input)
 
-  -- Ask for input
-  local opts = { prompt = '(mini.align) ' .. prompt .. ': ', default = text or '' }
+  -- Ask for input. Use `pcall` to allow `<C-c>` to cancel user input
   vim.cmd('echohl Question')
-  -- Use `pcall` to allow `<C-c>` to cancel user input
-  local ok, res = pcall(vim.fn.input, opts)
-  vim.cmd('echohl None | redraw')
+  local ok, res = pcall(vim.fn.input, { prompt = prompt .. ': ', default = text or '' })
+  vim.cmd('echohl None | echo "" | redraw')
 
-  -- Stop key listening
-  on_key(nil, H.ns_id.input)
-
-  if not ok or was_cancelled then return end
-  return res
+  vim.on_key(nil, H.ns_id.input)
+  return (ok and not was_cancelled) and res or nil
 end
 
 H.make_status_msg_chunks = function(opts, steps)
@@ -1862,7 +1852,7 @@ end
 
 -- Predicates -----------------------------------------------------------------
 H.is_array_of = function(x, predicate)
-  if not H.islist(x) then return false end
+  if not vim.islist(x) then return false end
   for _, v in ipairs(x) do
     if not predicate(v) then return false end
   end
@@ -2021,20 +2011,10 @@ H.string_find = function(s, pattern, init)
   return string.find(s, pattern, init)
 end
 
-H.virtcol2col = function(lnum, col) return vim.fn.virtcol2col(0, lnum, col) end
-if vim.fn.has('nvim-0.10') == 0 then
-  -- Neovim<0.10 has `virtcol2col` returning cell's last column instead of
-  -- cell's first column in Neovim>=0.10
-  H.virtcol2col = function(lnum, col)
-    if vim.fn.virtcol2col(0, lnum, col) == 0 then return 0 end
-    return vim.fn.virtcol2col(0, lnum, col - 1) + 1
-  end
-end
+H.str_utfindex = function(s, i) return vim.str_utfindex(s, 'utf-32', i) end
+if vim.fn.has('nvim-0.11') == 0 then H.str_utfindex = function(s, i) return (vim.str_utfindex(s, i)) end end
 
 H.str_utf_end = function(s, n) return n >= s:len() and 0 or vim.str_utf_end(s, n) end
-if vim.fn.has('nvim-0.10') == 0 then
-  H.str_utf_end = function(s, n) return n >= s:len() and 0 or (vim.str_byteindex(s, vim.str_utfindex(s, n)) - n) end
-end
 
 H.is_any_point_inside_any_span = function(points, spans)
   for _, point in ipairs(points) do
@@ -2065,8 +2045,5 @@ H.undo = function()
     vim.cmd('silent! lockmarks normal! u')
   end
 end
-
--- TODO: Remove after compatibility with Neovim=0.9 is dropped
-H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 
 return MiniAlign

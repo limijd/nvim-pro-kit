@@ -9,18 +9,17 @@ local project_root = vim.fn.fnamemodify(vim.fn.getcwd(), ':p')
 local dir_bracketed_path = project_root .. 'tests' .. path_sep .. 'dir-bracketed'
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('bracketed', config) end
 local unload_module = function() child.mini_unload('bracketed') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('bracketed', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
-local make_path = function(...) return table.concat({...}, path_sep):gsub(path_sep .. path_sep, path_sep) end
+local make_path = function(...) return table.concat({ ... }, path_sep):gsub(path_sep .. path_sep, path_sep) end
 local make_testpath = function(...) return make_path(dir_bracketed_path, ...) end
 local type_keys = function(...) return child.type_keys(...) end
---stylua: ignore end
+local validate_edit = function(...) return child.validate_edit(...) end
 
 local edit_test_file = function(rel_path) child.cmd('edit ' .. make_testpath(rel_path)) end
 local get_bufname = function(buf_id) return child.api.nvim_buf_get_name(buf_id or 0) end
@@ -119,18 +118,6 @@ local validate_wrap = function(validate, n_items)
 end
 
 -- More general validators
-local validate_edit = function(lines_before, cursor_before, keys, lines_after, cursor_after)
-  child.ensure_normal_mode()
-  set_lines(lines_before)
-  set_cursor(cursor_before[1], cursor_before[2])
-
-  type_keys(keys)
-
-  eq(get_lines(), lines_after)
-  eq(get_cursor(), cursor_after)
-  child.ensure_normal_mode()
-end
-
 local validate_move = function(cursor_before, keys, cursor_after)
   child.ensure_normal_mode()
   set_cursor(cursor_before[1], cursor_before[2])
@@ -223,7 +210,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -976,7 +963,7 @@ T['diagnostic()'] = new_set()
 
 local diagnostic = function(direction, opts)
   opts = opts or {}
-  -- Force traversing of all diagnostics. It is needed on Neovim>=0.10.
+  -- Force traversing of all diagnostics
   opts.severity = opts.severity or { min = child.lua_get('vim.diagnostic.severity.HINT') }
   return child.lua_get('MiniBracketed.diagnostic(...)', { direction, opts })
 end
@@ -2579,8 +2566,8 @@ T['undo()']["works with low 'undolevels'"] = function()
 
   local undos, _ = setup_undo(
     { 'i', 'one two three', '<Esc>' }, -- one two three
-    'x', -- one two thre
-    'x', -- one two thr
+    'x', -- one two thre --typos: ignore-line
+    'x', -- one two thr --typos: ignore-line
     'x', -- one two th
     'x' -- one two t
   )
@@ -3934,9 +3921,12 @@ T['Mappings']['diagnostic']['works'] = function()
     eq(get_cursor(), cursor_after)
   end
 
+  --typos: ignore
   validate_edit_with_diagnostic(lines, { 1, 1 }, 'd[D', { 'arror', 'aa Error2' }, { 1, 1 })
   validate_edit_with_diagnostic(lines, { 2, 0 }, 'd[d', { 'aa a Error2' }, { 1, 3 })
+  --typos: ignore
   validate_edit_with_diagnostic(lines, { 2, 0 }, 'd]d', { 'aa Error', 'rror2' }, { 2, 0 })
+  --typos: ignore
   validate_edit_with_diagnostic(lines, { 1, 0 }, 'd]D', { 'rror2' }, { 1, 0 })
 
   -- - Dot-repeat. On Neovim>=0.12 diagnostic is done via extmarks, which get

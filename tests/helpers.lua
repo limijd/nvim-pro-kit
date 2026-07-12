@@ -133,6 +133,23 @@ Helpers.new_child_neovim = function()
     MiniTest.expect.equality(child.api.nvim_buf_get_mark(0, '>'), last)
   end
 
+  child.validate_edit = function(lines_before, cursor_before, keys, lines_after, cursor_after)
+    child.ensure_normal_mode()
+
+    child.set_lines(lines_before)
+    child.set_cursor(cursor_before[1], cursor_before[2])
+
+    if vim.is_callable(keys) then keys() end
+    if not vim.is_callable(keys) then child.type_keys(keys) end
+
+    Helpers.expect.equality(child.get_lines(), lines_after)
+    Helpers.expect.equality(child.get_cursor(), cursor_after)
+  end
+
+  child.validate_edit1d = function(line_before, col_before, keys, line_after, col_after)
+    child.validate_edit({ line_before }, { 1, col_before }, keys, { line_after }, { 1, col_after })
+  end
+
   -- Work with 'mini.nvim':
   -- - `mini_load` - load with "normal" table config
   -- - `mini_load_strconfig` - load with "string" config, which is still a
@@ -171,10 +188,31 @@ Helpers.new_child_neovim = function()
     if child.fn.exists('#' .. tbl_name) == 1 then child.api.nvim_del_augroup_by_name(tbl_name) end
   end
 
+  child.mini_reload = function(name, config)
+    child.mini_unload(name)
+    child.mini_load(name, config)
+  end
+
+  child.mini_reload_strconfig = function(name, strconfig)
+    child.mini_unload(name)
+    child.mini_load_strconfig(name, strconfig)
+  end
+
   child.expect_screenshot = function(opts, path)
     opts = opts or {}
     local screenshot_opts = { redraw = opts.redraw }
     opts.redraw = nil
+    if opts.ignore_cmdline and child.o.cmdheight > 0 then
+      local ignore_text, ignore_attr = opts.ignore_text or {}, opts.ignore_attr or {}
+      local height = child.o.lines
+      for i = 1, child.o.cmdheight do
+        local lnum = height - i + 1
+        if not vim.tbl_contains(ignore_text, lnum) then table.insert(ignore_text, lnum) end
+        if not vim.tbl_contains(ignore_attr, lnum) then table.insert(ignore_attr, lnum) end
+      end
+      opts.ignore_text = ignore_text
+      opts.ignore_attr = ignore_attr
+    end
     MiniTest.expect.reference_screenshot(child.get_screenshot(screenshot_opts), path, opts)
   end
 
@@ -182,6 +220,12 @@ Helpers.new_child_neovim = function()
   child.poke_eventloop = function() child.api.nvim_eval('1') end
 
   return child
+end
+
+-- Create a function that forwards its arguments to a global function
+-- inside a child process and returns the output
+Helpers.forward_lua = function(child, fun_str)
+  return function(...) return child.lua_get(fun_str .. '(...)', { ... }) end
 end
 
 -- Detect CI

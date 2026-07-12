@@ -15,16 +15,14 @@ local empty_dir_relpath = 'tests/dir-sessions/empty'
 local empty_dir_path = project_root .. '/' .. empty_dir_relpath
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('sessions', config) end
 local unload_module = function() child.mini_unload('sessions') end
-local reload_module = function(config) unload_module(); load_module(config) end
-local reload_from_strconfig = function(strconfig) unload_module(); child.mini_load_strconfig('sessions', strconfig) end
+local reload_module = function(config) child.mini_reload('sessions', config) end
+local reload_from_strconfig = function(strconfig) child.mini_reload_strconfig('sessions', strconfig) end
 local set_lines = function(...) return child.set_lines(...) end
-local make_path = function(...) return vim.fs.normalize(table.concat({...}, '/')) end
+local make_path = function(...) return vim.fs.normalize(table.concat({ ... }, '/')) end
 local cd = function(...) child.cmd('cd ' .. make_path(...)) end
 local sleep = function(ms) helpers.sleep(ms, child) end
---stylua: ignore end
 
 -- Make helpers
 local cleanup_directories = function()
@@ -94,7 +92,7 @@ local validate_no_session_loaded = function() eq(child.lua_get('type(_G.session_
 local reset_session_indicator = function() child.lua('_G.session_file = nil') end
 
 -- Helpers for testing hooks
---stylua: ignore start
+--stylua: ignore
 local make_hook_string = function(pre_post, action, hook_type)
   if hook_type == 'config' then
     return string.format(
@@ -109,7 +107,6 @@ local make_hook_string = function(pre_post, action, hook_type)
     )
   end
 end
---stylua: ignore end
 
 local validate_executed_hook = function(pre_post, action, value)
   local var_name = ('_G.hooks_%s_%s'):format(pre_post, action)
@@ -200,7 +197,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -237,7 +234,11 @@ T['setup()']['detects sessions and respects `config.directory`'] = function()
   eq(type(detected), 'table')
   local keys = vim.tbl_keys(detected)
   table.sort(keys)
-  eq(keys, { '.session', 'Session.vim', 'session1', 'session2.vim', 'session3.lua' })
+  --stylua: ignore
+  eq(keys, {
+    '.session', 'Session.vim', 'session1', 'session2.vim', 'session3.lua',
+    'session_cd_global', 'session_cd_local', 'session_cd_local_2'
+  })
 
   -- Elements should have correct structure
   local cur_dir = child.fn.getcwd()
@@ -330,7 +331,7 @@ T['read()']['works with no detected sessions'] = function()
   reload_module({ directory = '', file = '' })
   eq(child.lua_get('MiniSessions.detected'), {})
   expect.no_error(function() child.lua('MiniSessions.read()') end)
-  expect.match(get_latest_message(), '%(mini%.sessions%) There is no detected sessions')
+  expect.match(get_latest_message(), '%(mini%.sessions%) There are no detected sessions')
 end
 
 T['read()']['accepts only name of detected session'] = function()
@@ -340,6 +341,30 @@ T['read()']['accepts only name of detected session'] = function()
     '%(mini%.sessions%) "session%-absent" is not a name for detected session'
   )
   validate_no_session_loaded()
+end
+
+T['read()']['removes stale local session from detected'] = function()
+  -- Start in 'local' directory
+  cd('tests', 'dir-sessions', 'local')
+  reload_module({ autowrite = false, directory = project_root .. '/tests/dir-sessions/global' })
+  eq(child.lua_get([[MiniSessions.detected['Session.vim'] ~= nil]]), true)
+
+  -- Test yes local -> no local
+  child.lua([[MiniSessions.read('session_cd_global')]])
+  validate_session_loaded('global/session_cd_global')
+  eq(child.lua_get([[MiniSessions.detected['Session.vim'] ~= nil]]), false)
+
+  -- Test no local -> yes local
+  child.lua([[MiniSessions.read('session_cd_local')]])
+  validate_session_loaded('global/session_cd_local')
+  eq(child.lua_get([[MiniSessions.detected['Session.vim'] ~= nil]]), true)
+
+  -- Test yes local -> yes other local
+  child.lua([[MiniSessions.read('session_cd_local_2')]])
+  validate_session_loaded('global/session_cd_local_2')
+  eq(child.lua_get([[MiniSessions.detected['Session.vim'] ~= nil]]), true)
+  local other_local_path = project_root .. '/tests/dir-sessions/local-2/Session.vim'
+  eq(child.lua_get([[MiniSessions.detected['Session.vim'].path ]]), other_local_path)
 end
 
 T['read()']['makes detected sessions up to date'] = function()
@@ -758,7 +783,7 @@ T['delete()']['validates presence of detected sessions'] = function()
 
   expect.error(
     function() child.lua([[MiniSessions.delete('aaa')]]) end,
-    '%(mini%.sessions%) There is no detected sessions'
+    '%(mini%.sessions%) There are no detected sessions'
   )
 end
 
@@ -910,6 +935,181 @@ T['delete()']['respects `vim.{g,b}.minisessions_disable`'] = new_set({
   end,
 })
 
+T['restart()'] = new_set({
+  hooks = {
+    pre_case = function()
+      if child.fn.has('nvim-0.12') == 0 then
+        MiniTest.skip('`MiniSessions.restart()` requires `:restart` from Neovim>=0.12')
+      end
+
+      -- Attach a UI since it makes easier dealing with `:restart`
+      child.api.nvim_ui_attach(child.o.columns, child.o.lines, { rgb = true })
+    end,
+    post_case = function() pcall(vim.fn.delete, 'track-vim-cmd') end,
+  },
+})
+
+local restart = function(vimrc, restart_cmd)
+  -- Monkey-patch `vim.cmd` inside child process to intercept `:restart` args
+  child.lua([[
+    vim.fn.writefile({}, 'track-vim-cmd')
+    _G.cmd_orig = vim.cmd
+    vim.cmd = function(command)
+      -- Log into the file to be available even after child is stopped
+      vim.fn.writefile({ command }, 'track-vim-cmd', 'a')
+      _G.cmd_orig(command)
+    end
+  ]])
+
+  -- Restart within the child. It disconnects with "ch xxx closed by the peer"
+  -- error, so gather the "aftercommand" passed to `:restart` to execute it by
+  -- hand after setting up new child. It might be improved on later versions.
+  local ok, msg = pcall(child.lua, restart_cmd or 'MiniSessions.restart()')
+  -- Propagate unexpected error after a cleanup
+  if not (ok or vim.endswith(msg, 'closed by the peer')) then
+    child.lua('vim.cmd = _G.cmd_orig')
+    child.fn.delete('track-vim-cmd')
+    error(msg)
+  end
+  vim.loop.sleep(10 * small_time)
+
+  local cmd_after_restart
+  for _, l in ipairs(vim.fn.readfile('track-vim-cmd')) do
+    cmd_after_restart = cmd_after_restart or l:match('^restart!? (.*)$')
+  end
+  if cmd_after_restart == nil then error('Could not detect restart "after" command') end
+
+  -- Mock `vim.notify` to test notification
+  local mock_notify_cmd = 'lua _G.notify_log={}; vim.notify=function(...) table.insert(_G.notify_log, {...}) end'
+  local args = { '-u', vimrc or 'scripts/minimal_init.lua', '-c', mock_notify_cmd, '-c', cmd_after_restart }
+  child.restart(args)
+end
+
+local setup_cur_session = function()
+  child.cmd('edit aaa | edit tests/dir-sessions/file')
+  local buf_names_expected = get_buf_names()
+  local lines_expected = child.get_lines()
+  child.set_cursor(2, 2)
+  child.o.termguicolors = true
+
+  -- Add some changes in this session to check that the actual restart
+  child.type_keys('i', 'abc', '<Esc>', 'u')
+  local big_changedtick = child.b.changedtick
+
+  -- Return validator
+  return function(ref_this_session)
+    compare_buffer_names(get_buf_names(), buf_names_expected)
+    eq(child.get_lines(), lines_expected)
+    eq(child.get_cursor(), { 2, 2 })
+    eq(vim.fs.normalize(child.v.this_session), vim.fs.normalize(ref_this_session))
+    eq(child.lua_get('_G.notify_log'), { { '(mini.sessions) Restarted' } })
+    eq(child.b.changedtick < big_changedtick, true)
+    eq(child.o.termguicolors, true)
+  end
+end
+
+local validate_no_restart_sideffects = function()
+  for _, f in ipairs(child.fn.readdir(child.fn.getcwd())) do
+    if f:find('^restart_session_') ~= nil then error('There is a leftover temporary session file: ' .. f) end
+  end
+end
+
+T['restart()']['works without active session'] = function()
+  local validate = setup_cur_session()
+  restart()
+  validate('')
+
+  -- Should be no side effects from creating a temporary session file
+  validate_no_restart_sideffects()
+end
+
+T['restart()']['ignores global arguments without active session'] = function()
+  child.restart({ '-u', 'scripts/minimal_init.lua', '--', 'file-a1', 'file-a2' })
+  child.cmd('%bwipeout')
+  child.cmd('edit file-b')
+
+  load_module()
+  restart()
+
+  eq(get_buf_names(), { 'file-b' })
+  eq(child.fn.argv(-1), {})
+end
+
+T['restart()']["works with active 'mini.sessions' session"] = function()
+  child.fn.mkdir(empty_dir_path)
+  reload_module({ autowrite = false, directory = empty_dir_path })
+
+  local validate = setup_cur_session()
+  child.lua('MiniSessions.write("new_session")')
+  local ref_this_session = child.v.this_session
+
+  restart()
+  validate(ref_this_session)
+end
+
+T['restart()']['works with active regular session'] = function()
+  local validate = setup_cur_session()
+  child.fn.mkdir(empty_dir_path)
+  local session_path = make_path(empty_dir_path, 'new_session')
+  child.cmd('mksession! ' .. session_path)
+  local ref_this_session = child.v.this_session
+
+  restart()
+  validate(ref_this_session)
+end
+
+T['restart()']['works with enabled autoread'] = function()
+  local validate = setup_cur_session()
+  restart('tests/dir-sessions/init-files/autoread.lua')
+  validate('')
+
+  -- Should not autoread the session from 'mini.sessions'
+  eq(child.lua_get('_G.session_file'), vim.NIL)
+end
+
+T['restart()']['works without loading the module'] = function()
+  child.setup()
+  local validate = setup_cur_session()
+  restart(nil, 'require("mini.sessions").restart()')
+  validate('')
+end
+
+T['restart()']['works when special characters in session name'] = function()
+  local validate = setup_cur_session()
+  child.fn.mkdir(empty_dir_path)
+  local session_path = make_path(empty_dir_path, 'new %! session')
+  child.cmd('mksession! ' .. vim.fn.fnameescape(session_path))
+  local ref_this_session = child.v.this_session
+
+  restart()
+  validate(ref_this_session)
+end
+
+T['restart()']['handles the error during restart'] = function()
+  -- No active session
+  child.cmd('edit aaa')
+  set_lines({ 'Modified' })
+
+  expect.error(restart, 'No write since last change')
+  validate_no_restart_sideffects()
+  eq(child.v.this_session, '')
+
+  child.cmd('bwipeout!')
+
+  -- Active session
+  setup_cur_session()
+  child.fn.mkdir(empty_dir_path)
+  local session_path = make_path(empty_dir_path, 'new_session')
+  child.cmd('mksession! ' .. session_path)
+  local ref_this_session = child.v.this_session
+  set_lines({ 'Modified' })
+
+  expect.error(restart, 'No write since last change')
+  validate_no_restart_sideffects()
+  eq(child.v.this_session, ref_this_session)
+  eq(child.fn.filereadable(session_path), 1)
+end
+
 T['select()'] = new_set({
   hooks = {
     pre_case = function()
@@ -1002,7 +1202,7 @@ T['get_latest()']['works'] = function()
   eq(child.lua_get('MiniSessions.get_latest()'), 'session_b')
 end
 
-T['get_latest()']['works if there is no detected sessions'] = function()
+T['get_latest()']['works if there are no detected sessions'] = function()
   reload_module({ directory = '', file = '' })
   eq(child.lua_get('MiniSessions.get_latest()'), vim.NIL)
 end

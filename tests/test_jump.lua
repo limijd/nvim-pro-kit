@@ -5,17 +5,15 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('jump', config) end
 local unload_module = function() child.mini_unload('jump') end
-local reload_module = function(config) unload_module(); load_module(config) end
+local reload_module = function(config) child.mini_reload('jump', config) end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local get_lines = function(...) return child.get_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
 local sleep = function(ms) helpers.sleep(ms, child, true) end
---stylua: ignore end
 
 -- Data =======================================================================
 local example_lines = {
@@ -27,7 +25,7 @@ local example_lines = {
 
 -- Time constants
 local default_highlight_delay = 250
-local helper_message_delay = 1000
+local reminder_delay = 1000
 local small_time = helpers.get_time_const(10)
 
 -- Output test set ============================================================
@@ -85,7 +83,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   expect_config_error('a', 'config', 'table')
@@ -182,8 +180,14 @@ T['state']['updates `mode`'] = function()
   child.ensure_normal_mode()
 
   type_keys('d', 't', 'e')
-  eq(get_state().mode, 'nov')
-  child.lua('MiniJump.stop_jumping()')
+  eq(get_state().mode, 'no')
+
+  -- Ensure dot-repeat does not update mode after the jump
+  type_keys('V', 't', 'e')
+  eq(get_state().mode, 'V')
+  child.ensure_normal_mode()
+  type_keys('.')
+  eq(get_state().mode, 'V')
 end
 
 T['state']['updates `jumping`'] = function()
@@ -205,7 +209,7 @@ T['jump()'] = new_set({
 
 local validate_jump = function(args, final_cursor_pos)
   -- Usage of string arguments is needed because there seems to be no way to
-  -- correctly transfer to `child` `nil` values between non-`nil` onces. Like
+  -- correctly transfer to `child` `nil` values between non-`nil` ones. Like
   -- `child.lua('MiniJump.jump(...)', {'m', nil, true})`. Gives `Cannot
   -- convert given lua table` error.
   child.lua(('MiniJump.jump(%s)'):format(args))
@@ -402,7 +406,7 @@ T['Jumping with f/t/F/T']['works in Operator-pending mode'] = new_set({
     type_keys('d', '2', key, 'e')
     eq(get_lines(), { line_seq[3] })
 
-    -- Just typing `key` shouldn't repeat action
+    -- Just typing `key` shouldn't repeat motion
     local cur_pos = get_cursor()
     type_keys(key)
     eq(get_cursor(), cur_pos)
@@ -410,6 +414,31 @@ T['Jumping with f/t/F/T']['works in Operator-pending mode'] = new_set({
     type_keys('<Esc>')
   end,
 })
+
+T['Jumping with f/t/F/T']['works in forced Operator-pending mode'] = function()
+  local validate = function(pos, keys, ref_pos, ref_lines)
+    set_lines({ '__e!!', '@@g##', 'xx' })
+    set_cursor(unpack(pos))
+    type_keys(keys)
+    eq(get_cursor(), ref_pos)
+    eq(get_lines(), ref_lines)
+  end
+
+  validate({ 1, 0 }, 'dvfg', { 1, 0 }, { '##', 'xx' })
+  validate({ 1, 0 }, 'dvtg', { 1, 0 }, { 'g##', 'xx' })
+  validate({ 2, 4 }, 'dvFe', { 1, 1 }, { '__', 'xx' })
+  validate({ 2, 4 }, 'dvTe', { 1, 2 }, { '__e', 'xx' })
+
+  validate({ 1, 0 }, 'dVfg', { 1, 0 }, { 'xx' })
+  validate({ 1, 0 }, 'dVtg', { 1, 0 }, { 'xx' })
+  validate({ 2, 4 }, 'dVFe', { 1, 1 }, { 'xx' })
+  validate({ 2, 4 }, 'dVTe', { 1, 1 }, { 'xx' })
+
+  validate({ 1, 0 }, 'd<C-v>fg', { 1, 0 }, { '!!', '##', 'xx' })
+  validate({ 1, 0 }, 'd<C-v>tg', { 1, 0 }, { 'e!!', 'g##', 'xx' })
+  validate({ 2, 4 }, 'd<C-v>Fe', { 1, 1 }, { '__', '@@', 'xx' })
+  validate({ 2, 4 }, 'd<C-v>Te', { 1, 2 }, { '__e', '@@g', 'xx' })
+end
 
 T['Jumping with f/t/F/T']['allows dot-repeat'] = new_set({
   parametrize = { { 'f' }, { 't' }, { 'F' }, { 'T' } },
@@ -458,6 +487,34 @@ T['Jumping with f/t/F/T']['stops jumping when non-jump movement is done'] = func
   set_cursor(2, 7)
   type_keys('T', 'e', 'l', 'T', 'T')
   eq(get_cursor(), { 1, 1 })
+end
+
+T['Jumping with f/t/F/T']['stops jumping when leaving buffer'] = function()
+  -- Set up windows and buffers
+  local buf_id_other = child.api.nvim_create_buf(true, false)
+  child.api.nvim_set_current_buf(buf_id_other)
+  child.lua('_G.buf_id_other = ' .. buf_id_other)
+
+  child.cmd('vsplit')
+  local buf_id_cur = child.api.nvim_create_buf(true, false)
+  child.api.nvim_set_current_buf(buf_id_cur)
+  set_lines({ '1e2e3e4e' })
+
+  -- Should stop if `BufLeave` is for current buffer
+  set_cursor(1, 0)
+  type_keys('f', 'e')
+  eq(child.lua_get('MiniJump.state.jumping'), true)
+
+  child.api.nvim_set_current_buf(buf_id_other)
+  eq(child.lua_get('MiniJump.state.jumping'), false)
+
+  -- Should not stop if `BufLeave` is for non-current buffer
+  child.api.nvim_set_current_buf(buf_id_cur)
+  type_keys('f', 'e')
+  eq(child.lua_get('MiniJump.state.jumping'), true)
+
+  child.lua('vim.api.nvim_buf_call(_G.buf_id_other, function() vim.cmd("doautocmd BufLeave") end)')
+  eq(child.lua_get('MiniJump.state.jumping'), true)
 end
 
 T['Jumping with f/t/F/T']['works with different mappings'] = function()
@@ -524,16 +581,21 @@ T['Jumping with f/t/F/T']['enters jumping mode even if first jump is impossible'
 end
 
 T['Jumping with f/t/F/T']['does nothing if there is no place to jump'] = function()
-  -- Normal mode
-  local validate_normal = function(keys, start_col, ref_mode)
-    set_lines({ 'abcdefg' })
-    set_cursor(1, start_col)
+  local validate_single = function(keys, lines, start_pos, ref_mode)
+    set_lines(lines)
+    set_cursor(unpack(start_pos))
 
     type_keys(keys, 'd')
 
     -- It shouldn't move anywhere and should not modify text
-    eq(get_cursor(), { 1, start_col })
-    eq(get_lines(), { 'abcdefg' })
+    eq(get_lines(), lines)
+    eq(get_cursor(), start_pos)
+    eq(child.fn.mode(), ref_mode)
+
+    -- The above applies to subsequent dot-repeats as well
+    type_keys('.')
+    eq(get_lines(), lines)
+    eq(get_cursor(), start_pos)
     eq(child.fn.mode(), ref_mode)
 
     -- Ensure there is no jumping
@@ -541,20 +603,31 @@ T['Jumping with f/t/F/T']['does nothing if there is no place to jump'] = functio
     child.ensure_normal_mode()
   end
 
-  validate_normal('f', 4, 'n')
-  validate_normal('t', 4, 'n')
-  validate_normal('F', 2, 'n')
-  validate_normal('T', 2, 'n')
+  local validate = function(lines, pos_forward, pos_backward)
+    validate_single('f', lines, pos_forward, 'n')
+    validate_single('t', lines, pos_forward, 'n')
+    validate_single('F', lines, pos_backward, 'n')
+    validate_single('T', lines, pos_backward, 'n')
 
-  validate_normal('vf', 4, 'v')
-  validate_normal('vt', 4, 'v')
-  validate_normal('vF', 2, 'v')
-  validate_normal('vT', 2, 'v')
+    validate_single('vf', lines, pos_forward, 'v')
+    validate_single('vt', lines, pos_forward, 'v')
+    validate_single('vF', lines, pos_backward, 'v')
+    validate_single('vT', lines, pos_backward, 'v')
 
-  validate_normal('df', 4, 'n')
-  validate_normal('dt', 4, 'n')
-  validate_normal('dF', 2, 'n')
-  validate_normal('dT', 2, 'n')
+    validate_single('df', lines, pos_forward, 'n')
+    validate_single('dt', lines, pos_forward, 'n')
+    validate_single('dF', lines, pos_backward, 'n')
+    validate_single('dT', lines, pos_backward, 'n')
+  end
+
+  -- Target is present but not reachable
+  validate({ 'abcdefg' }, { 1, 4 }, { 1, 2 })
+
+  -- Target is not present
+  validate({ 'abcxefg' }, { 1, 4 }, { 1, 2 })
+
+  -- Target is not present and cursor is on empty line
+  validate({ 'abcxefg', '' }, { 2, 0 }, { 2, 0 })
 end
 
 T['Jumping with f/t/F/T']['can be dot-repeated if did not jump at first'] = function()
@@ -582,6 +655,31 @@ T['Jumping with f/t/F/T']['can be dot-repeated if did not jump at first'] = func
   validate('dT', 1, 5, 'abcdg')
 end
 
+T['Jumping with f/t/F/T']['inside dot-repeat is not affected by regular jumping'] = function()
+  local validate = function(keys, key_antagonist, result)
+    local line = '_xdxdx1x1xdxdx_'
+    local tests_forward = key_antagonist == string.upper(key_antagonist)
+
+    set_lines({ line })
+    set_cursor(1, tests_forward and 0 or (string.len(line) - 1))
+
+    type_keys(keys)
+    type_keys(tests_forward and '$' or '^')
+    type_keys(key_antagonist, '1')
+    type_keys('.')
+    eq(get_lines(), { result })
+
+    -- Ensure there is no jumping
+    child.lua('MiniJump.stop_jumping()')
+    child.ensure_normal_mode()
+  end
+
+  validate('2dfd', 'T', 'x1x1x_')
+  validate('2dtd', 'F', 'dx1xdx_')
+  validate('2dFd', 't', '_x1x1x')
+  validate('2dTd', 'f', '_xdx1xd')
+end
+
 T['Jumping with f/t/F/T']['stops prompting for target if hit `<Esc>` or `<C-c>`'] = new_set({
   parametrize = {
     { 'f', '<Esc>' },
@@ -602,13 +700,22 @@ T['Jumping with f/t/F/T']['stops prompting for target if hit `<Esc>` or `<C-c>`'
     type_keys(1, key, test_key, 'o')
     eq(get_lines(), { 'oooo', '' })
 
-    child.ensure_normal_mode()
-
     -- Should also work in Operator-pending mode
+    child.ensure_normal_mode()
     set_lines({ 'oooo' })
     set_cursor(1, 0)
     type_keys(1, 'd', key, test_key, 'o')
     eq(get_lines(), { 'oooo', '' })
+
+    -- <C-c> should stop even if it doesn't make `getcharstr` error
+    if test_key == '<C-c>' then
+      child.ensure_normal_mode()
+      child.cmd('nnoremap <C-c> <C-\\><C-n>')
+      set_lines({ 'ooo\3ooo' })
+      set_cursor(1, 0)
+      type_keys(1, key, '<C-c>')
+      eq(get_cursor(), { 1, 0 })
+    end
   end,
 })
 
@@ -661,18 +768,18 @@ T['Jumping with f/t/F/T']['for t/T allows matches on end of line'] = function()
   validate_T({ 3, 2 }, { 2, 1 })
 end
 
-T['Jumping with f/t/F/T']['shows helper message after one idle second'] = function()
+T['Jumping with f/t/F/T']['shows reminder after one idle second'] = function()
   child.set_size(10, 40)
 
   -- Execute one time to test if 'needs help message' flag is set per call
   set_lines(example_lines)
   set_cursor(1, 0)
   type_keys('f', 'e')
-  sleep(0.5 * helper_message_delay)
+  sleep(0.5 * reminder_delay)
 
   -- Start another jump
   type_keys('h', 'f')
-  sleep(helper_message_delay + small_time)
+  sleep(reminder_delay + small_time)
   -- Should show colored helper message without adding it to `:messages` and
   -- causing hit-enter-prompt
   child.expect_screenshot()
@@ -689,6 +796,7 @@ T['Jumping with f/t/F/T']['stops jumping if no target is found'] = function()
   -- General idea: there was a bug which didn't reset jumping state if target
   -- was not found by `vim.fn.search()`. In that case, next typing of jumping
   -- key wouldn't make effect, but it should.
+  -- Related test case: 'enters jumping mode even if first jump is impossible'
   for _, key in ipairs({ 'f', 't', 'F', 'T' }) do
     local start_col = key == key:lower() and 0 or 3
     set_cursor(1, start_col)
@@ -697,6 +805,28 @@ T['Jumping with f/t/F/T']['stops jumping if no target is found'] = function()
     -- Ensure no jumping mode
     child.lua('MiniJump.stop_jumping()')
   end
+end
+
+T['Jumping with f/t/F/T']['stops jumping on next non-jump movement if no target is found'] = function()
+  local validate = function(key)
+    set_lines({ 'doooe' })
+    set_cursor(1, 2)
+
+    -- Choose a target that is not reachable in the direction
+    local target = key == key:lower() and 'd' or 'e'
+    type_keys(key, target)
+    eq(get_cursor(), { 1, 2 })
+    eq(get_state().jumping, true)
+
+    type_keys('l')
+    expect.no_equality(get_cursor(), { 1, 2 })
+    eq(get_state().jumping, false)
+  end
+
+  validate('f')
+  validate('t')
+  validate('F')
+  validate('T')
 end
 
 T['Jumping with f/t/F/T']['jumps as far as it can with big `count`'] = function()
@@ -741,7 +871,7 @@ T['Jumping with f/t/F/T']['respects `config.silent`'] = function()
   set_lines({ '1e2e3e4e' })
   set_cursor(1, 0)
   type_keys('f')
-  sleep(helper_message_delay + small_time)
+  sleep(reminder_delay + small_time)
 
   -- Should not show helper message
   child.expect_screenshot()
@@ -878,16 +1008,49 @@ T['Repeat jump with ;']['works after jump in Operator-pending mode'] = function(
   type_keys('d', '2f', 'e', ';')
   eq(get_lines(), { '3e4e5e' })
   eq(get_cursor(), { 1, 3 })
+
+  -- Should not use the latest dot repeat (like in `nvim --clean`)
+  set_lines({ '1e2e__3e4e5e6e' })
+  set_cursor(1, 0)
+
+  type_keys('d', '2f', 'e')
+  eq(get_lines(), { '__3e4e5e6e' })
+  eq(get_cursor(), { 1, 0 })
+
+  type_keys('$', 'T', '_')
+  eq(get_lines(), { '__3e4e5e6e' })
+  eq(get_cursor(), { 1, 2 })
+
+  -- - Should reuse initial Operator-pending mode state and not the latest one
+  type_keys('.')
+  eq(get_lines(), { '__5e6e' })
+  eq(get_cursor(), { 1, 2 })
+
+  -- - The latest one should still be preserved for regular jumping
+  type_keys(';')
+  eq(get_lines(), { '__5e6e' })
+  eq(get_cursor(), { 1, 1 })
 end
 
 T['Repeat jump with ;']['works in Operator-pending mode'] = function()
-  set_lines({ '1e2e3e4e5e' })
+  set_lines({ '1e2e3e4e5e_' })
   set_cursor(1, 0)
 
   -- Should repeat without asking for target
   type_keys('f', 'e', 'd', ';')
-  eq(get_lines(), { '13e4e5e' })
+  eq(get_lines(), { '13e4e5e_' })
   eq(get_cursor(), { 1, 1 })
+
+  -- Should work with dot-repeat as in `nvim --clean`, i.e. use target from the
+  -- latest jump, as `;` is exactly for that
+  type_keys('.')
+  eq(get_lines(), { '14e5e_' })
+  eq(get_cursor(), { 1, 1 })
+
+  type_keys('f', '_', '^')
+  type_keys('.')
+  eq(get_lines(), { '' })
+  eq(get_cursor(), { 1, 0 })
 end
 
 T['Repeat jump with ;']['works with different mapping'] = function()
@@ -1010,7 +1173,7 @@ T['Delayed highlighting']['implements debounce-style delay'] = function()
   child.expect_screenshot()
 
   sleep(small_time)
-  -- Nothing should yet be shown
+  -- Everything should be shown
   child.expect_screenshot()
 end
 
@@ -1054,6 +1217,23 @@ T['Delayed highlighting']['never highlights in Insert mode'] = function()
   type_keys('ct', 'f')
   sleep(default_highlight_delay + small_time)
   -- Shouldn't start highlighting
+  child.expect_screenshot()
+end
+
+T['Delayed highlighting']['done only if actually jumping'] = function()
+  child.lua('MiniJump.config.delay.highlight = 0')
+
+  -- Mock conditions for automatically stopping jumping
+  child.lua([[
+    local force_jump_stop = vim.schedule_wrap(function(ev) vim.cmd('doautocmd BufLeave') end)
+    vim.api.nvim_create_autocmd('CursorMoved', { once = true, callback = force_jump_stop })
+  ]])
+
+  set_cursor(1, 0)
+  type_keys('f', 'e')
+
+  eq(child.lua_get('MiniJump.state.jumping'), false)
+  -- Nothing should be shown
   child.expect_screenshot()
 end
 
@@ -1199,7 +1379,7 @@ T['Events']['work in Visual and Operator-pending modes'] = function()
     validate_log_and_clean({ { event = 'MiniJumpGetTarget', state = state } })
 
     type_keys('e')
-    state.mode = mode == 'v' and 'v' or 'nov'
+    state.mode = mode == 'v' and 'v' or 'no'
     state.jumping, state.target = true, 'e'
     validate_log_and_clean({
       { event = 'MiniJumpStart', state = state },
@@ -1302,7 +1482,7 @@ T['Events']['work with dot-repeat'] = function()
   child.lua('_G.log = {}')
 
   type_keys('.')
-  local state = { mode = 'nov', jumping = true, target = 'e', backward = false, till = false, n_times = 1 }
+  local state = { mode = 'no', jumping = true, target = 'e', backward = false, till = false, n_times = 1 }
   validate_log_and_clean({
     { event = 'MiniJumpStart', state = state },
     { event = 'MiniJumpJump', state = state },

@@ -5,14 +5,12 @@ local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
 
 -- Helpers with child processes
---stylua: ignore start
 local load_module = function(config) child.mini_load('map', config) end
 local unload_module = function() child.mini_unload('map') end
 local set_cursor = function(...) return child.set_cursor(...) end
 local get_cursor = function(...) return child.get_cursor(...) end
 local set_lines = function(...) return child.set_lines(...) end
 local type_keys = function(...) return child.type_keys(...) end
---stylua: ignore end
 
 -- Main function wrappers
 local map_open = function(opts) child.lua('MiniMap.open(...)', { opts }) end
@@ -194,7 +192,7 @@ T['setup()']['validates `config` argument'] = function()
   unload_module()
 
   local expect_config_error = function(config, name, target_type)
-    expect.error(load_module, vim.pesc(name) .. '.*' .. vim.pesc(target_type), config)
+    expect.error(function() load_module(config) end, vim.pesc(name) .. '.*' .. vim.pesc(target_type))
   end
 
   local expect_all_encode_symbols_check = function()
@@ -257,8 +255,8 @@ T['encode_strings()'] = new_set()
 T['encode_strings()']['works'] = function() eq(encode_strings({ 'aa', 'aa', 'aa' }), { '█' }) end
 
 T['encode_strings()']['validates `strings` argument'] = function()
-  expect.error(encode_strings, 'array', 'a')
-  expect.error(encode_strings, 'strings', { 1, 'a' })
+  expect.error(function() encode_strings('a') end, 'array')
+  expect.error(function() encode_strings({ 1, 'a' }) end, 'strings')
 end
 
 T['encode_strings()']['respects `strings` argument'] = function() eq(encode_strings({ 'aa' }), { '🬂' }) end
@@ -385,10 +383,12 @@ T['open()']['correctly computes window config'] = function()
   map_open()
   local win_id = get_map_win_id()
 
-  local hide, mouse, border
-  if child.fn.has('nvim-0.10') == 1 then hide = false end
+  local mouse, border, style
   if child.fn.has('nvim-0.11') == 1 then mouse = false end
-  if child.fn.has('nvim-0.12') == 1 then border = 'none' end
+  if child.fn.has('nvim-0.12') == 1 then
+    border = 'none'
+    style = 'minimal'
+  end
   eq(child.api.nvim_win_get_config(win_id), {
     anchor = 'NE',
     border = border,
@@ -396,10 +396,11 @@ T['open()']['correctly computes window config'] = function()
     external = false,
     focusable = false,
     height = 28,
-    hide = hide,
+    hide = false,
     mouse = mouse,
     relative = 'editor',
     row = 0,
+    style = style,
     width = 10,
     zindex = 10,
   })
@@ -1050,8 +1051,6 @@ T['gen_integration']['builtin_search()']['updates when appropriate'] = function(
   child.expect_screenshot(screen_opts)
 
   -- Should update when `v:hlsearch` is changed (like `\h` in 'mini.basics')
-  if child.fn.has('nvim-0.10') == 0 then return end
-
   child.v.hlsearch = false
   child.expect_screenshot(screen_opts)
 
@@ -1415,6 +1414,35 @@ T['Window']['ensures target window is valid'] = function()
   child.api.nvim_win_close(target_win_id, true)
   child.lua('MiniMap.toggle_focus()')
   eq(child.api.nvim_get_current_win(), init_win_id)
+end
+
+T['Window']['handles deleting all buffers'] = function()
+  mock_test_integration()
+
+  local validate = function()
+    child.api.nvim_set_current_buf(child.api.nvim_create_buf(true, false))
+    set_lines({ 'aa', 'a', ' a', '' })
+    child.bo.modified = false
+
+    map_open()
+
+    local helper_buf_id, ref_pattern = nil, 'minimap://%d+/content'
+    for _, buf_id in ipairs(child.api.nvim_list_bufs()) do
+      if string.find(child.api.nvim_buf_get_name(buf_id), ref_pattern) ~= nil then helper_buf_id = buf_id end
+    end
+    eq(type(helper_buf_id), 'number')
+    eq(child.api.nvim_get_option_value('modified', { buf = helper_buf_id }), false)
+
+    map_close()
+  end
+
+  validate()
+
+  child.cmd('%bwipeout')
+  validate()
+
+  child.cmd('%bdelete')
+  validate()
 end
 
 T['Window']["does not respect 'winborder' option"] = function()
