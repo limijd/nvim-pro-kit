@@ -27,8 +27,6 @@ Helpers.setup_plugin = function(config)
   local function mock_external_calls()
     local ok, copilot = pcall(require, "codecompanion.adapters.http.copilot")
     if ok then
-      copilot.schema.max_tokens.default = 16000
-
       local get_models_ok, get_models = pcall(require, "codecompanion.adapters.http.copilot.get_models")
       if get_models_ok then
         get_models.choices = function(adapter, opts, provided_token)
@@ -99,7 +97,8 @@ Helpers.create_mock_adapter = function(child, adapter, opts)
         handlers = {
           response = {
             parse_chat = function(self, data)
-              local ok, body = pcall(vim.json.decode, data)
+              local raw = type(data) == "table" and data.body or data
+              local ok, body = pcall(vim.json.decode, raw)
               if not ok then
                 return nil
               end
@@ -211,7 +210,7 @@ end
 ---Setup and mock a chat buffer
 ---@param config? table
 ---@param adapter? table
----@return CodeCompanion.Chat, CodeCompanion.Tools, CodeCompanion.Variables
+---@return CodeCompanion.Chat, CodeCompanion.Tools, CodeCompanion.EditorContext
 Helpers.setup_chat_buffer = function(config, adapter)
   local test_config = vim.deepcopy(require("tests.config"))
   local config_module = mock_config()
@@ -228,12 +227,12 @@ Helpers.setup_chat_buffer = function(config, adapter)
   })
   chat.vars = {
     foo = {
-      callback = "spec.codecompanion.interactions.chat.variables.foo",
+      path = "spec.codecompanion.interactions.shared.editor_context.foo",
       description = "foo",
     },
   }
   local tools = require("codecompanion.interactions.chat.tools").new({ bufnr = 1 })
-  local vars = require("codecompanion.interactions.chat.variables").new()
+  local vars = require("codecompanion.interactions.shared.editor_context").new()
 
   return chat, tools, vars
 end

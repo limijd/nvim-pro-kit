@@ -1,3 +1,4 @@
+local ACP = require("codecompanion.acp")
 local buf_utils = require("codecompanion.utils.buffers")
 local config = require("codecompanion.config")
 local helpers = require("codecompanion.interactions.chat.helpers")
@@ -49,7 +50,9 @@ local function get_buffer_content(lines)
 
   local env = {}
   local chunk, err = load(
-    "local settings, messages; " .. content .. " return {settings=settings, messages=messages}",
+    "local settings, messages, session_id; "
+      .. content
+      .. " return {settings=settings, messages=messages, session_id=session_id}",
     "buffer",
     "t",
     env
@@ -59,13 +62,14 @@ local function get_buffer_content(lines)
   end
 
   local result = chunk()
-  return result.settings, result.messages
+  return result.settings, result.messages, result.session_id
 end
 
 ---@class CodeCompanion.Chat.Debug
 ---@field chat CodeCompanion.Chat
 ---@field settings table
 ---@field aug number
+---@field winnr? number
 local Debug = {}
 
 function Debug.new(args)
@@ -84,9 +88,9 @@ function Debug:render()
   local adapter = vim.deepcopy(self.chat.adapter)
   self.adapter = adapter
 
-  local bufname
+  local buf_info
   if _G.codecompanion_current_context and api.nvim_buf_is_valid(_G.codecompanion_current_context) then
-    bufname = buf_utils.name_from_bufnr(_G.codecompanion_current_context)
+    buf_info = buf_utils.get_info(_G.codecompanion_current_context)
   end
 
   -- Get the current settings from the chat buffer rather than making new ones
@@ -102,6 +106,15 @@ function Debug:render()
 
   local lines = {}
 
+  table.insert(lines, "-- Buffer Number: " .. self.chat.bufnr)
+  if buf_info then
+    table.insert(
+      lines,
+      string.format([[-- Following Buffer: "%s" (%s)]], buf_info.relative_path, _G.codecompanion_current_context)
+    )
+  end
+
+  table.insert(lines, "")
   table.insert(lines, '-- Adapter: "' .. adapter.formatted_name .. '"')
   if adapter.type == "acp" then
     local command
@@ -110,27 +123,54 @@ function Debug:render()
     else
       command = adapter.commands.default
     end
-    table.insert(lines, '-- With Command: "' .. table.concat(command, " ") .. '"')
+    table.insert(lines, '--   With Command: "' .. table.concat(command, " ") .. '"')
 
-    -- Show current mode if available
     if self.chat.acp_connection then
-      local modes = self.chat.acp_connection:get_modes()
-      if modes and modes.currentModeId then
-        local mode_name = modes.currentModeId
-        for _, mode in ipairs(modes.availableModes or {}) do
-          if mode.id == modes.currentModeId then
-            mode_name = mode.name .. " (" .. mode.id .. ")"
-            break
+      for _, opt in ipairs(self.chat.acp_connection:get_config_options()) do
+        if opt.type == "select" and opt.currentValue then
+          local flattened = ACP.flatten_config_options(opt.options or {})
+
+          local available = vim.tbl_map(function(val)
+            return val.name or val.value
+          end, flattened)
+          table.sort(available)
+
+          local current_name = opt.currentValue
+          for _, val in ipairs(flattened) do
+            if val.value == opt.currentValue then
+              current_name = val.name
+              break
+            end
           end
+
+          local label = opt.name
+          if opt.category then
+            label = label .. " [" .. opt.category .. "]"
+          end
+
+          table.insert(
+            lines,
+            "--   " .. label .. ': "' .. current_name .. '" (Available: ' .. table.concat(available, ", ") .. ")"
+          )
         end
-        table.insert(lines, '-- Mode: "' .. mode_name .. '"')
       end
     end
   end
-  table.insert(lines, "-- Buffer Number: " .. self.chat.bufnr)
-  if bufname then
-    table.insert(lines, '-- Following Buffer: "' .. bufname .. '" (' .. _G.codecompanion_current_context .. ")")
+
+  -- Add MCP status
+  local mcp_status = require("codecompanion.mcp").get_status()
+  if vim.tbl_count(mcp_status) > 0 then
+    table.insert(lines, "")
+    table.insert(lines, "-- MCP Servers:")
+    for server, status in pairs(mcp_status) do
+      local is_ready = status.ready and " " or "○ "
+      table.insert(lines, string.format("-- %s%s (tools: %d)", is_ready, server, status.tool_count))
+    end
   end
+
+  -- Add session ID
+  table.insert(lines, "")
+  table.insert(lines, "local session_id = " .. string.format("%q", self.chat.session_id))
 
   -- Add settings
   if not config.display.chat.show_settings and adapter.type ~= "acp" then
@@ -170,6 +210,15 @@ function Debug:render()
         local val = self.settings[key]
         local is_nil = adapter.schema[key] and adapter.schema[key].default == nil
 
+        local formatted_key = key
+        if key:find("%.") then
+          formatted_key = '["' .. key .. '"]'
+        end
+
+        if type(val) == "function" then
+          val = val(self.adapter)
+        end
+
         if key == "model" then
           local other_models = " -- "
 
@@ -182,34 +231,54 @@ function Debug:render()
             end
           end)
 
-          if type(val) == "function" then
-            val = val(self.adapter)
-          end
           if vim.tbl_count(models) > 1 then
-            table.insert(lines, "  " .. key .. ' = "' .. val .. '", ' .. other_models)
+            table.insert(lines, "  " .. formatted_key .. ' = "' .. val .. '", ' .. other_models)
           else
-            table.insert(lines, "  " .. key .. ' = "' .. val .. '",')
+            table.insert(lines, "  " .. formatted_key .. ' = "' .. val .. '",')
           end
+        elseif type(val) == "string" and adapter.schema[key] and adapter.schema[key].choices then
+          local choices = adapter.schema[key].choices
+          if type(choices) == "function" then
+            choices = choices(self.adapter)
+          end
+
+          local other_choices = vim
+            .iter(choices)
+            :map(function(choice, choice_name)
+              return type(choice) == "number" and choice_name or choice
+            end)
+            :filter(function(choice)
+              return choice ~= val
+            end)
+            :totable()
+
+          local line = "  " .. formatted_key .. ' = "' .. val .. '",'
+          if #other_choices > 0 then
+            line = line .. ' -- "' .. table.concat(other_choices, '", "') .. '"'
+          end
+          table.insert(lines, line)
         elseif is_nil and current_settings[key] == nil then
-          table.insert(lines, "  " .. key .. " = nil,")
-        elseif type(val) == "number" or type(val) == "boolean" then
-          table.insert(lines, "  " .. key .. " = " .. tostring(val) .. ",")
-        elseif type(val) == "string" then
-          if key:find("%.") then
-            key = '["' .. key .. '"]'
-          end
-          table.insert(lines, "  " .. key .. ' = "' .. val .. '",')
-        elseif type(val) == "function" then
-          local expanded_val = val(self.adapter)
-          if type(expanded_val) == "number" or type(expanded_val) == "boolean" then
-            table.insert(lines, "  " .. key .. " = " .. tostring(val(self.adapter)) .. ",")
-          else
-            table.insert(lines, "  " .. key .. ' = "' .. tostring(val(self.adapter)) .. '",')
-          end
+          table.insert(lines, "  " .. formatted_key .. " = nil,")
         else
-          table.insert(lines, "  " .. key .. " = " .. vim.inspect(val))
+          if type(val) == "number" or type(val) == "boolean" then
+            table.insert(lines, "  " .. formatted_key .. " = " .. tostring(val) .. ",")
+          elseif type(val) == "string" then
+            table.insert(lines, "  " .. formatted_key .. ' = "' .. val .. '",')
+          else
+            local inspected = vim.inspect(val)
+            local lines_to_add = vim.split(inspected, "\n")
+            for i, line in ipairs(lines_to_add) do
+              if i == 1 then
+                table.insert(lines, "  " .. formatted_key .. " = " .. line)
+              else
+                table.insert(lines, "  " .. line)
+              end
+            end
+            lines[#lines] = lines[#lines] .. ","
+          end
         end
       end
+
       table.insert(lines, "}")
     end
   end
@@ -227,7 +296,11 @@ function Debug:render()
 
   self.bufnr = api.nvim_create_buf(false, true)
 
+  -- Prevent buffers appearing as listed after saving/closing
   api.nvim_buf_set_name(self.bufnr, "CodeCompanion_debug")
+  vim.bo[self.bufnr].buftype = "acwrite"
+  vim.bo[self.bufnr].bufhidden = "wipe"
+
   -- Set the keymaps as per the user's chat buffer config
   local maps = {}
   local config_maps = vim.deepcopy(config.interactions.chat.keymaps)
@@ -256,15 +329,16 @@ function Debug:render()
     })
     :set()
 
-  local window_config = config.display.chat.floating_window
-
-  ui_utils.create_float(lines, {
-    bufnr = self.bufnr,
-    filetype = "lua",
-    opts = window_config.opts,
-    title = "Debug Chat",
-    window = window_config,
-  })
+  local _, winnr = ui_utils.create_float(
+    lines,
+    vim.tbl_extend("force", config.display.chat.floating_window, {
+      bufnr = self.bufnr,
+      ft = "lua",
+      title = "Debug Chat",
+      winbar = "%= :w Save | q Close %=",
+    })
+  )
+  self.winnr = winnr
 
   self:setup_window()
 
@@ -304,7 +378,7 @@ function Debug:setup_window()
     end,
   })
 
-  api.nvim_create_autocmd("BufWrite", {
+  api.nvim_create_autocmd("BufWriteCmd", {
     group = self.aug,
     buffer = self.bufnr,
     desc = "Save the contents of the debug window to the chat buffer",
@@ -326,9 +400,9 @@ end
 ---Save the contents of the debug window to the chat buffer
 function Debug:save()
   local contents = vim.api.nvim_buf_get_lines(self.bufnr, 0, -1, false)
-  local settings, messages = get_buffer_content(contents)
+  local settings, messages, session_id = get_buffer_content(contents)
 
-  if not settings and not messages then
+  if not settings and not messages and not session_id then
     return
   end
 
@@ -338,17 +412,31 @@ function Debug:save()
   if messages then
     self.chat.messages = messages
   end
+  if session_id then
+    self.chat.session_id = session_id
+  end
 
-  utils.notify("Updated the settings and messages")
+  if api.nvim_buf_is_valid(self.bufnr) then
+    vim.bo[self.bufnr].modified = false
+  end
+
+  utils.notify("Updated the chat buffer")
 end
 
 ---Function to run when the debug chat is closed
 ---@return nil
 function Debug:close()
+  -- Clear autocmds first so closing the window doesn't re-enter via WinClosed
   if self.aug then
     api.nvim_clear_autocmds({ group = self.aug })
+    self.aug = nil
   end
-  api.nvim_buf_delete(self.bufnr, { force = true })
+  if self.winnr and api.nvim_win_is_valid(self.winnr) then
+    api.nvim_win_close(self.winnr, true)
+  end
+  if api.nvim_buf_is_valid(self.bufnr) then
+    api.nvim_buf_delete(self.bufnr, { force = true })
+  end
 end
 
 return Debug

@@ -1,16 +1,19 @@
+local Queue = require("codecompanion.utils.queue")
+
+local config = require("codecompanion.config")
 local formatter = require("codecompanion.interactions.chat.acp.formatters")
 local log = require("codecompanion.utils.log")
-
--- Keep a record of UI changes in the chat buffer
+local utils = require("codecompanion.utils")
+local watch = require("codecompanion.interactions.shared.watch")
 
 ---@class CodeCompanion.Chat.ACPHandler
 ---@field chat CodeCompanion.Chat
 ---@field output table Standard output message from the Agent
 ---@field reasoning table Reasoning output from the Agent
 ---@field tools table<string, table> Cache of tool calls by their ID
+---@field ui_state table<string, table> Cache of tool call UI states (line_number, icon_id) by tool call ID
+---@field _permission { queue: CodeCompanion.Queue, active: boolean, respond: function|nil } Internal state for managing permission requests
 local ACPHandler = {}
-
-local ACPHandlerUI = {} -- Cache of tool call UI states by chat buffer
 
 ---@param chat CodeCompanion.Chat
 ---@return CodeCompanion.Chat.ACPHandler
@@ -20,17 +23,15 @@ function ACPHandler.new(chat)
     output = {},
     reasoning = {},
     tools = {},
+    ui_state = {},
+    _permission = {
+      active = false,
+      queue = Queue.new(),
+      respond = nil,
+    },
   }, { __index = ACPHandler })
 
-  ACPHandlerUI[chat.bufnr] = {}
-
   return self --[[@type CodeCompanion.Chat.ACPHandler]]
-end
-
----Return the ACP client
----@return CodeCompanion.ACP.Connection
-local get_client = function()
-  return require("codecompanion.acp")
 end
 
 ---Merge an incoming tool call/update into the cache
@@ -56,29 +57,67 @@ function ACPHandler:submit(payload)
     return self.chat:done(self.output)
   end
 
+  if not self:ensure_session() then
+    self.chat.status = "error"
+    return self.chat:done(self.output)
+  end
+
   return self:create_and_send_prompt(payload)
 end
 
----Ensure ACP connection is established
----@return boolean success
+---Ensure the ACP connection is authenticated
+---@return boolean
 function ACPHandler:ensure_connection()
-  if not self.chat.acp_connection then
-    self.chat.acp_connection = get_client().new({
-      adapter = self.chat.adapter, --[[@type CodeCompanion.ACPAdapter]]
-    })
-
-    local connected = self.chat.acp_connection:connect_and_initialize()
-
-    if not connected then
-      return false
-    end
-
-    -- Map bufnr -> session_id so completion providers can look up ACP commands for this buffer
-    if self.chat.acp_connection.session_id then
-      local acp_commands = require("codecompanion.interactions.chat.acp.commands")
-      acp_commands.link_buffer_to_session(self.chat.bufnr, self.chat.acp_connection.session_id)
-    end
+  -- If the async init already created the connection, check if it's ready
+  if self.chat.acp_connection and self.chat.acp_connection:is_ready() then
+    return true
   end
+
+  if not self.chat.acp_connection then
+    local adapter = self.chat.adapter --[[@as CodeCompanion.ACPAdapter]]
+    self.chat.acp_connection = require("codecompanion.acp").new({
+      adapter = adapter,
+      chat = self.chat,
+    })
+  end
+
+  local connected = self.chat.acp_connection:connect_and_authenticate()
+
+  if not connected then
+    return false
+  end
+
+  self.chat:update_metadata()
+  watch.enable()
+  utils.fire("ACPConnected", { bufnr = self.chat.bufnr })
+
+  return true
+end
+
+---Ensure a session exists on the connection or create one if required
+---@return boolean success
+function ACPHandler:ensure_session()
+  local conn = self.chat.acp_connection
+  if not conn then
+    return false
+  end
+
+  if conn.session_id then
+    return true
+  end
+
+  if not conn:ensure_session() then
+    return false
+  end
+
+  -- Map bufnr -> session_id so completion providers can look up ACP commands for this buffer
+  local acp_commands = require("codecompanion.interactions.chat.acp.commands")
+  acp_commands.link_buffer_to_session(self.chat.bufnr, conn.session_id)
+
+  self.chat:update_metadata()
+
+  require("codecompanion.interactions.chat.acp.defaults").apply(self.chat.adapter, conn)
+
   return true
 end
 
@@ -99,7 +138,6 @@ function ACPHandler:transform_acp_commands(messages)
   end
 
   -- Get trigger character
-  local config = require("codecompanion.config")
   local trigger = "\\"
   if config.interactions.chat.slash_commands.opts and config.interactions.chat.slash_commands.opts.acp then
     trigger = config.interactions.chat.slash_commands.opts.acp.trigger or "\\"
@@ -149,19 +187,22 @@ function ACPHandler:create_and_send_prompt(payload)
       self:handle_thought_chunk(content)
     end)
     :on_tool_call(function(tool_call)
-      self:handle_tool_call(tool_call)
+      self:process_tool_call(tool_call)
     end)
-    :on_tool_update(function(tool_update)
-      self:handle_tool_update(tool_update)
+    :on_tool_update(function(tool_call)
+      self:process_tool_call(tool_call)
     end)
     :on_permission_request(function(request)
       self:handle_permission_request(request)
     end)
-    :on_complete(function(stop_reason)
-      self:handle_completion(stop_reason)
+    :on_complete(function()
+      self:handle_complete()
     end)
     :on_error(function(error)
       self:handle_error(error)
+    end)
+    :on_cancel(function()
+      self:_clear_permission_queue()
     end)
     :with_options({ bufnr = self.chat.bufnr, interaction = "chat" })
     :send()
@@ -169,39 +210,36 @@ end
 
 ---Handle incoming message chunks
 ---@param content string
+---@return nil
 function ACPHandler:handle_message_chunk(content)
   table.insert(self.output, content)
   self.chat:add_buf_message(
-    { role = require("codecompanion.config").constants.LLM_ROLE, content = content },
+    { role = config.constants.LLM_ROLE, content = content },
     { type = self.chat.MESSAGE_TYPES.LLM_MESSAGE }
   )
 end
 
 ---Handle incoming thought chunks
 ---@param content string
+---@return nil
 function ACPHandler:handle_thought_chunk(content)
   table.insert(self.reasoning, content)
-  self.chat:add_buf_message(
-    { role = require("codecompanion.config").constants.LLM_ROLE, content = content },
-    { type = self.chat.MESSAGE_TYPES.REASONING_MESSAGE }
-  )
+  if config.display.chat.show_reasoning then
+    self.chat:add_buf_message(
+      { role = config.constants.LLM_ROLE, content = content },
+      { type = self.chat.MESSAGE_TYPES.REASONING_MESSAGE }
+    )
+  end
 end
 
 ---Output tool call to the chat
 ---@param tool_call table
 ---@return nil
 function ACPHandler:process_tool_call(tool_call)
-  -- Cache the tool call to handle processing later on, such as a later permission request
   local id = tool_call.toolCallId
 
-  local prev = self.tools[id]
-  local merged = merge_tool_call(prev, tool_call)
-  tool_call = merged or tool_call
-
-  local ok, content = pcall(formatter.tool_message, tool_call, self.chat.adapter)
-  if not ok then
-    content = "[Error formatting tool output]"
-  end
+  local merged = merge_tool_call(self.tools[id], tool_call)
+  tool_call = merged
 
   -- Cache or cleanup
   if tool_call.status == "completed" then
@@ -210,36 +248,46 @@ function ACPHandler:process_tool_call(tool_call)
     self.tools[id] = merged
   end
 
-  -- If the tool call has already written output to the chat buffer, then we can
-  -- update it rather than adding a new line. We do this by keeping track in
-  -- a global cache, segmented by chat buffer and tool call IDs
-  if ACPHandlerUI[self.chat.bufnr][id] then
-    local match = ACPHandlerUI[self.chat.bufnr][id]
-    -- Whilst I've tried to account for all types of ACP tool output, I'm taking
-    -- a cautious approach and wrapping line updates. Any failures and we'll
-    -- just write the tool output onto a new line in the chat buffer
-    ok, _ = pcall(function()
-      self.chat:update_buf_line(
-        match.line_number,
-        content,
-        { status = tool_call.status, icon_id = match.icon_id, priority = 120, virt_text_pos = "inline" }
-      )
-    end)
-
-    -- Cleanup the cache
-    if tool_call.status == "completed" then
-      ACPHandlerUI[self.chat.bufnr][id] = nil
-    end
-
-    if ok then
-      return
-    end
-    log:debug("[ACP::Handler] Failed to update tool call line for toolCallId %s", tool_call.toolCallId)
+  -- Pending tool calls are awaiting approval or streaming input, so hold them
+  -- back from the buffer until the agent moves them out of the pending state
+  if tool_call.status == "pending" then
+    return
   end
 
-  table.insert(self.output, content)
-  local line_number = self.chat:add_buf_message({
-    role = require("codecompanion.config").constants.LLM_ROLE,
+  local ok, content = pcall(formatter.tool_message, tool_call, self.chat.adapter)
+  if not ok then
+    content = "[Error formatting tool output]"
+  end
+
+  -- If the tool call has already written output to the chat buffer, update the
+  -- existing line rather than adding a new one
+  local cached = self.ui_state[id]
+  if cached then
+    local update_ok, _, new_icon_id = pcall(
+      self.chat.update_buf_line,
+      self.chat,
+      cached.line_number,
+      content,
+      { status = tool_call.status, icon_id = cached.icon_id, priority = 120, virt_text_pos = "inline" }
+    )
+
+    if update_ok then
+      if tool_call.status == "completed" then
+        self.ui_state[id] = nil
+      elseif new_icon_id then
+        cached.icon_id = new_icon_id
+      end
+      return
+    end
+
+    if tool_call.status == "completed" then
+      self.ui_state[id] = nil
+    end
+    log:debug("[ACP::Handler] Failed to update tool call line for toolCallId %s", id)
+  end
+
+  local line_number, icon_id = self.chat:add_buf_message({
+    role = config.constants.LLM_ROLE,
     content = content,
   }, {
     status = tool_call.status or "in_progress",
@@ -249,27 +297,29 @@ function ACPHandler:process_tool_call(tool_call)
     type = self.chat.MESSAGE_TYPES.TOOL_MESSAGE,
   })
 
-  ACPHandlerUI[self.chat.bufnr][id] = { line_number = line_number }
+  self.ui_state[id] = { line_number = line_number, icon_id = icon_id }
 end
 
----Handle tool call notifications
----@param tool_call table
-function ACPHandler:handle_tool_call(tool_call)
-  return self:process_tool_call(tool_call)
-end
-
----Handle tool call updates and their respective status
----@param tool_call table
-function ACPHandler:handle_tool_update(tool_call)
-  return self:process_tool_call(tool_call)
-end
-
----Handle permission requests from the agent
+---Queue a permission request and process when ready
 ---@param request table
 ---@return nil
 function ACPHandler:handle_permission_request(request)
-  local tool_call = request.tool_call
+  self._permission.queue:push(request)
+  self:_process_next_permission()
+end
 
+---Pop the next permission request from the queue and present it
+---@return nil
+function ACPHandler:_process_next_permission()
+  if self._permission.active or self._permission.queue:is_empty() then
+    return
+  end
+
+  self._permission.active = true
+  local request = self._permission.queue:pop()
+
+  -- Merge cached tool call data so the diff UI can activate
+  local tool_call = request.tool_call
   if
     type(tool_call) == "table"
     and tool_call.toolCallId
@@ -277,31 +327,74 @@ function ACPHandler:handle_permission_request(request)
   then
     local cached = self.tools[tool_call.toolCallId]
     if cached then
-      -- Merge the cached tool call details into the request's tool call to enable the diff UI to activate
       request.tool_call = merge_tool_call(cached, tool_call)
     end
   end
 
-  return require("codecompanion.interactions.chat.acp.request_permission").show(self.chat, request)
+  -- The original respond function is stored so that if the user cancels the request, we can respond as per the spec
+  self._permission.respond = request.respond
+
+  -- Ensure that the next item in the queue is processed after the user's response
+  local send_response = request.respond
+  request.respond = function(option_id, cancelled)
+    if not self._permission.respond then
+      return
+    end
+    send_response(option_id, cancelled)
+    self._permission.active = false
+    self._permission.respond = nil
+    self:_process_next_permission()
+  end
+
+  return require("codecompanion.interactions.chat.acp.request_permission").confirm(self.chat, request)
 end
 
----Handle completion
----@param stop_reason string|nil
-function ACPHandler:handle_completion(stop_reason)
+---Clear any requests in the queue
+---@return nil
+function ACPHandler:_clear_permission_queue()
+  local had_pending = self._permission.respond ~= nil or not self._permission.queue:is_empty()
+
+  -- Cancel the currently active permission request (if any)
+  if self._permission.respond then
+    pcall(self._permission.respond, nil, true)
+    self._permission.respond = nil
+  end
+
+  -- Cancel all queued permission requests
+  while not self._permission.queue:is_empty() do
+    local request = self._permission.queue:pop()
+    pcall(request.respond, nil, true)
+  end
+  self._permission.active = false
+
+  if had_pending then
+    utils.fire("ToolApprovalFinished", { bufnr = self.chat.bufnr, choice = "cancelled" })
+  end
+end
+
+---Handle the prompt response when it's complete
+---@return nil
+function ACPHandler:handle_complete()
+  self:_clear_permission_queue()
+
   if not self.chat.status or self.chat.status == "" then
     self.chat.status = "success"
   end
+
   self.chat:done(self.output, self.reasoning, {})
 end
 
 ---Handle errors
 ---@param error string
+---@return nil
 function ACPHandler:handle_error(error)
+  self:_clear_permission_queue()
+
   self.chat.status = "error"
   log:error("[ACP::Handler] %s", error)
 
   self.chat:add_buf_message(
-    { role = require("codecompanion.config").constants.LLM_ROLE, content = string.format("````txt\n%s\n````", error) },
+    { role = config.constants.LLM_ROLE, content = string.format("````txt\n%s\n````", error) },
     { type = self.chat.MESSAGE_TYPES.LLM_MESSAGE }
   )
 

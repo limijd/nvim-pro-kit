@@ -1,5 +1,5 @@
 ---
-description: Learn how to get the most out of rules in CodeCompanion
+description: "Add rules files like CLAUDE.md, AGENTS.md, or Cursor rules to the CodeCompanion chat buffer to provide persistent LLM instructions and project context."
 ---
 
 # Using Rules
@@ -69,13 +69,25 @@ Anything in this section is added as context to the chat buffer. The file above 
 # Example Claude Rules File
 
 @./lua/codecompanion/interactions/chat/tools/init.lua
+@INSTRUCTIONS.md
 
 This is a rules file that can be parsed with the Claude parser.
 
 Anything in this file is added as context to the chat buffer.
 
-Including the file above.
+Including the files above.
 ```
+
+#### Resolving `@` paths
+
+Other files can be referenced in a rules file via `@path`. CodeCompanion looks for the file in this order:
+
+1. Absolute paths (starting with `/` or `~`) are used as-is
+2. Relative paths (e.g. `@INSTRUCTIONS.md`) are first resolved against the directory of the rules file itself
+3. If not found there, they're resolved against the current working directory
+4. If neither exists, a warning is logged
+
+Taking a global rules files such as `~/.claude/CLAUDE.md`: If it contains an `@RTK.md` reference inside it, this would resolve to `~/.claude/RTK.md`, regardless of where Neovim was launched from.
 
 ## Adding Rules to a Chat Buffer
 
@@ -124,7 +136,7 @@ To add rules to an existing chat buffer, use the `/rules` slash command. This wi
 
 ### Action Palette
 
-<img src="https://github.com/user-attachments/assets/09ecd976-ac8b-446f-bed3-a8122617eb79">
+<img src="https://github.com/user-attachments/assets/09ecd976-ac8b-446f-bed3-a8122617eb79" alt="Chat buffer action palette" />
 
 There is also a _Chat with rules_ action in the [Action Palette](/usage/action-palette). This lists all of the rule groups in the config that can be added to a new chat buffer.
 

@@ -200,7 +200,15 @@ T["Copilot adapter"]["it can form messages to be sent to the API"] = function()
     role = "user",
   } }
 
-  h.eq({ messages = messages }, adapter.handlers.form_messages(adapter, messages))
+  h.eq({
+    messages = {
+      {
+        content = "Explain Ruby in two words",
+        copilot_cache_control = { type = "ephemeral" },
+        role = "user",
+      },
+    },
+  }, adapter.handlers.form_messages(adapter, messages))
 end
 
 T["Copilot adapter"]["it can form tools to be sent to the API"] = function()
@@ -334,10 +342,12 @@ T["Copilot adapter"]["Streaming"]["can send reasoning opaque back in messages"] 
   local expected = {
     {
       content = "Search for quotes.lua",
+      copilot_cache_control = { type = "ephemeral" },
       role = "user",
     },
     {
       content = "LLM's response here",
+      copilot_cache_control = { type = "ephemeral" },
       role = "llm",
       reasoning_opaque = "SzZZSfDxyWB",
       reasoning_text = "Some reasoning here",
@@ -567,7 +577,7 @@ T["test model selection dialog works with copilot adapter"] = function()
     local change_adapter = require("codecompanion.interactions.chat.keymaps.change_adapter")
 
     -- Test that get_models_list returns models for selection dialog
-    local models_list = change_adapter.get_models_list(copilot)
+    local models_list = change_adapter.list_http_models(copilot)
 
     -- Return test results
     return {

@@ -1,5 +1,6 @@
 local h = require("tests.helpers")
-local transform = require("codecompanion.utils.tool_transformers")
+local tags = require("codecompanion.interactions.shared.tags")
+local tool_transformer = require("codecompanion.adapters.utils.tool_transformers")
 local adapter
 
 local new_set = MiniTest.new_set
@@ -57,6 +58,7 @@ T["Anthropic adapter"]["form_messages"]["regular chat"] = function()
   }
 
   h.eq({
+    cache_control = { type = "ephemeral" },
     messages = {
       {
         content = {
@@ -89,7 +91,7 @@ T["Anthropic adapter"]["form_messages"]["images"] = function()
         mimetype = "image/jpg",
       },
       _meta = {
-        tag = "image",
+        tag = tags.IMAGE,
       },
       opts = {
         visible = false,
@@ -277,7 +279,7 @@ T["Anthropic adapter"]["form_messages"]["with tools and consecutive tool results
     },
   }
 
-  h.eq({ messages = output }, adapter.handlers.form_messages(adapter, input))
+  h.eq({ cache_control = { type = "ephemeral" }, messages = output }, adapter.handlers.form_messages(adapter, input))
 end
 
 T["Anthropic adapter"]["form_messages"]["handles tool results correctly"] = function()
@@ -384,6 +386,51 @@ T["Anthropic adapter"]["form_messages"]["consolidates consecutive user messages 
   }, adapter.handlers.form_messages(adapter, messages).messages)
 end
 
+T["Anthropic adapter"]["form_messages"]["handles empty messages without errors"] = function()
+  local messages_with_empty_content = {
+    { content = "", role = "user" },
+    { content = "Valid message", role = "user" },
+    { content = "", role = "assistant" },
+    { content = "", role = "system" },
+  }
+
+  local result = adapter.handlers.form_messages(adapter, messages_with_empty_content)
+
+  h.eq(#result.messages, 2)
+  h.eq(result.messages[1].role, "user")
+  h.eq(result.messages[1].content[1].text, "<prompt></prompt>")
+  h.eq(result.messages[1].content[2].text, "Valid message")
+  h.eq(result.messages[2].role, "assistant")
+end
+
+T["Anthropic adapter"]["form_messages"]["filters out empty system messages"] = function()
+  local messages_with_empty_system = {
+    { content = "", role = "system" },
+    { content = "Valid system message", role = "system" },
+    { content = "User message", role = "user" },
+  }
+
+  local result = adapter.handlers.form_messages(adapter, messages_with_empty_system)
+
+  h.eq(#result.system, 1)
+  h.eq(result.system[1].text, "Valid system message")
+  h.eq(#result.messages, 1)
+  h.eq(result.messages[1].content[1].text, "User message")
+end
+
+T["Anthropic adapter"]["form_messages"]["handles all empty messages"] = function()
+  local all_empty_messages = {
+    { content = "", role = "user" },
+    { content = "", role = "system" },
+  }
+
+  local result = adapter.handlers.form_messages(adapter, all_empty_messages)
+
+  h.eq(result.system, nil)
+  h.eq(result.messages[1].role, "user")
+  h.eq(result.messages[1].content[1].text, "<prompt></prompt>")
+end
+
 T["Anthropic adapter"]["form_messages"]["can handle reasoning"] = function()
   local messages = {
     {
@@ -428,7 +475,7 @@ T["Anthropic adapter"]["form_messages"]["can handle reasoning"] = function()
     },
   }
 
-  h.eq({ messages = expected }, result)
+  h.eq({ cache_control = { type = "ephemeral" }, messages = expected }, result)
 end
 
 T["Anthropic adapter"]["form_messages"]["tool use AND reasoning"] = function()
@@ -494,7 +541,85 @@ T["Anthropic adapter"]["form_messages"]["tool use AND reasoning"] = function()
     },
   }
 
-  h.eq({ messages = expected }, result)
+  h.eq({ cache_control = { type = "ephemeral" }, messages = expected }, result)
+end
+
+T["Anthropic adapter"]["form_messages"]["includes compaction block from previous response"] = function()
+  local messages = {
+    {
+      content = "What's 2 + 2?",
+      role = "user",
+    },
+    {
+      content = "The answer is 4.",
+      role = "assistant",
+      _meta = {
+        compaction = {
+          content = "## Session Summary\n\nThe user explored the codebase.",
+          type = "compaction",
+        },
+      },
+    },
+    {
+      content = "Thanks!",
+      role = "user",
+    },
+  }
+
+  h.eq({
+    cache_control = { type = "ephemeral" },
+    messages = {
+      {
+        content = {
+          { type = "text", text = "What's 2 + 2?" },
+        },
+        role = "user",
+      },
+      {
+        content = {
+          { type = "compaction", content = "## Session Summary\n\nThe user explored the codebase." },
+          { type = "text", text = "The answer is 4." },
+        },
+        role = "assistant",
+      },
+      {
+        content = {
+          { type = "text", text = "Thanks!" },
+        },
+        role = "user",
+      },
+    },
+  }, adapter.handlers.form_messages(adapter, messages))
+end
+
+T["Anthropic adapter"]["form_messages"]["compaction block placed after thinking block"] = function()
+  local messages = {
+    {
+      content = "What's 2 + 2?",
+      role = "user",
+    },
+    {
+      content = "The answer is 4.",
+      reasoning = {
+        content = "Simple arithmetic.",
+        _data = { signature = "mock_sig" },
+      },
+      role = "assistant",
+      _meta = {
+        compaction = {
+          content = "Summary of prior conversation.",
+          type = "compaction",
+        },
+      },
+    },
+  }
+
+  local result = adapter.handlers.form_messages(adapter, messages)
+
+  local assistant_msg = result.messages[2]
+  h.eq("thinking", assistant_msg.content[1].type)
+  h.eq("compaction", assistant_msg.content[2].type)
+  h.eq("text", assistant_msg.content[3].type)
 end
 
 T["Anthropic adapter"]["form_reasoning"] = function()
@@ -542,7 +667,7 @@ T["Anthropic adapter"]["form_tools"] = function()
   local weather = require("tests.interactions.chat.tools.builtin.stubs.weather").schema
   local tools = { weather = { weather } }
 
-  h.eq({ tools = { transform.to_anthropic(weather) } }, adapter.handlers.form_tools(adapter, tools))
+  h.eq({ tools = { tool_transformer.to_anthropic(weather) } }, adapter.handlers.form_tools(adapter, tools))
 end
 
 T["Anthropic adapter"]["Non-Reasoning models have less tokens"] = function()
@@ -550,6 +675,13 @@ T["Anthropic adapter"]["Non-Reasoning models have less tokens"] = function()
     schema = {
       model = {
         default = "claude-3-5-sonnet-20241022",
+        choices = {
+          ["claude-3-5-sonnet-20241022"] = {
+            formatted_name = "Claude 3.5 Sonnet",
+            meta = { max_tokens = 4096 },
+            opts = {},
+          },
+        },
       },
     },
   })
@@ -561,12 +693,19 @@ T["Anthropic adapter"]["Reasoning models have more tokens"] = function()
   local reasoning = require("codecompanion.adapters").extend("anthropic", {
     schema = {
       model = {
-        default = "claude-3-7-sonnet-20250219",
+        default = "claude-opus-4-6",
+        choices = {
+          ["claude-opus-4-6"] = {
+            formatted_name = "Claude Opus 4.6",
+            meta = { max_tokens = 128000 },
+            opts = { can_reason = true },
+          },
+        },
       },
     },
   })
   local output = require("codecompanion.adapters").resolve(reasoning)
-  h.eq(17000, output.schema.max_tokens.default(reasoning))
+  h.eq(128000, output.schema.max_tokens.default(reasoning))
 end
 
 T["Anthropic adapter"]["Streaming"] = new_set()
@@ -615,6 +754,27 @@ T["Anthropic adapter"]["Streaming"]["can process tools"] = function()
   tools = adapter.handlers.tools.format_tool_calls(adapter, tools)
 
   h.eq(tool_output, tools)
+end
+
+T["Anthropic adapter"]["Streaming"]["can process compaction output"] = function()
+  local compaction = nil
+  local content = ""
+  local lines = vim.fn.readfile("tests/adapters/http/stubs/anthropic_compaction_streaming.txt")
+  for _, line in ipairs(lines) do
+    local chat_output = adapter.handlers.chat_output(adapter, line)
+    if chat_output then
+      if chat_output.output.meta and chat_output.output.meta.compaction then
+        compaction = chat_output.output.meta.compaction
+      end
+      if chat_output.output.content then
+        content = content .. chat_output.output.content
+      end
+    end
+  end
+
+  h.eq("compaction", compaction.type)
+  h.expect_starts_with("## Session Summary", compaction.content)
+  h.expect_starts_with("What would you like to", content)
 end
 
 T["Anthropic adapter"]["Streaming"]["can process reasoning output"] = function()
@@ -673,6 +833,18 @@ T["Anthropic adapter"]["No Streaming"]["can output for the inline assistant with
   h.expect_starts_with("Dynamic elegance", adapter.handlers.inline_output(adapter, json).output)
 end
 
+T["Anthropic adapter"]["No Streaming"]["can process compaction output"] = function()
+  local data = vim.fn.readfile("tests/adapters/http/stubs/anthropic_compaction_no_streaming.txt")
+  data = table.concat(data, "\n")
+
+  local json = { body = data }
+  local result = adapter.handlers.chat_output(adapter, json)
+
+  h.eq("compaction", result.output.meta.compaction.type)
+  h.expect_starts_with("## Session Summary", result.output.meta.compaction.content)
+  h.eq("What would you like to explore next?", result.output.content)
+end
+
 T["Anthropic adapter"]["No Streaming"]["can process tools"] = function()
   local data = vim.fn.readfile("tests/adapters/http/stubs/anthropic_tools_no_streaming.txt")
   data = table.concat(data, "\n")
@@ -728,6 +900,35 @@ T["Anthropic adapter"]["No Streaming"]["can output for the inline assistant with
     [[<response>\n  <code>hello world</code>\n  <language>lua</language>\n  <placement>add</placement>\n</response>]],
     adapter.handlers.inline_output(adapter, json).output
   )
+end
+
+T["Anthropic model_transformers"] = new_set()
+
+T["Anthropic model_transformers"]["from_anthropic() transforms the stubbed model list"] = function()
+  local model_transformers = require("codecompanion.adapters.utils.models.transform")
+
+  local body = table.concat(vim.fn.readfile("tests/adapters/http/stubs/model_list/anthropic.json"), "\n")
+  local json = vim.json.decode(body)
+
+  local result = {}
+  for _, model in ipairs(json.data) do
+    local id, entry = model_transformers.from_anthropic(model)
+    result[id] = entry
+  end
+
+  h.eq("Claude Sonnet 5", result["claude-sonnet-5"].formatted_name)
+  h.eq({ context_window = 1000000, max_tokens = 128000 }, result["claude-sonnet-5"].meta)
+  h.eq(true, result["claude-sonnet-5"].opts.can_reason)
+  h.eq(true, result["claude-sonnet-5"].opts.has_vision)
+
+  -- Supports context_management as a whole, including compact_20260112
+  h.eq(true, result["claude-sonnet-5"].opts.can_manage_context)
+
+  -- Only supports the legacy "enabled" thinking type, not adaptive effort
+  h.eq(true, result["claude-haiku-4-5-20251001"].opts.legacy_reasoning)
+
+  -- Supports context_management (clear_tool_uses/clear_thinking) but not compact_20260112
+  h.eq(false, result["claude-haiku-4-5-20251001"].opts.can_manage_context)
 end
 
 return T

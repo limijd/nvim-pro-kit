@@ -1,7 +1,8 @@
-local adapter_utils = require("codecompanion.utils.adapters")
+local adapter_utils = require("codecompanion.adapters.utils")
 local get_models = require("codecompanion.adapters.http.ollama.get_models")
 local log = require("codecompanion.utils.log")
 local openai = require("codecompanion.adapters.http.openai")
+local tags = require("codecompanion.interactions.shared.tags")
 
 ---@class CodeCompanion.HTTPAdapter.Ollama: CodeCompanion.HTTPAdapter
 return {
@@ -12,18 +13,23 @@ return {
     user = "user",
   },
   opts = {
+    cache_adapter = true, -- Cache the resolved adapter to prevent multiple resolutions
     stream = true,
     tools = true,
     vision = true,
-    cache_adapter = true, -- Cache the resolved adapter to prevent multiple resolutions
   },
   features = {
     text = true,
     tokens = true,
   },
   url = "${url}/api/chat",
+  headers = {
+    ["Content-Type"] = "application/json",
+  },
   env = {
-    url = "http://localhost:11434",
+    url = function()
+      return os.getenv("OLLAMA_HOST") or "http://localhost:11434"
+    end,
   },
   handlers = {
     setup = function(self)
@@ -100,7 +106,7 @@ return {
           end
 
           -- Process any images
-          if m._meta and m._meta.tag == "image" and m.context and m.context.mimetype then
+          if m._meta and m._meta.tag == tags.IMAGE and m.context and m.context.mimetype then
             m.images = m.images or {}
             if self.opts and self.opts.vision then
               table.insert(m.images, m.content)
@@ -121,6 +127,12 @@ return {
     end,
     form_tools = function(self, tools)
       return openai.handlers.form_tools(self, tools)
+    end,
+    form_structured_output = function(self, schema)
+      if not schema then
+        return
+      end
+      return require("codecompanion.adapters.utils.structured_outputs").to_ollama(schema)
     end,
     chat_output = function(self, data, tools)
       if not data or data == "" then

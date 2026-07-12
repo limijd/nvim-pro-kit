@@ -16,7 +16,7 @@ function! coc#source#codecompanion#complete(opt, cb) abort
 endfunction
 
 function! coc#source#codecompanion#on_complete(opt) abort
-  return a:cb(v:lua.codecompanion_coc_execute(a:opt))
+  call v:lua.codecompanion_coc_execute(a:opt)
 endfunction
 ]],
 }
@@ -30,7 +30,7 @@ _G.codecompanion_coc_execute = coc.execute
 ---@return nil
 local function ensure_autoload_file_exists()
   local dir = autoload_file.dir
-  local path = dir .. "/" .. autoload_file.name
+  local path = vim.fs.joinpath(dir, autoload_file.name)
 
   -- Check if the file exists; if yes, do nothing.
   if vim.fn.filereadable(path) == 1 then
@@ -72,6 +72,6 @@ local function ensure_buffer_attached()
 end
 
 vim.api.nvim_create_autocmd("FileType", {
-  pattern = "codecompanion",
+  pattern = { "codecompanion", "codecompanion_input" },
   callback = ensure_buffer_attached,
 })

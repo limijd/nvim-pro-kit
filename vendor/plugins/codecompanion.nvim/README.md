@@ -10,7 +10,7 @@
 <a href="https://github.com/olimorris/codecompanion.nvim/releases"><img src="https://img.shields.io/github/v/release/olimorris/codecompanion.nvim?style=for-the-badge"></a>
 </p>
 
-<p align="center">Code with LLMs and Agents via the <a href="https://codecompanion.olimorris.dev/getting-started.html">in-built</a> adapters, the <a href="https://codecompanion.olimorris.dev/configuration/adapters#community-adapters">community</a> adapters or by <a href="https://codecompanion.olimorris.dev/extending/adapters.html">building</a> your own</p>
+<p align="center">A Neovim AI coding assistant for coding with LLMs (Anthropic, OpenAI, Gemini, Copilot and <a href="https://codecompanion.olimorris.dev/getting-started.html">more</a>) and AI agents. With built-in support for <a href="https://agentclientprotocol.com">Agent Client Protocol (ACP)</a>, <a href="https://codecompanion.olimorris.dev/model-context-protocol">Model Context Protocol (MCP)</a>, and agents like <a href="https://docs.anthropic.com/en/docs/claude-code/overview">Claude Code</a> and <a href="https://openai.com/codex">Codex</a></p>
 
 <p align="center">New features are always announced <a href="https://github.com/olimorris/codecompanion.nvim/discussions/categories/announcements">here</a></p>
 
@@ -19,7 +19,7 @@
 Thank you to the following people:
 
 <p align="center">
-<!-- sponsors --><a href="https://github.com/unicell"><img src="https:&#x2F;&#x2F;github.com&#x2F;unicell.png" width="60px" alt="User avatar: Qiu Yu" /></a><a href="https://github.com/adam-e-trepanier"><img src="https:&#x2F;&#x2F;github.com&#x2F;adam-e-trepanier.png" width="60px" alt="User avatar: Adam Trepanier" /></a><a href="https://github.com/jfgordon2"><img src="https:&#x2F;&#x2F;github.com&#x2F;jfgordon2.png" width="60px" alt="User avatar: Jeff Gordon" /></a><a href="https://github.com/prettymuchbryce"><img src="https:&#x2F;&#x2F;github.com&#x2F;prettymuchbryce.png" width="60px" alt="User avatar: Bryce Neal" /></a><a href="https://github.com/pratyushmittal"><img src="https:&#x2F;&#x2F;github.com&#x2F;pratyushmittal.png" width="60px" alt="User avatar: Pratyush Mittal" /></a><a href="https://github.com/JuanCrg90"><img src="https:&#x2F;&#x2F;github.com&#x2F;JuanCrg90.png" width="60px" alt="User avatar: Juan Carlos Ruiz" /></a><a href="https://github.com/Alexander-Garcia"><img src="https:&#x2F;&#x2F;github.com&#x2F;Alexander-Garcia.png" width="60px" alt="User avatar: Alexander Garcia" /></a><a href="https://github.com/LumenYoung"><img src="https:&#x2F;&#x2F;github.com&#x2F;LumenYoung.png" width="60px" alt="User avatar: Lumen Yang" /></a><a href="https://github.com/JPFrancoia"><img src="https:&#x2F;&#x2F;github.com&#x2F;JPFrancoia.png" width="60px" alt="User avatar: JPFrancoia" /></a><a href="https://github.com/jinzhongjia"><img src="https:&#x2F;&#x2F;github.com&#x2F;jinzhongjia.png" width="60px" alt="User avatar: jinzhongjia" /></a><a href="https://github.com/mrjones2014"><img src="https:&#x2F;&#x2F;github.com&#x2F;mrjones2014.png" width="60px" alt="User avatar: Mat" /></a><a href="https://github.com/Jahn16"><img src="https:&#x2F;&#x2F;github.com&#x2F;Jahn16.png" width="60px" alt="User avatar: " /></a><a href="https://github.com/pixlmint"><img src="https:&#x2F;&#x2F;github.com&#x2F;pixlmint.png" width="60px" alt="User avatar: Christian Gröber" /></a><!-- sponsors -->
+<!-- sponsors --><a href="https://github.com/JuanCrg90"><img src="https:&#x2F;&#x2F;github.com&#x2F;JuanCrg90.png" width="60px" alt="User avatar: Juan Carlos Ruiz" /></a><a href="https://github.com/Alexander-Garcia"><img src="https:&#x2F;&#x2F;github.com&#x2F;Alexander-Garcia.png" width="60px" alt="User avatar: Alexander Garcia" /></a><a href="https://github.com/pixlmint"><img src="https:&#x2F;&#x2F;github.com&#x2F;pixlmint.png" width="60px" alt="User avatar: Christian Gröber" /></a><a href="https://github.com/itskyedo"><img src="https:&#x2F;&#x2F;github.com&#x2F;itskyedo.png" width="60px" alt="User avatar: Kyedo" /></a><a href="https://github.com/jsit"><img src="https:&#x2F;&#x2F;github.com&#x2F;jsit.png" width="60px" alt="User avatar: Jay Sitter" /></a><a href="https://github.com/harrisoncramer"><img src="https:&#x2F;&#x2F;github.com&#x2F;harrisoncramer.png" width="60px" alt="User avatar: Harrison (Harry) Cramer" /></a><!-- sponsors -->
 </p>
 
 <p align="center">If <i>you</i> love CodeCompanion and use it in your workflow, please consider <a href="https://github.com/sponsors/olimorris">sponsoring me</a></p>
@@ -29,15 +29,16 @@ Thank you to the following people:
 ## :sparkles: Features
 
 - :speech_balloon: [Copilot Chat](https://github.com/features/copilot) meets [Zed AI](https://zed.dev/blog/zed-ai), in Neovim
-- :electric_plug: Support for LLMs from Anthropic, Copilot, GitHub Models, DeepSeek, Gemini, Mistral AI, Novita, Ollama, OpenAI, Azure OpenAI, HuggingFace and xAI (or [bring your own](https://codecompanion.olimorris.dev/extending/adapters.html))
-- :robot: Support for [Agent Client Protocol](https://agentclientprotocol.com/overview/introduction), enabling coding with agents like [Augment Code](https://docs.augmentcode.com/cli/overview), [Cagent](https://github.com/docker/cagent) from Docker, [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://openai.com/codex), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Goose](https://block.github.io/goose/), [Kimi CLI](https://github.com/MoonshotAI/kimi-cli) and [opencode](https://opencode.ai)
-- :heart_hands: User contributed and supported [adapters](https://codecompanion.olimorris.dev/configuration/adapters#community-adapters)
-- :rocket: [Inline transformations](https://codecompanion.olimorris.dev/usage/inline-assistant.html), code creation and refactoring
-- :art: [Variables](https://codecompanion.olimorris.dev/usage/chat-buffer/variables.html), [Slash Commands](https://codecompanion.olimorris.dev/usage/chat-buffer/slash-commands.html), [Tools](https://codecompanion.olimorris.dev/usage/chat-buffer/tools.html) and [Workflows](https://codecompanion.olimorris.dev/usage/workflows.html) to improve LLM output
+- :zap: Integrates Neovim with LLMs and Agents in the CLI
+- :electric_plug: Support for LLMs from [Anthropic](https://platform.claude.com/docs/en/about-claude/models/overview),  [DeepSeek](https://www.deepseek.com), [Google Gemini](https://ai.google.dev/gemini-api/docs/models), [GitHub Copilot](https://github.com/features/copilot), [GitHub Models](https://docs.github.com/en/github-models), [Mistral](https://mistral.ai/), [Novita](https://novita.ai/), [Ollama](https://ollama.com/), [OpenAI](https://developers.openai.com/api/docs/models), Azure OpenAI, [OpenRouter](https://openrouter.ai/), [HuggingFace](https://huggingface.co/) and [xAI](https://docs.x.ai/developers/models) out of the box (or [bring your own](https://codecompanion.olimorris.dev/extending/adapters.html))
+- :robot: Support for [Agent Client Protocol](https://agentclientprotocol.com/overview/introduction), enabling coding with agents like [Augment Code](https://docs.augmentcode.com/cli/overview), [Cagent](https://github.com/docker/cagent) from Docker, [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://openai.com/codex), [Copilot CLI](https://github.com/features/copilot/cli), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Goose](https://block.github.io/goose/), [Cursor CLI](https://cursor.com/docs/cli/overview), [Kimi CLI](https://github.com/MoonshotAI/kimi-cli), [Kiro](https://kiro.dev/docs/cli/), [Mistral Vibe](https://github.com/mistralai/mistral-vibe) and [OpenCode](https://opencode.ai)
+- :heart_hands: User contributed and supported [adapters](https://codecompanion.olimorris.dev/configuration/adapters-http#community-adapters)
+- :battery: Support for [Model Context Protocol (MCP)](https://codecompanion.olimorris.dev/model-context-protocol#model-context-protocol-mcp-support)
+- :rocket: [Inline transformations](https://codecompanion.olimorris.dev/usage/inline.html), code creation and refactoring
+- :art: [Editor Context](https://codecompanion.olimorris.dev/usage/chat-buffer/editor-context.html), [Slash Commands](https://codecompanion.olimorris.dev/usage/chat-buffer/slash-commands.html), [Agents/Tools](https://codecompanion.olimorris.dev/usage/chat-buffer/agents-tools) and [Workflows](https://codecompanion.olimorris.dev/usage/workflows.html) to improve LLM output
 - :brain: Support for [rules](https://codecompanion.olimorris.dev/usage/chat-buffer/rules.html) files like `CLAUDE.md`, `.cursor/rules` and your own custom ones
-- :crystal_ball: Native [Super Diff](https://codecompanion.olimorris.dev/usage/chat-buffer/index.html#super-diff) for tracking agent edits
 - :sparkles: Built-in [prompt library](https://codecompanion.olimorris.dev/usage/action-palette.html) for common tasks like advice on LSP errors and code explanations
-- :building_construction: Create your own [custom prompts](https://codecompanion.olimorris.dev/configuration/prompt-library.html#creating-prompts), Variables and Slash Commands
+- :building_construction: Create your own [custom prompts](https://codecompanion.olimorris.dev/configuration/prompt-library.html#creating-prompts), Editor Context and Slash Commands
 - :books: Have [multiple chats](https://codecompanion.olimorris.dev/usage/introduction.html#quickly-accessing-a-chat-buffer) open at the same time
 - :art: Support for [vision and images](https://codecompanion.olimorris.dev/usage/chat-buffer/#images-vision) as input
 - :muscle: Async execution for fast performance
@@ -56,7 +57,7 @@ Thank you to the following people:
     <video controls muted src="https://github.com/user-attachments/assets/59efa262-e768-4f36-9901-9d02b018fcf0"></video>
   </p>
   <p>
-    <h3><a href="https://github.com/user-attachments/assets/dcddcb85-cba0-4017-9723-6e6b7f080fee">Inline Assistant</a></h3>
+    <h3><a href="https://github.com/user-attachments/assets/dcddcb85-cba0-4017-9723-6e6b7f080fee">Inline Interaction</a></h3>
     <video controls muted src="https://github.com/user-attachments/assets/11a42705-d9de-4eb5-a9ab-c8a2772fb4d4"></video>
   </p>
 </div>
@@ -127,7 +128,9 @@ buffer
 Command
 - [Saghen](https://github.com/Saghen) for the fantastic docs inspiration from [blink.cmp](https://github.com/Saghen/blink.cmp) and continued PRs to the project
 - [Catwell](https://github.com/catwell) for the [queue](https://github.com/catwell/cw-lua/blob/master/deque/deque.lua) inspiration that I use to stack agents and tools
+- [bassamsdata](https://github.com/bassamsdata) for the amazing `insert_edit_into_file` tool (the list is endless) and ongoing contributions to this project
 - [ravitemer](https://github.com/ravitemer) for the fantastic extensions API
 - [Davidyz](https://github.com/Davidyz) for his continued, excellent contributions that keep CodeCompanion going
 - [Conrad Irwin](https://github.com/conradirwin), [Agus Zubiaga](https://github.com/agu-z) and Morgan Krey from [Zed Industries](https://github.com/zed-industries) for their support in implementing [ACP](https://agentclientprotocol.com)
+- [Sidekick.nvim](https://github.com/folke/sidekick.nvim) for the diff and terminal input inspiration
 <!-- panvimdoc-ignore-end -->

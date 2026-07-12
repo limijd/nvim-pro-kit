@@ -1,8 +1,10 @@
-local adapter_utils = require("codecompanion.utils.adapters")
+local adapter_utils = require("codecompanion.adapters.utils")
 local get_models = require("codecompanion.adapters.http.copilot.get_models")
 local log = require("codecompanion.utils.log")
 local stats = require("codecompanion.adapters.http.copilot.stats")
+local tags = require("codecompanion.interactions.shared.tags")
 local token = require("codecompanion.adapters.http.copilot.token")
+local tokens = require("codecompanion.utils.tokens")
 
 local _fetching_models = false
 local version = vim.version()
@@ -20,6 +22,11 @@ local function resolve_model_opts(adapter)
     -- Avoid blocking during initialization
     choices = choices(adapter, { async = true })
   end
+
+  if adapter.model and choices and choices[model] then
+    adapter.model.info = choices[model]
+  end
+
   return choices and choices[model] or { opts = {} }
 end
 
@@ -63,6 +70,9 @@ local function handlers(adapter)
     end
     responses.handlers.tools.output_response = function(self, tool_call, output)
       return responses.handlers.tools.format_response(self, tool_call, output)
+    end
+    responses.handlers.form_structured_output = function(self, schema)
+      return responses.handlers.request.build_structured_output(self, schema)
     end
 
     return responses.handlers
@@ -133,6 +143,14 @@ return {
     ---@param self CodeCompanion.HTTPAdapter
     ---@return boolean
     setup = function(self)
+      -- Ensure models are fetched synchronously before checking capabilities
+      -- This prevents features from being disabled due to missing model info
+      local fetched_token = token.fetch({ force = true })
+      if fetched_token and fetched_token.copilot_token then
+        -- Force synchronous model fetch to ensure we have model capabilities
+        get_models.choices(self, { token = fetched_token, async = false })
+      end
+
       local model_opts = resolve_model_opts(self)
 
       if (self.opts and self.opts.stream) and (model_opts and model_opts.opts and model_opts.opts.can_stream) then
@@ -146,6 +164,11 @@ return {
       if (self.opts and self.opts.vision) and (model_opts and model_opts.opts and not model_opts.opts.has_vision) then
         self.opts.vision = false
       end
+      self.opts.can_form_structured_outputs = (
+        model_opts
+        and model_opts.opts
+        and model_opts.opts.can_form_structured_outputs
+      ) or false
 
       return token.init(self)
     end,
@@ -156,7 +179,7 @@ return {
     end,
     form_messages = function(self, messages)
       for _, m in ipairs(messages) do
-        if m._meta and m._meta.tag == "image" and (m.context and m.context.mimetype) then
+        if m._meta and m._meta.tag == tags.IMAGE and (m.context and m.context.mimetype) then
           self.headers["X-Initiator"] = "user"
           self.headers["Copilot-Vision-Request"] = "true"
           break
@@ -168,6 +191,14 @@ return {
         -- NOTE: The inclusion of this header reduces premium token usage when
         -- sending tool output back to the LLM (#1717)
         self.headers["X-Initiator"] = "agent"
+      end
+
+      -- Capture estimated token counts before OpenAI strips _meta
+      local est_tokens = {}
+      for _, m in ipairs(messages) do
+        if m._meta and m._meta.estimated_tokens and type(m.content) == "string" then
+          est_tokens[m.content] = m._meta.estimated_tokens
+        end
       end
 
       local result = handlers(self).form_messages(self, messages)
@@ -209,11 +240,49 @@ return {
         result.messages = merged
       end
 
+      -- Add copilot_cache_control to the top 4 messages by estimated token count.
+      -- Uses pre-computed _meta.estimated_tokens from the chat interaction,
+      -- falling back to on-the-fly calculation for messages without estimates
+      if result.messages and #result.messages > 0 then
+        local scored = {}
+        for i, m in ipairs(result.messages) do
+          local est = type(m.content) == "string" and est_tokens[m.content] or nil
+          if not est and type(m.content) == "string" then
+            est = tokens.calculate(m.content)
+          end
+          table.insert(scored, { index = i, tokens = est or 0 })
+        end
+
+        table.sort(scored, function(a, b)
+          return a.tokens > b.tokens
+        end)
+
+        -- Copilot limits us to 4 cache points at most
+        for j = 1, math.min(4, #scored) do
+          result.messages[scored[j].index].copilot_cache_control = { type = "ephemeral" }
+        end
+      end
+
       return result
     end,
     form_tools = function(self, tools)
       return handlers(self).form_tools(self, tools)
     end,
+
+    ---Form the structured output schema for the request body
+    ---@param self CodeCompanion.HTTPAdapter
+    ---@param schema CodeCompanion.StructuredOutput.Schema
+    ---@return table|nil
+    form_structured_output = function(self, schema)
+      if not schema then
+        return
+      end
+      if not self.opts.can_form_structured_outputs then
+        return log:warn("Model `%s` does not support structured outputs", self.model and self.model.name)
+      end
+      return handlers(self).form_structured_output(self, schema)
+    end,
+
     form_reasoning = function(self, data)
       local content = vim
         .iter(data)
@@ -269,13 +338,23 @@ return {
         local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
         if ok then
+          -- Models that use the responses endpoint have the tokens in copilot_usage
+          if json.copilot_usage and json.copilot_usage.token_details then
+            local total = 0
+            for _, detail in ipairs(json.copilot_usage.token_details) do
+              total = total + (detail.token_count or 0)
+            end
+            log:trace("Tokens: %s", total)
+            return total
+          end
+
           if json.usage then
             local total_tokens = json.usage.total_tokens or 0
             local completion_tokens = json.usage.completion_tokens or 0
             local prompt_tokens = json.usage.prompt_tokens or 0
-            local tokens = total_tokens > 0 and total_tokens or completion_tokens + prompt_tokens
-            log:trace("Tokens: %s", tokens)
-            return tokens
+            local total = total_tokens > 0 and total_tokens or completion_tokens + prompt_tokens
+            log:trace("Tokens: %s", total)
+            return total
           end
         end
       end
@@ -304,7 +383,6 @@ return {
       return handlers(self).inline_output(self, data, context)
     end,
     on_exit = function(self, data)
-      get_models.reset_cache()
       return handlers(self).on_exit(self, data)
     end,
   },
@@ -316,7 +394,7 @@ return {
       type = "enum",
       desc = "ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
       ---@type string|fun(): string
-      default = "gpt-4.1",
+      default = "gpt-5.4-mini",
       ---@type fun(self: CodeCompanion.HTTPAdapter, opts?: table): table
       choices = function(self, opts)
         opts = opts or {}
@@ -325,71 +403,10 @@ return {
         local force = opts.async == false
         local fetched = token.fetch({ force = force })
         if not fetched or not fetched.copilot_token then
-          return { ["gpt-4.1"] = { opts = {} } }
+          return { ["gpt-5.4-mini"] = { opts = {} } }
         end
         return get_models.choices(self, { token = fetched, async = opts.async })
       end,
-    },
-    ---@type CodeCompanion.Schema
-    temperature = {
-      order = 3,
-      mapping = "parameters",
-      type = "number",
-      default = 0.1,
-      ---@type fun(self: CodeCompanion.HTTPAdapter): boolean
-      enabled = function(self)
-        local model = self.schema.model.default
-        if type(model) == "function" then
-          model = model()
-        end
-        return not vim.startswith(model, "o1") and not model:find("codex") and not vim.startswith(model, "gpt-5")
-      end,
-      desc = "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or top_p but not both.",
-    },
-    max_tokens = {
-      order = 4,
-      mapping = "parameters",
-      type = "integer",
-      default = function(self)
-        local model_opts = resolve_model_opts(self)
-        if model_opts.limits and model_opts.limits.max_output_tokens then
-          return tonumber(model_opts.limits.max_output_tokens)
-        end
-        return 16384
-      end,
-      desc = "The maximum number of tokens to generate in the chat completion. The total length of input tokens and generated tokens is limited by the model's context length.",
-    },
-    ---@type CodeCompanion.Schema
-    top_p = {
-      order = 5,
-      mapping = "parameters",
-      type = "number",
-      default = 1,
-      ---@type fun(self: CodeCompanion.HTTPAdapter): boolean
-      enabled = function(self)
-        local model = self.schema.model.default
-        if type(model) == "function" then
-          model = model()
-        end
-        return not vim.startswith(model, "o1")
-      end,
-      desc = "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both.",
-    },
-    ---@type CodeCompanion.Schema
-    n = {
-      order = 6,
-      mapping = "parameters",
-      type = "number",
-      default = 1,
-      ---@type fun(self: CodeCompanion.HTTPAdapter): boolean
-      enabled = function(self)
-        local model = self.schema.model.default
-        if type(model) == "function" then
-          model = model()
-        end
-        return not vim.startswith(model, "o1")
-      end,
-      desc = "How many chat completions to generate for each prompt.",
     },
   },
 }

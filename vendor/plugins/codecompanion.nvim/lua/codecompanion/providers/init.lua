@@ -13,22 +13,6 @@ local configs = {
   fzf_lua = { module = "fzf-lua", name = "fzf_lua" },
   snacks = { module = "snacks", name = "snacks" },
 
-  -- Diffs
-  inline = {
-    module = "codecompanion.providers.diff.inline", -- Internal module path
-    name = "inline",
-    -- No condition needed - always available since it's internal
-  },
-  mini_diff = {
-    module = "mini.diff",
-    name = "mini_diff",
-    condition = function()
-      -- MiniDiff only works correctly if initialized,
-      -- which sets the global variable
-      return _G.MiniDiff ~= nil
-    end,
-  },
-
   -- Completion
   blink = { module = "blink.cmp", name = "blink" },
   cmp = {
@@ -46,7 +30,21 @@ local configs = {
     condition = function()
       local has_cmp, _ = pcall(require, "cmp")
       local has_blink, _ = pcall(require, "blink.cmp")
-      local has_coc = vim.fn.exists("*coc#rpc#ready") == 1
+
+      local has_coc = vim.g.did_coc_loaded == 1
+        or vim.g.coc_global_extensions ~= nil
+        or vim.fn.exists("*coc#rpc#ready") == 1
+
+      if not has_coc then
+        -- Fallback: check runtimepath for coc.nvim
+        for _, path in ipairs(vim.api.nvim_list_runtime_paths()) do
+          if path:find("coc%.nvim") then
+            has_coc = true
+            break
+          end
+        end
+      end
+
       return has_coc and not has_blink and not has_cmp
     end,
   },
@@ -69,6 +67,12 @@ local function find_provider(providers, providers_config, fallback)
         else
           return config.name
         end
+      elseif config.condition then
+        -- Module doesn't exist as a Lua module, but has a condition check
+        -- (e.g., coc.nvim is a VimScript/Node.js plugin, not a Lua module)
+        if config.condition() then
+          return config.name
+        end
       end
     end
   end
@@ -80,13 +84,6 @@ end
 local function action_palette_providers()
   local providers = { "telescope", "fzf_lua", "mini_pick", "snacks" }
   return find_provider(providers, configs, "default")
-end
-
----Get the default Diff provider
----@return string
-local function diff_providers()
-  local providers = { "inline", "split", "mini_diff" }
-  return find_provider(providers, configs, "inline")
 end
 
 ---Get the default Completion provider
@@ -121,7 +118,6 @@ end
 return {
   action_palette = action_palette_providers(),
   completion = completion_providers(),
-  diff = diff_providers(),
   help = help_providers(),
   images = image_providers(),
   pickers = pick_providers(),

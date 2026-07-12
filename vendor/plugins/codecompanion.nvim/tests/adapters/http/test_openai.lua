@@ -1,4 +1,5 @@
 local h = require("tests.helpers")
+local tags = require("codecompanion.interactions.shared.tags")
 local adapter
 
 local new_set = MiniTest.new_set
@@ -39,7 +40,7 @@ T["OpenAI adapter"]["it can form messages with images"] = function()
         mimetype = "image/jpg",
       },
       _meta = {
-        tag = "image",
+        tag = tags.IMAGE,
       },
       opts = {
         visible = false,
@@ -156,6 +157,7 @@ T["OpenAI adapter"]["can output tool call"] = function()
     role = "tool",
     tools = {
       call_id = "call_RJU6xfk0OzQF3Gg9cOFS5RY7",
+      name = "weather",
     },
   }, adapter.handlers.tools.output_response(adapter, tool_call, output))
 end
@@ -321,6 +323,34 @@ T["OpenAI adapter"]["reasoning_effort enabled"] = function()
   })
   local enabled_result_missing = adapter_missing_model.schema.reasoning_effort.enabled(adapter_missing_model)
   h.eq(false, enabled_result_missing)
+end
+
+T["OpenAI adapter"]["it can form a structured output"] = function()
+  local schema = {
+    name = "weather",
+    strict = true,
+    schema = {
+      type = "object",
+      properties = {
+        location = { type = "string" },
+      },
+      required = { "location" },
+      additionalProperties = false,
+    },
+  }
+
+  adapter.opts.can_form_structured_outputs = true
+  local output = adapter.handlers.form_structured_output(adapter, schema)
+
+  h.eq("json_schema", output.response_format.type)
+  h.eq("weather", output.response_format.json_schema.name)
+  h.eq(true, output.response_format.json_schema.strict)
+  h.eq(schema.schema, output.response_format.json_schema.schema)
+end
+
+T["OpenAI adapter"]["form_structured_output returns nil when no schema"] = function()
+  adapter.opts.can_form_structured_outputs = true
+  h.eq(nil, adapter.handlers.form_structured_output(adapter, nil))
 end
 
 return T

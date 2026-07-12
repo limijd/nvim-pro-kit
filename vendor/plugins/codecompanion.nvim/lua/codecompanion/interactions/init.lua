@@ -2,7 +2,8 @@ local adapters = require("codecompanion.adapters")
 local config = require("codecompanion.config")
 
 local log = require("codecompanion.utils.log")
-local rules_helpers = require("codecompanion.interactions.chat.rules.helpers")
+local rules_helpers = require("codecompanion.interactions.shared.rules.helpers")
+local tags = require("codecompanion.interactions.shared.tags")
 
 ---A user may specify an adapter for the prompt
 ---@param interaction CodeCompanion.Interactions
@@ -10,17 +11,53 @@ local rules_helpers = require("codecompanion.interactions.chat.rules.helpers")
 ---@return nil
 local function add_adapter(interaction, opts)
   if opts.adapter and opts.adapter.name then
-    interaction.selected.adapter = adapters.resolve(opts.adapter.name, { model = opts.adapter.model })
+    local resolve_opts = { model = opts.adapter.model }
+    if opts.adapter.acp_opts then
+      resolve_opts.session_config_options = opts.adapter.acp_opts
+    end
+    interaction.selected.adapter = adapters.resolve(opts.adapter.name, resolve_opts)
   end
 end
 
+---Extract tools from the selected prompt
+---@param selected table
+---@return table<string>|nil
+local function get_tools(selected)
+  return selected.tools
+end
+
+---Extract MCP servers from the selected prompt
+---@param selected table
+---@return table<string>|nil
+local function get_mcp_servers(selected)
+  return selected.mcp_servers
+end
+
+---Build callbacks from opts and rules
+---@param selected table The selected prompt
+---@return table
+local function get_callbacks(selected)
+  local opts = selected.opts or {}
+  local callbacks = opts.callbacks or {}
+
+  --TODO: Remove opts.rules fallback in v20.0.0
+  local rules = selected.rules or opts.rules
+  if rules and rules ~= "none" then
+    local rules_cb = rules_helpers.add_callbacks(callbacks, rules)
+    if rules_cb then
+      callbacks = rules_cb
+    end
+  end
+  return callbacks
+end
+
 ---@class CodeCompanion.Interactions
----@field buffer_context table
+---@field buffer_context CodeCompanion.BufferContext
 ---@field selected table
 local Interactions = {}
 
 ---@class CodeCompanion.InteractionArgs
----@field buffer_context table
+---@field buffer_context CodeCompanion.BufferContext
 ---@field selected table
 
 ---@param args CodeCompanion.InteractionArgs
@@ -36,7 +73,12 @@ end
 
 ---@param interaction string
 function Interactions:start(interaction)
-  return self[interaction](self)
+  local handler = self[interaction]
+  if type(handler) ~= "function" then
+    return log:warn("[Prompt Library] Unknown interaction `%s` for `%s`", interaction, self.selected.name)
+  end
+
+  return handler(self)
 end
 
 ---Add context to the chat buffer
@@ -87,7 +129,7 @@ function Interactions:chat()
   local prompts = self.selected.prompts
 
   if type(prompts[mode]) == "function" then
-    return prompts[mode]()
+    return prompts[mode](self.buffer_context)
   elseif type(prompts[mode]) == "table" then
     messages = self.evaluate_prompts(prompts[mode], self.buffer_context)
   else
@@ -111,25 +153,19 @@ function Interactions:chat()
       opts.pre_hook()
     end
 
-    local callbacks = opts and opts.callbacks or {}
-    if self.selected.opts.rules and self.selected.opts.rules ~= "none" then
-      local rules_cb = rules_helpers.add_callbacks(callbacks, self.selected.opts.rules)
-      if rules_cb then
-        callbacks = rules_cb
-      end
-    end
-
     log:info("[Interaction] Chat Initiated")
     return require("codecompanion.interactions.chat").new({
       adapter = self.selected.adapter,
       auto_submit = (opts and opts.auto_submit) or false,
       buffer_context = self.buffer_context,
-      callbacks = callbacks,
+      callbacks = get_callbacks(self.selected),
       from_prompt_library = self.selected.description and true or false,
       ignore_system_prompt = (opts and opts.ignore_system_prompt) or false,
       intro_message = (opts and opts.intro_message) or nil,
+      mcp_servers = get_mcp_servers(self.selected),
       messages = messages,
       stop_context_insertion = (opts and self.selected.opts.stop_context_insertion) or false,
+      tools = get_tools(self.selected),
     })
   end
 
@@ -185,7 +221,7 @@ function Interactions:workflow()
             p.content = p.content(self.buffer_context)
           end
           if p.role == config.constants.SYSTEM_ROLE and not p.opts then
-            p.opts = { visible = false, _meta = { tag = "from_custom_prompt" } }
+            p.opts = { visible = false, _meta = { tag = tags.FROM_CUSTOM_PROMPT } }
           end
           return p
         end)
@@ -203,8 +239,14 @@ function Interactions:workflow()
     adapter = self.selected.adapter,
     auto_submit = (messages[#messages].opts and messages[#messages].opts.auto_submit) or false,
     buffer_context = self.buffer_context,
+    callbacks = get_callbacks(self.selected),
+    mcp_servers = get_mcp_servers(self.selected),
     messages = messages,
+    tools = get_tools(self.selected),
   })
+  if not chat then
+    return
+  end
 
   if workflow.context then
     self.add_context(workflow, chat)
@@ -274,9 +316,9 @@ end
 
 ---Evaluate a set of prompts based on conditionals and context
 ---@param prompts table
----@param context table
+---@param buffer_context CodeCompanion.BufferContext
 ---@return table
-function Interactions.evaluate_prompts(prompts, context)
+function Interactions.evaluate_prompts(prompts, buffer_context)
   if type(prompts) ~= "table" or vim.tbl_isempty(prompts) then
     return {}
   end
@@ -285,12 +327,12 @@ function Interactions.evaluate_prompts(prompts, context)
     .iter(prompts)
     :filter(function(prompt)
       return not (prompt.opts and prompt.opts.contains_code and not config.can_send_code())
-        and not (prompt.condition and not prompt.condition(context))
+        and not (prompt.condition and not prompt.condition(buffer_context))
     end)
     :map(function(prompt)
-      local content = type(prompt.content) == "function" and prompt.content(context) or prompt.content
+      local content = type(prompt.content) == "function" and prompt.content(buffer_context) or prompt.content
       if prompt.role == config.constants.SYSTEM_ROLE and not prompt.opts then
-        prompt.opts = { visible = false, _meta = { tag = "from_custom_prompt" } }
+        prompt.opts = { visible = false, _meta = { tag = tags.FROM_CUSTOM_PROMPT } }
       end
       return {
         role = prompt.role or "",

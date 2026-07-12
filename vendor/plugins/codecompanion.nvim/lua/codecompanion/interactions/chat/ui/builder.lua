@@ -64,7 +64,8 @@ local Builder = {}
 ---@field block_index number
 ---@field last_write_start number -- 0-based
 ---@field last_write_end number -- 0-based
----@field current_section_start? number -- 0-based
+---@field current_section_start? number -- 0-based, the leading blank that precedes the section header
+---@field current_header_line? number -- 0-based, the line that holds the rendered "## role" header
 ---@field last_section_start? number -- 0-based
 
 ---@class CodeCompanion.Chat.UI.BuilderArgs
@@ -92,6 +93,7 @@ function Builder.new(args)
       last_write_start = 0,
       last_write_end = 0,
       current_section_start = nil,
+      current_header_line = nil,
       last_section_start = nil,
     },
 
@@ -136,8 +138,8 @@ local function create_state(out, base_state)
 end
 
 ---Add message using centralized state
----@param data table
----@param opts table
+---@param data { content?: string, role?: string, reasoning?: { content: string } }
+---@param opts? { type?: string, force_role?: boolean, insert_at?: number, status?: string, _icon_info?: table, virt_text_pos?: string }
 ---@return number,number|nil
 function Builder:add_message(data, opts)
   opts = opts or {}
@@ -150,7 +152,7 @@ function Builder:add_message(data, opts)
 
   if needs_header then
     state:update_role(data.role)
-    self:_add_header_spacing(lines, state)
+    self:_add_header_spacing(lines)
     self.chat.ui:set_header(lines, config.interactions.chat.roles[data.role])
 
     -- Section started: reset block trackers
@@ -170,6 +172,9 @@ function Builder:add_message(data, opts)
     state:start_new_block()
   end
 
+  -- Track how many lines were added before the formatter content (header spacing, etc.)
+  local pre_content_lines = #lines
+
   local has_content = data.content or (data.reasoning and data.reasoning.content)
 
   if has_content then
@@ -187,9 +192,20 @@ function Builder:add_message(data, opts)
     end
   end
 
+  -- NOTE: Adjust icon offset to account for header lines added before formatter content
+  if opts._icon_info and opts._icon_info.has_icon and pre_content_lines > 0 then
+    opts._icon_info.line_offset = (opts._icon_info.line_offset or 0) + pre_content_lines
+  end
+
   local insert_line, icon_id
   if not vim.tbl_isempty(lines) then
-    insert_line, icon_id = self:_write_to_buffer(lines, opts, fold_info, state)
+    insert_line, icon_id = self:_write_to_buffer(lines, {
+      _icon_info = opts._icon_info,
+      fold_info = fold_info,
+      insert_at = opts.insert_at,
+      state = state,
+      virt_text_pos = opts.virt_text_pos,
+    })
   end
 
   if current_type then
@@ -217,7 +233,7 @@ function Builder:add_message(data, opts)
 end
 
 ---Determine if we should start a new block under the header
----@param opts table
+---@param opts { type?: string }
 ---@param state table
 ---@return boolean
 function Builder:_should_start_new_block(opts, state)
@@ -225,19 +241,18 @@ function Builder:_should_start_new_block(opts, state)
 end
 
 ---Check if we need to add a header to the chat buffer
----@param data table
----@param opts table
+---@param data { role?: string }
+---@param opts { force_role?: boolean }
 ---@param state table
 ---@return boolean
 function Builder:_should_add_header(data, opts, state)
-  return (data.role and data.role ~= state.last_role) or (opts and opts.force_role)
+  return (data.role ~= nil and data.role ~= state.last_role) or (opts.force_role == true)
 end
 
 ---Add appropriate spacing before header
----@param lines table
----@param state table
+---@param lines string[]
 ---@return nil
-function Builder:_add_header_spacing(lines, state)
+function Builder:_add_header_spacing(lines)
   table.insert(lines, "")
   table.insert(lines, "")
 end
@@ -256,31 +271,32 @@ function Builder:_get_formatter(data, opts)
 end
 
 ---Write lines to buffer with all the buffer management
----@param lines table
+---@param lines string[]
 ---@param opts table
----@param fold_info table|nil
----@param state table
----@return number The line number where the content was written and the extmark id of any icon applied
-function Builder:_write_to_buffer(lines, opts, fold_info, state)
+---@return number, number|nil
+function Builder:_write_to_buffer(lines, opts)
+  local state = opts.state
+  local fold_info = opts.fold_info
+
   self.chat.ui:unlock_buf()
   local last_line, last_column, line_count = self.chat.ui:last()
 
-  local insert_line = last_line
+  local insert_line = opts.insert_at or last_line
   if opts.insert_at then
-    insert_line = opts.insert_at
     last_column = 0
   end
 
   local cursor_moved = api.nvim_win_get_cursor(0)[1] == line_count
 
-  if opts._icon_info and opts._icon_info.has_icon then
-    vim.schedule(function()
-      local target_line = last_line + (opts._icon_info.line_offset or 0)
-      Icons.apply(self.chat.bufnr, target_line, opts._icon_info.status)
-    end)
-  end
-
   api.nvim_buf_set_text(self.chat.bufnr, insert_line, last_column, insert_line, last_column, lines)
+
+  local icon_id
+  if opts._icon_info and opts._icon_info.has_icon then
+    local target_line = insert_line + (opts._icon_info.line_offset or 0)
+    icon_id = Icons.apply(self.chat.bufnr, target_line, opts._icon_info.status, {
+      virt_text_pos = opts.virt_text_pos,
+    })
+  end
 
   -- Record write bounds
   local end_line_written = insert_line + (#lines > 0 and (#lines - 1) or 0)
@@ -291,6 +307,8 @@ function Builder:_write_to_buffer(lines, opts, fold_info, state)
   if state.is_new_response then
     self.state.last_section_start = self.state.current_section_start
     self.state.current_section_start = insert_line
+    -- Header text sits 2 lines below `insert_line` (two blank spacers + header)
+    self.state.current_header_line = insert_line + 2
     self.chat.ui:render_headers()
   end
 
@@ -318,7 +336,7 @@ function Builder:_write_to_buffer(lines, opts, fold_info, state)
 
   self.chat.ui:move_cursor(cursor_moved)
 
-  return end_line_written + 1
+  return end_line_written + 1, icon_id
 end
 
 ---Sync formatting state back to builder's persistent state
@@ -337,8 +355,9 @@ end
 ---Update a specific line in the chat buffer
 ---@param line_number number The line number to update (1-based)
 ---@param content string The new content for the line
----@param opts? table Optional parameters
+---@param opts? { status?: string, icon_id?: number, priority?: number, virt_text_pos?: string }
 ---@return boolean success Whether the update was successful
+---@return number|nil icon_id The new icon extmark ID, if an icon was placed
 function Builder:update_line(line_number, content, opts)
   opts = opts or {}
 
@@ -361,18 +380,23 @@ function Builder:update_line(line_number, content, opts)
   local start_line = zero_based_line
   local end_line = zero_based_line + 1
 
+  local new_icon_id
   local ok, _ = pcall(api.nvim_buf_set_lines, self.chat.bufnr, start_line, end_line, false, { content })
   if ok and opts.status then
-    vim.schedule(function()
-      Icons.apply(self.chat.bufnr, start_line, opts.status, opts)
-    end)
+    -- Clear by extmark ID first (handles extmarks that may have moved to a different line)
+    if opts.icon_id then
+      pcall(api.nvim_buf_del_extmark, self.chat.bufnr, Icons.ns(), opts.icon_id)
+    end
+    -- Also clear by line range as a safety net
+    Icons.clear_line(self.chat.bufnr, start_line)
+    new_icon_id = Icons.apply(self.chat.bufnr, start_line, opts.status, opts)
   end
 
   if self.state.last_role ~= config.constants.USER_ROLE then
     self.chat.ui:lock_buf()
   end
 
-  return true
+  return true, new_icon_id
 end
 
 return Builder

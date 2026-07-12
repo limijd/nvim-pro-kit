@@ -116,22 +116,33 @@ function M.get(bufnr, args)
     lines, start_line, start_col, end_line, end_col = M.get_visual_selection(bufnr)
   end
 
+  local user_prompt = ""
+  if args and args.user_prompt then
+    user_prompt = args.user_prompt
+  end
+
+  local name = api.nvim_buf_get_name(bufnr)
+
   return {
     bufnr = bufnr,
     buftype = api.nvim_get_option_value("buftype", { buf = bufnr }) or "",
+    code = vim.tbl_count(lines) > 0 and table.concat(lines, "\n"),
     cursor_pos = cursor_pos,
     end_col = end_col,
     end_line = end_line,
     filetype = M.get_filetype(bufnr),
-    filename = api.nvim_buf_get_name(bufnr),
+    filename = vim.fn.fnamemodify(name, ":t"),
     is_visual = is_visual,
     is_normal = is_normal,
     lines = lines,
     line_count = api.nvim_buf_line_count(bufnr),
     mode = mode,
-    start_line = start_line,
+    path = name,
+    relative_path = vim.fn.fnamemodify(name, ":."),
     start_col = start_col,
+    start_line = start_line,
     winnr = winnr,
+    user_prompt = user_prompt,
   }
 end
 

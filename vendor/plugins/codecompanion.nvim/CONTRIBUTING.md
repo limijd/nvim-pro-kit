@@ -8,9 +8,36 @@ Before contributing a PR, please open up a discussion to talk about it. While I 
 
 The plugin has adopted semantic versioning. As such, any PR which breaks the existing API is unlikely to be merged.
 
+### CodeCompanion is Omakase
+
+In Japanese cuisine, omakase means _"I'll leave it up to you"_ - the diner allows the chef to carefully select each course. CodeCompanion follows this philosophy: carefully curated features, rather than an all-you-can-eat buffet of every possible feature. In the world of LLMs, this means that CodeCompanion will never be at the bleeding edge. However, what it sacrifices in novelty, it makes up for in stability, reliability, and a great user experience.
+
+**Breaking this down:**
+- **Intentional over exhaustive** - Each new feature is carefully considered against the whole menu rather than just the course itself
+- **Complementary** - New features compliment the dish rather than acting like an unnecessary side
+- **Maintainable** - Every addition is code that I commit to maintaining indefinitely
+
+### AI-Assisted Contributions
+
+While CodeCompanion itself is a tool for AI-assisted development, that does not mean I am willing to accept "vibe-coded" contributions - PRs where the contributor used an LLM to generate code but doesn't deeply understand what they're submitting.
+
+**Red flags:**
+- User cannot explain implementation decisions when asked
+- Code doesn't match existing architectural patterns
+- Tests appear comprehensive but don't actually validate edge cases
+- Generic LLM patterns (overly defensive coding, verbose comments)
+
+**What I Expect**:
+- **Understand** the codebase before contributing (use the rules, read the tests, explore the architecture)
+- **Own** your contribution - you should be able to explain every line you submit
+- **Test** thoroughly - write tests that demonstrate you understand the feature
+- **Iterate** based on feedback - PRs are conversations, not fire-and-forget submissions
+
+> As a rule of thumb, use an LLM to create a feature _OR_ a test. But never both.
+
 ## How to Contribute
 
-1. Open up a [discussion](https://github.com/olimorris/codecompanion.nvim/discussions) to propose your idea.
+1. Open up a [discussion](https://github.com/olimorris/codecompanion.nvim/discussions) to propose your idea - Save yourself time and effort by checking this is a feature that aligns with the project's goals.
 2. Fork the repository and create your branch from `main`.
 3. Add your feature or fix to your branch.
 4. Ensure your code follows the project's coding style and conventions.
@@ -27,20 +54,13 @@ They're located [here](https://codecompanion.olimorris.dev) and are regularly up
 
 ### Use Rules
 
-When working inside the CodeCompanion repository, you have access to the built-in [rule](https://codecompanion.olimorris.dev/usage/chat-buffer/rules) files. These give an LLM knowledge of how a certain aspect of the plugin has been implemented. If you're looking to add a new feature to CodeCompanion, memory is a great way of ensuring you follow existing practices and that your LLM fully understands the architecture and design decisions that have been made.
+When working inside the CodeCompanion repository, you have access to the built-in [rule](https://codecompanion.olimorris.dev/usage/chat-buffer/rules) files. These give an LLM knowledge of how a certain aspect of the plugin has been implemented. If you're looking to add a new feature to CodeCompanion, rules are a great way of ensuring you follow existing practices and that your LLM fully understands the architecture and design decisions that have been made.
 
-You can load memory into the chat via the Action Palette:
+You can load rules into the chat via the Action Palette:
 
-<img src="https://github.com/user-attachments/assets/7ea80fd0-136e-4d7e-9d70-f4d08dec005c">
+<img src="https://github.com/user-attachments/assets/7ea80fd0-136e-4d7e-9d70-f4d08dec005c" alt="Loading rules" />
 
-Or, via the `/rules` slash command. Currently, the memory files that have been added are:
-
-- ACP
-- Adapters
-- Chat
-- Tests
-- Tools
-- UI
+Or, via the `/rules` slash command.
 
 ### Refer to the Tests
 
@@ -66,10 +86,25 @@ CodeCompanion.nvim is organized into several key directories:
 
 ### Prerequisites
 
-- Neovim 0.10.0+
+- Neovim 0.11.0+
+- [tree-sitter](https://github.com/tree-sitter/tree-sitter) for testing
 - [lua-language-server](https://github.com/LuaLS/lua-language-server) for LSP support and type annotations
 - [stylua](https://github.com/JohnnyMorganz/StyLua) for Lua formatting
 - [pandoc](https://pandoc.org) for doc generation
+
+### Using the included Dockerfile
+
+The project includes a Dockerfile to create a container where you can run the `make` tools, including the tests.
+
+Usage example:
+
+```bash
+# Build the container image
+docker build -t codecompanion.nvim .
+
+# Use it to get the deps and run the tests
+docker run --rm -ti -u $(id -u):$(id -g) -v "$(pwd)":/cc -w /cc codecompanion.nvim:latest make deps test
+```
 
 ### Setting Up for Development
 
@@ -142,13 +177,13 @@ A simple proxy server can be set up using [mitmproxy](https://mitmproxy.org/).
 ```
 
 From now on, all requests will be forwarded to the proxy server.
+
 <details>
 <summary>screenshot</summary>
 <img width="1506" alt="debug request with proxy screenshot" src="https://github.com/user-attachments/assets/60f31736-da83-4b80-bc61-341bb7fc82f7" />
 </details>
 
 With mitmproxy you can much more using custom scripts/hooks like simulating slower connections, patch requests, etc. Check out the [documentation](https://docs.mitmproxy.org/stable/addons-overview/) for more information.
-
 
 ## Testing
 
@@ -179,7 +214,7 @@ In order for tests to run on Windows, please ensure the following:
 - Define the `%HOME%` environment variable to `%HOMEDRIVE%%HOMEPATH%` or `%USERPROFILE%`
 - Create the directory `deps` in the CodeCompanion root, if it doesn't exist.
 
-For *make* and a compiler, running *x64 Native Tools Command Prompt* from *Visual Studio Community 2022*, provides *NMake* and the *Visual C++* compiler, which work fine for this purpose.
+For _make_ and a compiler, running _x64 Native Tools Command Prompt_ from _Visual Studio Community 2022_, provides _NMake_ and the _Visual C++_ compiler, which work fine for this purpose.
 
 From cmd.exe:
 
@@ -196,6 +231,10 @@ nmake test
 REM run a single test suite
 nmake FILE=tests/interactions/chat/tools/runtime/tests_cmd.lua test_file
 ```
+
+> ![NOTE]
+> You can also use `Make.ps1` Powershell script to run the same commands you would run with `make` (format/docs/test/test_file) or just run `Make.ps1` alone to execute `all` at once.
+> Make sure that all the slashes are "/" in your args in order for `MiniTest` to work; avoid backslashes when using `test_file` args.
 
 ### Testing Tips
 

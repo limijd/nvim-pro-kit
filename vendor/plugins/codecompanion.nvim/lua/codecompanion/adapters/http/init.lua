@@ -43,6 +43,7 @@ local function get_handler(adapter, name)
     build_parameters = "form_parameters",
     build_messages = "form_messages",
     build_tools = "form_tools",
+    build_structured_output = "form_structured_output",
     build_body = "set_body",
     build_reasoning = "form_reasoning",
 
@@ -78,6 +79,7 @@ end
 ---@field build_parameters? fun(self: CodeCompanion.HTTPAdapter, params: table, messages: table): table
 ---@field build_messages? fun(self: CodeCompanion.HTTPAdapter, messages: table): table
 ---@field build_tools? fun(self: CodeCompanion.HTTPAdapter, tools: table): table|nil
+---@field build_structured_output? fun(self: CodeCompanion.HTTPAdapter, schema: CodeCompanion.StructuredOutput.Schema): table|nil
 ---@field build_reasoning? fun(self: CodeCompanion.HTTPAdapter, messages: table): nil|{ content: string, _data: table }
 ---@field build_body? fun(self: CodeCompanion.HTTPAdapter, data: table): table|nil
 
@@ -103,6 +105,7 @@ end
 ---@field form_messages? fun(self: CodeCompanion.HTTPAdapter, messages: table): table (Deprecated: use request.build_messages)
 ---@field form_reasoning? fun(self: CodeCompanion.HTTPAdapter, messages: table): nil|{ content: string, _data: table } (Deprecated: use request.build_reasoning)
 ---@field form_tools? fun(self: CodeCompanion.HTTPAdapter, tools: table): table (Deprecated: use request.build_tools)
+---@field form_structured_output? fun(self: CodeCompanion.HTTPAdapter, schema: CodeCompanion.StructuredOutput.Schema): table|nil (Deprecated: use request.build_structured_output)
 ---@field tokens? fun(self: CodeCompanion.HTTPAdapter, data: table): number|nil (Deprecated: use response.parse_tokens)
 ---@field chat_output? fun(self: CodeCompanion.HTTPAdapter, data: table, tools: table): table|nil (Deprecated: use response.parse_chat)
 ---@field inline_output? fun(self: CodeCompanion.HTTPAdapter, data: table, context: table): table|nil (Deprecated: use response.parse_inline)
@@ -111,6 +114,7 @@ end
 
 ---@class CodeCompanion.HTTPAdapter
 ---@field name string The name of the adapter
+---@field vendor? string The vendor of the adapter, e.g. "openai" or "azure"
 ---@field type string|"http" The type of the adapter, e.g. "http" or "acp"
 ---@field formatted_name string The formatted name of the adapter
 ---@field available_tools? table The tools that are available for the adapter
@@ -119,28 +123,34 @@ end
 ---@field url string The URL of the generative AI service to connect to
 ---@field env? table Environment variables which can be referenced in the parameters
 ---@field env_replaced? table Replacement of environment variables with their actual values
+---
+---@field body table Additional body parameters to pass to the request
 ---@field headers table The headers to pass to the request
 ---@field parameters table The parameters to pass to the request
----@field body table Additional body parameters to pass to the request
----@field temp? table A table to store temporary values which are not passed to the request
 ---@field raw? table Any additional curl arguments to pass to the request
----@field opts? table Additional options for the adapter
----@field model? { name: string, formatted_name?: string, vendor?: string, opts: table } The model to use for the request
+---
 ---@field handlers CodeCompanion.HTTPAdapter.Handlers Functions which link the output from the request to CodeCompanion
----@field schema table Set of parameters for the generative AI service that the user can customise in the chat buffer
+---@field meta? { context_window: number } Data about the selected model
 ---@field methods table Methods that the adapter can perform e.g. for Slash Commands
+---@field model? { name: string, formatted_name?: string, info?: table, meta?: table, opts: table, vendor?: string } The model to use for the request
+---@field opts? table Additional options for the adapter
+---@field schema table Set of parameters for the generative AI service that the user can customise in the chat buffer
+---@field temp? table A table to store temporary values which are not passed to the request
 
 ---@class CodeCompanion.HTTPAdapter.Safe
 ---@field name string The name of the adapter
----@field model string The current model name
+---@field vendor? string The vendor of the adapter, e.g. "openai" or "azure"
+---@field type string|"http" The type of the adapter, e.g. "http" or "acp"
+---@field model table The current model name
 ---@field available_tools? table The tools that are available for the adapter
 ---@field formatted_name string The formatted name of the adapter
 ---@field features table The features that the adapter supports
 ---@field url string The URL of the generative AI service to connect to
 ---@field headers table The headers to pass to the request
 ---@field parameters table The parameters to pass to the request
----@field opts? table Additional options for the adapter
 ---@field handlers CodeCompanion.HTTPAdapter.Handlers Functions which link the output from the request to CodeCompanion
+---@field opts? table Additional options for the adapter
+---@field meta? table Data about the selected model
 ---@field schema table Set of parameters for the generative AI service that the user can customise in the chat buffer
 
 ---@class CodeCompanion.HTTPAdapter
@@ -264,23 +274,30 @@ function Adapter.extend(adapter, opts)
 end
 
 ---Set the model name and options on the adapter for convenience
----@param adapter CodeCompanion.HTTPAdapter
+---@param args { adapter: CodeCompanion.HTTPAdapter }
 ---@return CodeCompanion.HTTPAdapter
-function Adapter.set_model(adapter)
+function Adapter.set_model(args)
+  local adapter = args.adapter
+
   -- Set the model dictionary as a convenience for the user. This can be string
   -- or function values. If they're functions, these are likely to make http
   -- requests to obtain a list of available models. This is expensive, so
-  -- we dont't execute them here. Instead, let the user decide when to.
+  -- we don't execute them here. Instead, let the user decide when to.
   if adapter.schema and adapter.schema.model then
     adapter.model = {}
     local model = adapter.schema.model.default
     local choices = adapter.schema.model.choices
+
+    adapter.model.vendor = adapter.vendor or adapter.name
 
     if type(model) == "string" then
       adapter.model.name = model
     end
     if type(choices) == "table" then
       adapter.model.opts = (choices[model] and choices[model].opts) and choices[model].opts
+      adapter.model.meta = (choices[model] and choices[model].meta) and choices[model].meta
+      adapter.model.formatted_name = (choices[model] and choices[model].formatted_name)
+        and choices[model].formatted_name
     end
   end
 
@@ -295,10 +312,12 @@ function Adapter.resolve(adapter, opts)
   adapter = adapter or config.interactions.chat.adapter
   opts = opts or {}
 
+  local key = type(adapter) == "string" and adapter or nil
+
   if type(adapter) == "table" then
     if adapter.name and adapter.schema and Adapter.resolved(adapter) then
       log:trace("[adapters:http:resolve] Returning existing resolved adapter: %s", adapter.name)
-      return Adapter.set_model(adapter)
+      return Adapter.set_model({ adapter = adapter })
     elseif adapter.name and adapter.model then
       log:trace("[adapters:http:resolve] Table adapter: %s", adapter.name)
       local model_name = type(adapter.model) == "table" and adapter.model.name or adapter.model
@@ -334,7 +353,9 @@ function Adapter.resolve(adapter, opts)
     adapter.handlers.resolve(adapter)
   end
 
-  return Adapter.set_model(adapter)
+  shared.apply_extend(adapter, { extend = config.adapters.http.extend, key = key })
+
+  return Adapter.set_model({ adapter = adapter })
 end
 
 ---Check if an adapter has already been resolved
@@ -354,6 +375,7 @@ end
 function Adapter.make_safe(adapter)
   return {
     name = adapter.name,
+    vendor = adapter.vendor,
     type = adapter.type,
     model = adapter.model,
     available_tools = adapter.available_tools,
@@ -362,8 +384,9 @@ function Adapter.make_safe(adapter)
     url = adapter.url,
     headers = adapter.headers,
     parameters = adapter.parameters,
-    opts = adapter.opts,
     handlers = adapter.handlers,
+    opts = adapter.opts,
+    meta = adapter.meta,
     schema = vim
       .iter(adapter.schema)
       :filter(function(n, _)

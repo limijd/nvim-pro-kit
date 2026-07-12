@@ -1,41 +1,27 @@
-local buf_utils = require("codecompanion.utils.buffers")
 local config = require("codecompanion.config")
-local interactions = require("codecompanion.interactions")
 local slash_command_filter = require("codecompanion.interactions.chat.slash_commands.filter")
 local tool_filter = require("codecompanion.interactions.chat.tools.filter")
+local triggers = require("codecompanion.triggers")
+
+local buf_utils = require("codecompanion.utils.buffers")
 
 local api = vim.api
 
----ACP slash commands are triggered by a configurable trigger (default: "\")
----@return string
-local function get_acp_trigger()
-  if config.interactions.chat.slash_commands.opts and config.interactions.chat.slash_commands.opts.acp then
-    return config.interactions.chat.slash_commands.opts.acp.trigger or "\\"
-  end
-  return "\\"
-end
+-- Editor context groups and cache
+local _ec_aug = nil
+local _ec_cache = {} ---@type table<string, table>
+local _ec_cache_valid = false
 
-local trigger = {
-  acp_commands = get_acp_trigger(),
-  slash_commands = "/",
-  tools = "@",
-  variables = "#",
-}
-
-local _vars_aug = nil
-local _vars_cache = nil
-local _vars_cache_valid = false
-
----Setup the variable cache
+---Setup the editor context cache
 ---@return nil
-local function _vars_cache_setup()
-  if _vars_aug then
+local function _ec_cache_setup()
+  if _ec_aug then
     return
   end
 
-  _vars_aug = api.nvim_create_augroup("codecompanion.chat.variables", { clear = true })
+  _ec_aug = api.nvim_create_augroup("codecompanion.chat.editor_context", { clear = true })
 
-  -- Invalidate the cache on the following events
+  -- Keep track of the current buffer state across Neovim
   api.nvim_create_autocmd({
     "BufAdd",
     "BufDelete",
@@ -44,9 +30,10 @@ local function _vars_cache_setup()
     "BufNewFile",
     "BufReadPost",
   }, {
-    group = _vars_aug,
+    group = _ec_aug,
     callback = function()
-      _vars_cache_valid = false
+      _ec_cache = {}
+      _ec_cache_valid = false
     end,
   })
 end
@@ -100,8 +87,11 @@ api.nvim_create_autocmd("User", {
 })
 
 ---Return the slash commands to be used for completion
+---@param interaction? string The interaction type to filter by (defaults to current buffer)
 ---@return table
-function M.slash_commands()
+function M.slash_commands(interaction)
+  interaction = interaction or M.interaction_type()
+
   local bufnr = api.nvim_get_current_buf()
   local adapter_info = adapter_cache[bufnr]
 
@@ -112,12 +102,28 @@ function M.slash_commands()
 
   local slash_commands = vim
     .iter(filtered_slash_commands)
-    :filter(function(name)
-      return name ~= "opts"
+    :filter(function(name, v)
+      if name == "opts" then
+        return false
+      end
+      -- CLI: strict opt-in only via opts.interactions
+      if interaction == "cli" then
+        local allowed = v.opts and v.opts.interactions
+        if not allowed or not vim.tbl_contains(allowed, "cli") then
+          return false
+        end
+      else
+        -- Chat: backwards compatible — only filter out if explicitly excluded
+        local allowed = v.opts and v.opts.interactions
+        if allowed and not vim.tbl_contains(allowed, interaction) then
+          return false
+        end
+      end
+      return true
     end)
     :map(function(label, v)
       return {
-        label = trigger.slash_commands .. label,
+        label = triggers.mappings.slash_commands .. label,
         detail = v.description,
         config = v,
         type = "slash_command",
@@ -125,72 +131,43 @@ function M.slash_commands()
     end)
     :totable()
 
-  -- Slash commands from prompt library
-  vim
-    .iter(pairs(require("codecompanion.helpers").get_prompts()))
-    :filter(function(_, v)
-      if not (v.opts and v.opts.is_slash_cmd and v.interaction == "chat") then
-        return false
-      end
-
-      -- Check if this prompt library slash command should be enabled
-      if v.enabled ~= nil then
-        if type(v.enabled) == "function" then
-          local ok, result = pcall(v.enabled, { adapter = adapter_info })
-          return ok and result
-        elseif type(v.enabled) == "boolean" then
-          return v.enabled
+  -- Prompt library slash commands (chat only)
+  if interaction == "chat" then
+    vim
+      .iter(pairs(require("codecompanion.helpers").get_prompts()))
+      :filter(function(_, v)
+        if not (v.opts and v.opts.is_slash_cmd and v.interaction == "chat") then
+          return false
         end
-      end
-      return true
-    end)
-    :each(function(_, v)
-      local prompt = {
-        detail = v.description,
-        config = v,
-        type = "slash_command",
-        from_prompt_library = true,
-      }
-      if v.opts and v.opts.alias then
-        prompt.label = "/" .. v.opts.alias
-      else
-        prompt.label = "/" .. v.name
-      end
-      table.insert(slash_commands, prompt)
-    end)
+
+        -- Check if this prompt library slash command should be enabled
+        if v.enabled ~= nil then
+          if type(v.enabled) == "function" then
+            local ok, result = pcall(v.enabled, { adapter = adapter_info })
+            return ok and result
+          elseif type(v.enabled) == "boolean" then
+            return v.enabled
+          end
+        end
+        return true
+      end)
+      :each(function(_, v)
+        local prompt = {
+          detail = v.description,
+          config = v,
+          type = "slash_command",
+          from_prompt_library = true,
+        }
+        if v.opts and v.opts.alias then
+          prompt.label = string.format("%s%s", triggers.mappings.slash_commands, v.opts.alias)
+        else
+          prompt.label = string.format("%s%s", triggers.mappings.slash_commands, v.opts.name)
+        end
+        table.insert(slash_commands, prompt)
+      end)
+  end
 
   return slash_commands
-end
-
----Execute selected slash command
----@param selected table The selected item from the completion menu
----@param chat CodeCompanion.Chat
----@return nil
-function M.slash_commands_execute(selected, chat)
-  if selected.from_prompt_library then
-    local context = selected.config.context
-    if context then
-      interactions.add_context(selected.config, chat)
-    end
-
-    local prompts = {}
-    if selected.config.opts and selected.config.opts.is_markdown then
-      prompts =
-        require("codecompanion.actions.markdown").resolve_placeholders(selected.config, selected.context).prompts
-    else
-      prompts = interactions.evaluate_prompts(selected.config.prompts, selected.context)
-    end
-
-    vim.iter(prompts):each(function(prompt)
-      if prompt.role == config.constants.SYSTEM_ROLE then
-        chat:add_message(prompt, { visible = false })
-      elseif prompt.role == config.constants.USER_ROLE then
-        chat:add_buf_message(prompt)
-      end
-    end)
-  else
-    require("codecompanion.interactions.chat.slash_commands"):execute(selected, chat)
-  end
 end
 
 ---Return the ACP commands to be used for completion
@@ -207,7 +184,6 @@ function M.acp_commands(bufnr)
 
   local acp_commands = require("codecompanion.interactions.chat.acp.commands")
   local commands = acp_commands.get_commands_for_buffer(bufnr)
-  local acp_trigger = get_acp_trigger()
 
   return vim
     .iter(commands)
@@ -218,33 +194,13 @@ function M.acp_commands(bufnr)
       end
 
       return {
-        label = acp_trigger .. cmd.name,
+        label = triggers.mappings.acp_slash_commands .. cmd.name,
         detail = detail,
         command = cmd,
         type = "acp_command",
       }
     end)
     :totable()
-end
-
----Execute selected ACP command (insert as text, no auto-submit)
----@param selected table The selected item from the completion menu
----@return string The text to insert
-function M.acp_commands_execute(selected)
-  -- Return the command text with backslash trigger (will be transformed to forward slash on send)
-  local text = get_acp_trigger() .. selected.command.name
-
-  -- Add a space if the command accepts arguments
-  if
-    selected.command.input
-    and selected.command.input ~= vim.NIL
-    and type(selected.command.input) == "table"
-    and selected.command.input.hint
-  then
-    text = text .. " "
-  end
-
-  return text
 end
 
 ---Return the tools to be used for completion
@@ -269,7 +225,7 @@ function M.tools()
     end)
     :map(function(label, v)
       return {
-        label = trigger.tools .. label,
+        label = triggers.mappings.tools .. label,
         name = label,
         type = "tool",
         callback = v.callback,
@@ -291,7 +247,7 @@ function M.tools()
       end
 
       table.insert(items, {
-        label = trigger.tools .. label,
+        label = triggers.mappings.tools .. label,
         name = label,
         type = "tool",
         callback = v.callback,
@@ -302,22 +258,45 @@ function M.tools()
   return items
 end
 
----Return the variables to be used for completion
+---Determine the interaction type from the current buffer's filetype
+---@return string "chat"|"cli"
+function M.interaction_type()
+  if vim.bo.filetype == "codecompanion_input" then
+    return "cli"
+  end
+  return "chat"
+end
+
+---Return the editor context to be used for completion
+---@param interaction? string The interaction type to filter by (defaults to current buffer)
 ---@return table
-function M.variables()
-  _vars_cache_setup()
-  if _vars_cache and _vars_cache_valid then
-    return _vars_cache
+function M.editor_context(interaction)
+  interaction = interaction or M.interaction_type()
+
+  _ec_cache_setup()
+  if _ec_cache[interaction] and _ec_cache_valid then
+    return _ec_cache[interaction]
   end
 
-  local config_vars = config.interactions.chat.variables
-  local variables = vim
-    .iter(config_vars)
+  local ec_config = config.interactions.shared.editor_context
+
+  local editor_context = vim
+    .iter(ec_config)
+    :filter(function(label, data)
+      if label == "opts" then
+        return false
+      end
+      local allowed = data.opts and data.opts.interactions
+      if allowed and not vim.tbl_contains(allowed, interaction) then
+        return false
+      end
+      return true
+    end)
     :map(function(label, data)
       return {
-        label = trigger.variables .. label,
+        label = triggers.mappings.editor_context .. label,
         detail = data.description,
-        type = "variable",
+        type = "editor_context",
       }
     end)
     :totable()
@@ -334,23 +313,23 @@ function M.variables()
     :map(function(buf)
       local name
       if name_counts[buf.name] > 1 then
-        name = buf.short_path
+        name = buf.path
       else
         name = buf.name
       end
 
       return {
-        label = trigger.variables .. "buffer:" .. name,
-        detail = "Path: " .. buf.relative_path .. "\nBuffer: " .. buf.bufnr,
-        type = "variable",
+        label = triggers.mappings.editor_context .. "buffer:" .. name,
+        detail = "Path: " .. buf.path .. "\nBuffer: " .. buf.bufnr,
+        type = "editor_context",
       }
     end)
     :totable()
 
-  _vars_cache = vim.list_extend(variables, buffers)
-  _vars_cache_valid = true
+  _ec_cache[interaction] = vim.list_extend(editor_context, buffers)
+  _ec_cache_valid = true
 
-  return _vars_cache
+  return _ec_cache[interaction]
 end
 
 return M

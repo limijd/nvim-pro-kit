@@ -1,15 +1,5 @@
 local BaseFormatter = require("codecompanion.interactions.chat.ui.formatters.base")
 local config = require("codecompanion.config")
-local log = require("codecompanion.utils.log")
-
-local CONSTANTS = {
-  icons = {
-    pending = config.display.chat.icons.tool_pending or "⏳",
-    in_progress = config.display.chat.icons.tool_in_progress or "⚡",
-    failed = config.display.chat.icons.tool_failure or "❌",
-    completed = config.display.chat.icons.tool_success or "✅",
-  },
-}
 
 ---@class CodeCompanion.Chat.UI.Formatters.Tools : CodeCompanion.Chat.UI.Formatters.Base
 local Tools = setmetatable({}, { __index = BaseFormatter })
@@ -53,8 +43,6 @@ function Tools:format(message, opts, state)
 
   local content = message.content or ""
   if opts.status then
-    local icon = CONSTANTS.icons[opts.status]
-    content = icon .. " " .. content
     opts._icon_info = {
       status = opts.status,
       has_icon = true,
@@ -75,14 +63,11 @@ function Tools:format(message, opts, state)
   end
 
   -- Calculate fold positions relative to the buffer
-  local fold_info = nil
-  if #content_lines > 1 then
-    fold_info = {
-      start_offset = content_start_index - 1, -- 0-based: first content line
-      end_offset = content_start_index + #content_lines - 2, -- 0-based: last content line
-      first_line = content_lines[1] or "",
-    }
-  end
+  local fold_info = {
+    start_offset = content_start_index - 1, -- 0-based: first content line
+    end_offset = content_start_index + #content_lines - 2, -- 0-based: last content line
+    first_line = content_lines[1] or "",
+  }
 
   return lines, fold_info
 end

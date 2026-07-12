@@ -50,7 +50,7 @@ This adaptive approach prevents false positives while ensuring edits eventually 
 
 local constants = require("codecompanion.interactions.chat.tools.builtin.insert_edit_into_file.constants")
 local log = require("codecompanion.utils.log")
-local text_utils = require("codecompanion.interactions.chat.tools.builtin.insert_edit_into_file.text_utils")
+local tool_utils = require("codecompanion.interactions.chat.tools.builtin.insert_edit_into_file.utils")
 
 local M = {}
 
@@ -62,6 +62,8 @@ local M = {}
 local function apply_line_replacement(content_lines, match, new_text)
   local new_content_lines = {}
   local new_text_lines = vim.split(new_text, "\n", { plain = true })
+  local replacement_end_index
+  local old_text_has_trailing_newline = match.matched_text:match("\n$")
 
   -- Handle boundary markers specially
   if match.strategy == "start_marker" then
@@ -89,13 +91,24 @@ local function apply_line_replacement(content_lines, match, new_text)
     end
 
     -- Insert new content lines
-    for j, line in ipairs(new_text_lines) do
+    for _, line in ipairs(new_text_lines) do
       table.insert(new_content_lines, line)
     end
+    replacement_end_index = #new_content_lines
 
     -- Copy lines after match
     for i = match.end_line + 1, #content_lines do
       table.insert(new_content_lines, content_lines[i])
+    end
+
+    if old_text_has_trailing_newline then
+      -- new_content_lines { ..., "", ... }, delete that "" to remove the extra \n
+      -- new_content_lines { ..., "xx", "yy", ... }, manually concat "xx" and "yy" to remove the newline
+      if replacement_end_index < #new_content_lines then
+        new_content_lines[replacement_end_index + 1] = new_content_lines[replacement_end_index]
+          .. new_content_lines[replacement_end_index + 1]
+      end
+      table.remove(new_content_lines, replacement_end_index)
     end
   end
 
@@ -110,7 +123,7 @@ function M.exact_match(content, old_text)
   local content_lines = vim.split(content, "\n", { plain = true })
   local old_text_lines = vim.split(old_text, "\n", { plain = true })
 
-  old_text_lines = text_utils.normalize_trailing_newline(old_text_lines)
+  old_text_lines = tool_utils.normalize_trailing_newline(old_text_lines)
 
   local matches = {}
 
@@ -132,13 +145,11 @@ function M.exact_match(content, old_text)
     -- Multi-line search
     for start_line = 1, #content_lines - #old_text_lines + 1 do
       local match_found = true
-      local first_mismatch_line = nil
 
       -- Check if all lines match
       for i = 1, #old_text_lines do
         if content_lines[start_line + i - 1] ~= old_text_lines[i] then
           match_found = false
-          first_mismatch_line = i
           break
         end
       end
@@ -167,7 +178,7 @@ function M.trimmed_lines(content, old_text)
   local content_lines = vim.split(content, "\n", { plain = true })
   local search_lines = vim.split(old_text, "\n", { plain = true })
 
-  search_lines = text_utils.normalize_trailing_newline(search_lines)
+  search_lines = tool_utils.normalize_trailing_newline(search_lines)
 
   local matches = {}
 
@@ -194,7 +205,7 @@ function M.trimmed_lines(content, old_text)
   end
 
   -- Normalize search pattern for indentation-flexible matching
-  local normalized_search_lines = text_utils.remove_common_indentation(search_lines)
+  local normalized_search_lines = tool_utils.remove_common_indentation(search_lines)
   local trimmed_search_lines = {}
   for i, line in ipairs(normalized_search_lines) do
     trimmed_search_lines[i] = vim.trim(line)
@@ -209,7 +220,7 @@ function M.trimmed_lines(content, old_text)
     end
 
     local content_block = vim.list_slice(content_lines, i, i + #search_lines - 1)
-    local normalized_content_lines = text_utils.remove_common_indentation(content_block)
+    local normalized_content_lines = tool_utils.remove_common_indentation(content_block)
 
     local match = true
     local confidence = 0
@@ -221,16 +232,16 @@ function M.trimmed_lines(content, old_text)
       if content_line == search_line then
         confidence = confidence + 1
       elseif
-        text_utils.normalize_whitespace(content_line, "aggressive")
-        == text_utils.normalize_whitespace(search_line, "aggressive")
+        tool_utils.normalize_whitespace(content_line, "aggressive")
+        == tool_utils.normalize_whitespace(search_line, "aggressive")
       then
         confidence = confidence + constants.CONFIDENCE.SIMILARITY_THRESHOLD_HIGH
       elseif
-        text_utils.similarity_score(content_line, search_line) >= constants.CONFIDENCE.SIMILARITY_THRESHOLD_MEDIUM
+        tool_utils.similarity_score(content_line, search_line) >= constants.CONFIDENCE.SIMILARITY_THRESHOLD_MEDIUM
       then
         confidence = confidence + constants.CONFIDENCE.SIMILARITY_THRESHOLD_MEDIUM
       elseif
-        text_utils.similarity_score(content_line, search_line) >= constants.CONFIDENCE.SIMILARITY_THRESHOLD_LOW
+        tool_utils.similarity_score(content_line, search_line) >= constants.CONFIDENCE.SIMILARITY_THRESHOLD_LOW
       then
         confidence = confidence + constants.CONFIDENCE.SIMILARITY_THRESHOLD_LOW
       else
@@ -306,14 +317,14 @@ function M.punctuation_normalized(content, old_text)
   local content_lines = vim.split(content, "\n", { plain = true })
   local old_text_lines = vim.split(old_text, "\n", { plain = true })
 
-  old_text_lines = text_utils.normalize_trailing_newline(old_text_lines)
+  old_text_lines = tool_utils.normalize_trailing_newline(old_text_lines)
 
   -- Handle single line matching
   if #old_text_lines == 1 then
-    local normalized_search = text_utils.normalize_punctuation(old_text_lines[1])
+    local normalized_search = tool_utils.normalize_punctuation(old_text_lines[1])
 
     for line_num, line in ipairs(content_lines) do
-      local normalized_line = text_utils.normalize_punctuation(line)
+      local normalized_line = tool_utils.normalize_punctuation(line)
       if normalized_line == normalized_search then
         table.insert(matches, {
           start_line = line_num,
@@ -334,7 +345,7 @@ function M.punctuation_normalized(content, old_text)
         local content_line = content_lines[i + j - 1] or ""
         local search_line = old_text_lines[j]
 
-        if text_utils.normalize_punctuation(content_line) ~= text_utils.normalize_punctuation(search_line) then
+        if tool_utils.normalize_punctuation(content_line) ~= tool_utils.normalize_punctuation(search_line) then
           match_found = false
           break
         end
@@ -365,14 +376,14 @@ function M.whitespace_normalized(content, old_text)
   local content_lines = vim.split(content, "\n", { plain = true })
   local old_text_lines = vim.split(old_text, "\n", { plain = true })
 
-  old_text_lines = text_utils.normalize_trailing_newline(old_text_lines)
+  old_text_lines = tool_utils.normalize_trailing_newline(old_text_lines)
 
   -- Handle single line matching
   if #old_text_lines == 1 then
-    local normalized_search = text_utils.normalize_whitespace(old_text_lines[1], "simple")
+    local normalized_search = tool_utils.normalize_whitespace(old_text_lines[1], "simple")
 
     for line_num, line in ipairs(content_lines) do
-      local normalized_line = text_utils.normalize_whitespace(line, "simple")
+      local normalized_line = tool_utils.normalize_whitespace(line, "simple")
       if normalized_line == normalized_search then
         table.insert(matches, {
           start_line = line_num,
@@ -394,8 +405,8 @@ function M.whitespace_normalized(content, old_text)
         local search_line = old_text_lines[j]
 
         if
-          text_utils.normalize_whitespace(content_line, "simple")
-          ~= text_utils.normalize_whitespace(search_line, "simple")
+          tool_utils.normalize_whitespace(content_line, "simple")
+          ~= tool_utils.normalize_whitespace(search_line, "simple")
         then
           match_found = false
           break
@@ -601,14 +612,14 @@ end
 ---@return table[] Array of matches found using block anchor strategy
 function M.block_anchor(content, old_text)
   -- Normalize empty lines for better LLM matching (applied before line splitting)
-  local normalized_content = text_utils.normalize_empty_lines(content)
-  local normalized_old_text = text_utils.normalize_empty_lines(old_text)
+  local normalized_content = tool_utils.normalize_empty_lines(content)
+  local normalized_old_text = tool_utils.normalize_empty_lines(old_text)
 
   local content_lines = vim.split(normalized_content, "\n", { plain = true })
   local search_lines = vim.split(normalized_old_text, "\n", { plain = true })
 
   -- Handle trailing newline normalization
-  search_lines = text_utils.normalize_trailing_newline(search_lines)
+  search_lines = tool_utils.normalize_trailing_newline(search_lines)
 
   local matches = {}
 
@@ -665,7 +676,7 @@ function M.block_anchor(content, old_text)
               local content_line = trimmed_content_lines[content_line_idx] or ""
               local search_line = vim.trim(search_lines[j])
 
-              local line_similarity = text_utils.calculate_line_similarity(content_line, search_line)
+              local line_similarity = tool_utils.calculate_line_similarity(content_line, search_line)
               middle_confidence = middle_confidence + line_similarity
             end
           else

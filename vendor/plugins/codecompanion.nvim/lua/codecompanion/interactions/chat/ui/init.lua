@@ -6,7 +6,8 @@ local config = require("codecompanion.config")
 local helpers = require("codecompanion.interactions.chat.helpers")
 local log = require("codecompanion.utils.log")
 local schema = require("codecompanion.schema")
-local ui_utils = require("codecompanion.utils.ui")
+local shared_ui = require("codecompanion.interactions.shared.ui")
+local tags = require("codecompanion.interactions.shared.tags")
 local utils = require("codecompanion.utils")
 local yaml = require("codecompanion.utils.yaml")
 
@@ -19,18 +20,6 @@ local CONSTANTS = {
 
   AUTOCMD_GROUP = "codecompanion.chat.ui",
 }
-
----Finalize window setup by applying the options and setting the filetype. This
----This ensures that any codecompanion specific ftplugins can run after the
----window options are set, allowing the plugin defaults to be overridden
----@param winnr number
----@param bufnr number
----@param opts table Window options to apply
----@return nil
-local function apply_window_config(winnr, bufnr, opts)
-  ui_utils.set_win_options(winnr, opts)
-  api.nvim_set_option_value("filetype", "codecompanion", { buf = bufnr })
-end
 
 ---Set the LLM role based on the adapter
 ---@param role string|function
@@ -48,22 +37,24 @@ end
 ---@field aug number The autocmd group ID
 ---@field chat_bufnr number The buffer number of the chat
 ---@field chat_id number The unique ID of the chat
+---@field cursor { has_moved: boolean, pos?: table } Cursor state tracking
 ---@field folds CodeCompanion.Chat.UI.Folds The folds for the chat
 ---@field header_ns number The namespace for the header
 ---@field roles table The roles in the chat
 ---@field winnr number The window number of the chat
 ---@field settings table The settings for the chat
----@field tokens number The current token count in the chat
+---@field title string|nil The title of the chat window
 ---@field window_opts? table The window configuration options for the chat buffer
 
 ---@class CodeCompanion.Chat.UIArgs
 ---@field adapter CodeCompanion.HTTPAdapter|CodeCompanion.ACPAdapter
+---@field aug number The autocmd group ID
 ---@field chat_bufnr number
 ---@field chat_id number
 ---@field roles table
 ---@field winnr number
 ---@field settings table
----@field tokens number
+---@field title string|nil
 ---@field window_opts? table
 
 ---@class CodeCompanion.Chat.UI
@@ -73,18 +64,20 @@ local UI = {}
 function UI.new(args)
   local self = setmetatable({
     adapter = args.adapter,
+    aug = args.aug,
     chat_bufnr = args.chat_bufnr,
     chat_id = args.chat_id,
+    cursor = {
+      has_moved = false,
+      pos = nil,
+    },
     roles = args.roles,
     settings = args.settings,
-    tokens = args.tokens,
+    title = args.title,
     winnr = args.winnr,
     window_opts = args.window_opts,
   }, { __index = UI })
 
-  self.aug = api.nvim_create_augroup(CONSTANTS.AUTOCMD_GROUP .. ":" .. self.chat_bufnr, {
-    clear = false,
-  })
   self.folds = require("codecompanion.interactions.chat.ui.folds")
 
   api.nvim_create_autocmd("InsertEnter", {
@@ -97,6 +90,77 @@ function UI.new(args)
     end,
   })
 
+  if config.display.chat.auto_scroll then
+    local debounce = nil
+    local debounce_ms = config.interactions.chat.opts.debounce or 0
+
+    api.nvim_create_autocmd("CursorMoved", {
+      group = self.aug,
+      buffer = self.chat_bufnr,
+      desc = "Track the cursor in a CodeCompanion buffer",
+      callback = function()
+        if not self:is_visible() then
+          return
+        end
+
+        ---@return nil
+        local function get_cursor_pos()
+          if not self:is_visible() then
+            return
+          end
+
+          local ok, cursor = pcall(api.nvim_win_get_cursor, self.winnr)
+          if not ok then
+            return
+          end
+
+          local last_line = self:last()
+
+          -- Check that the cursor is not on the last line. This likely means the
+          -- user has moved it and is likely reading the LLM's response. We do
+          -- not want to force an autoscroll so we save the cursor position
+          if cursor[1] ~= last_line + 1 then
+            self.cursor.has_moved = true
+            self.cursor.pos = { cursor[1], cursor[2] }
+          else
+            self.cursor.has_moved = false
+            self.cursor.pos = nil
+          end
+        end
+
+        -- PERF: If we're testing, skip the debounce
+        if debounce_ms == 0 then
+          return get_cursor_pos()
+        end
+
+        if debounce then
+          pcall(function()
+            debounce:stop()
+          end)
+        end
+
+        debounce = vim.defer_fn(function()
+          debounce = nil
+          get_cursor_pos()
+        end, debounce_ms)
+      end,
+    })
+
+    api.nvim_create_autocmd("WinLeave", {
+      group = self.aug,
+      buffer = self.chat_bufnr,
+      desc = "Save cursor position when leaving a CodeCompanion chat buffer",
+      callback = function()
+        if self:is_visible() and self.cursor.has_moved then
+          local ok, cursor = pcall(api.nvim_win_get_cursor, self.winnr)
+          if ok then
+            self.cursor.pos = { cursor[1], cursor[2] }
+          end
+        end
+      end,
+    })
+  end
+
   return self
 end
 
@@ -107,6 +171,9 @@ function UI:open(opts)
   opts = opts or {}
 
   if self:is_visible() then
+    if config.display.chat.window.layout == "tab" and self:is_visible_non_curtab() then
+      api.nvim_set_current_tabpage(api.nvim_win_get_tabpage(self.winnr))
+    end
     return
   end
   if config.display.chat.start_in_insert_mode then
@@ -128,81 +195,32 @@ function UI:open(opts)
   if self.window_opts then
     window = vim.tbl_deep_extend("force", {}, config.display.chat.window, self.window_opts)
   else
-    window = config.display.chat.window
+    window = vim.deepcopy(config.display.chat.window)
   end
-  local width = math.floor(vim.o.columns * 0.45)
-  if window.width ~= "auto" then
-    width = window.width > 1 and window.width or math.floor(vim.o.columns * window.width)
-  end
-  local height = window.height > 1 and window.height or math.floor(vim.o.lines * window.height)
 
-  if window.layout == "float" then
-    local win_opts = {
-      relative = window.relative,
-      width = width,
-      height = height,
-      row = window.row or math.floor((vim.o.lines - height) / 2),
-      col = window.col or math.floor((vim.o.columns - width) / 2),
-      border = window.border,
-      title = window.title or "CodeCompanion",
-      title_pos = "center",
-      zindex = 45,
-    }
-    self.winnr = api.nvim_open_win(self.chat_bufnr, true, win_opts)
-    apply_window_config(self.winnr, self.chat_bufnr, window.opts)
-  elseif window.layout == "vertical" then
-    local position = window.position
-    local full_height = window.full_height
-    if position == nil or (position ~= "left" and position ~= "right") then
-      position = vim.opt.splitright:get() and "right" or "left"
-    end
-    if full_height then
-      if position == "left" then
-        vim.cmd("topleft vsplit")
-      else
-        vim.cmd("botright vsplit")
-      end
-    else
-      vim.cmd("vsplit")
-    end
-    if position == "left" and vim.opt.splitright:get() then
-      vim.cmd("wincmd h")
-    end
-    if position == "right" and not vim.opt.splitright:get() then
-      vim.cmd("wincmd l")
-    end
-    if window.width ~= "auto" then
-      vim.cmd("vertical resize " .. width)
-    end
-    self.winnr = api.nvim_get_current_win()
-    api.nvim_win_set_buf(self.winnr, self.chat_bufnr)
-    apply_window_config(self.winnr, self.chat_bufnr, window.opts)
-  elseif window.layout == "horizontal" then
-    local position = window.position
-    if position == nil or (position ~= "top" and position ~= "bottom") then
-      position = vim.opt.splitbelow:get() and "bottom" or "top"
-    end
-    vim.cmd("split")
-    if position == "top" and vim.opt.splitbelow:get() then
-      vim.cmd("wincmd k")
-    end
-    if position == "bottom" and not vim.opt.splitbelow:get() then
-      vim.cmd("wincmd j")
-    end
-    vim.cmd("resize " .. height)
-    self.winnr = api.nvim_get_current_win()
-    api.nvim_win_set_buf(self.winnr, self.chat_bufnr)
-    apply_window_config(self.winnr, self.chat_bufnr, window.opts)
-  else
-    self.winnr = api.nvim_get_current_win()
-    api.nvim_set_current_buf(self.chat_bufnr)
-    apply_window_config(self.winnr, self.chat_bufnr, window.opts)
+  local title = window.title or " CodeCompanion "
+  if self.title then
+    title = string.format(" %s ", self.title)
   end
+
+  self.winnr = shared_ui.open(self.chat_bufnr, window, {
+    title = title,
+    filetype = "codecompanion",
+  })
 
   vim.bo[self.chat_bufnr].textwidth = 0
 
   if not opts.toggled then
-    self:follow()
+    -- Put the cursor back in the original position
+    if self.cursor.has_moved and self.cursor.pos then
+      vim.schedule(function()
+        if self:is_visible() then
+          pcall(api.nvim_win_set_cursor, self.winnr, self.cursor.pos)
+        end
+      end)
+    else
+      self:follow()
+    end
   end
 
   self.folds:setup(self.winnr)
@@ -223,18 +241,7 @@ function UI:hide()
     layout = config.display.chat.window.layout
   end
 
-  if layout == "float" or layout == "vertical" or layout == "horizontal" then
-    if self:is_active() then
-      vim.cmd("hide")
-    else
-      if not self.winnr then
-        self.winnr = ui_utils.buf_get_win(self.chat_bufnr)
-      end
-      api.nvim_win_hide(self.winnr)
-    end
-  else
-    vim.cmd("buffer " .. vim.fn.bufnr("#"))
-  end
+  shared_ui.hide(self.winnr, self.chat_bufnr, layout)
 
   utils.fire("ChatHidden", { bufnr = self.chat_bufnr, id = self.chat_id })
 end
@@ -243,6 +250,11 @@ end
 ---@return nil
 function UI:follow()
   if not self:is_visible() then
+    return
+  end
+
+  -- Don't follow if the user has manually positioned their cursor
+  if self.cursor.has_moved then
     return
   end
 
@@ -257,19 +269,19 @@ end
 ---Determine if the current chat buffer is active
 ---@return boolean
 function UI:is_active()
-  return api.nvim_get_current_buf() == self.chat_bufnr
+  return shared_ui.is_active(self.chat_bufnr)
 end
 
 ---Determine if the chat buffer is visible
 ---@return boolean
 function UI:is_visible()
-  return self.winnr and api.nvim_win_is_valid(self.winnr) and api.nvim_win_get_buf(self.winnr) == self.chat_bufnr
+  return shared_ui.is_visible(self.winnr, self.chat_bufnr)
 end
 
 ---Chat buffer is visible but not in the current tab
 ---@return boolean
 function UI:is_visible_non_curtab()
-  return self:is_visible() and api.nvim_get_current_tabpage() ~= api.nvim_win_get_tabpage(self.winnr)
+  return shared_ui.is_visible_non_curtab(self.winnr, self.chat_bufnr)
 end
 
 ---Get the formatted header for the chat buffer
@@ -299,12 +311,16 @@ function UI:set_header(tbl, role)
 end
 
 ---Render the settings and any messages in the chat buffer
----@param context table
+---@param context table Buffer context
 ---@param messages table
----@param opts {force_header?: boolean, stop_context_insertion?: boolean}
+---@param opts {force_header?: boolean, stop_context_insertion?: boolean, auto_submit?: boolean, from_prompt_library?: boolean}
 ---@return self
 function UI:render(context, messages, opts)
-  opts = vim.tbl_extend("keep", opts or {}, { force_header = false, stop_context_insertion = false })
+  opts = vim.tbl_extend(
+    "keep",
+    opts or {},
+    { force_header = false, stop_context_insertion = false, auto_submit = nil, from_prompt_library = false }
+  )
 
   local lines = {}
 
@@ -333,7 +349,7 @@ function UI:render(context, messages, opts)
           self:set_header(lines, set_llm_role(self.roles.llm, self.adapter))
         end
 
-        if msg._meta and msg._meta.tag == "tool_output" then
+        if msg._meta and msg._meta.tag == tags.TOOL_OUTPUT then
           table.insert(lines, "")
         end
 
@@ -379,6 +395,12 @@ function UI:render(context, messages, opts)
   else
     log:trace("Setting the messages in the chat buffer")
     add_messages_to_buf(messages)
+    -- Ensure the buffer ends with an empty line so the cursor is placed
+    -- correctly (after the last character) when auto_submit is false and
+    -- the chat was opened from the prompt library with non-empty user prompt
+    if opts.auto_submit == false and opts.from_prompt_library and #lines > 0 and lines[#lines] ~= "" then
+      spacer()
+    end
   end
 
   -- If the user has visually selected some text, add that to the chat buffer
@@ -475,7 +497,7 @@ function UI:clear_virtual_text(extmark_id)
 end
 
 ---Get the last line, column and line count in the chat buffer
----@return number, integer, integer
+---@return number, number, number
 function UI:last()
   local line_count = api.nvim_buf_line_count(self.chat_bufnr)
 
@@ -495,16 +517,23 @@ function UI:last()
 end
 
 ---Display the tokens in the chat buffer
----@param parser table
----@param start_row number
+---@param args { parser: table, start_row: number, tokens?: number|table }
 ---@return nil
-function UI:display_tokens(parser, start_row)
-  if config.display.chat.show_token_count and self.tokens then
-    local to_display = config.display.chat.token_count
-    if type(to_display) == "function" then
-      to_display = to_display(self.tokens, self.adapter)
-      require("codecompanion.utils.tokens").display(to_display, CONSTANTS.NS_TOKENS, parser, start_row, self.chat_bufnr)
-    end
+function UI:display_tokens(args)
+  -- NOTE: Not handling token tables yet
+  if not config.display.chat.show_token_count or type(args.tokens) ~= "number" then
+    return
+  end
+
+  local formatter = config.display.chat.token_count
+  if type(formatter) == "function" then
+    require("codecompanion.utils.tokens").display({
+      bufnr = self.chat_bufnr,
+      ns_id = CONSTANTS.NS_TOKENS,
+      parser = args.parser,
+      start_row = args.start_row,
+      token_str = formatter(args.tokens, self.adapter),
+    })
   end
 end
 
@@ -577,6 +606,20 @@ end
 ---@return nil
 function UI:move_cursor(cursor_has_moved)
   if config.display.chat.auto_scroll then
+    -- Check if cursor is already on the last line before streaming new content
+    if self:is_visible() and not self.cursor.has_moved then
+      local ok, cursor = pcall(api.nvim_win_get_cursor, self.winnr)
+      if ok then
+        local last_line = self:last()
+
+        -- If already on last line, allow following
+        if cursor[1] == last_line + 1 then
+          self.cursor.has_moved = false
+          self.cursor.pos = nil
+        end
+      end
+    end
+
     if cursor_has_moved and self:is_active() then
       self:follow()
     elseif not self:is_active() then
@@ -586,12 +629,14 @@ function UI:move_cursor(cursor_has_moved)
 end
 
 ---Lock the chat buffer from editing
+---@return nil
 function UI:lock_buf()
   vim.bo[self.chat_bufnr].modified = false
   vim.bo[self.chat_bufnr].modifiable = false
 end
 
 ---Unlock the chat buffer for editing
+---@return nil
 function UI:unlock_buf()
   vim.bo[self.chat_bufnr].modified = false
   vim.bo[self.chat_bufnr].modifiable = true

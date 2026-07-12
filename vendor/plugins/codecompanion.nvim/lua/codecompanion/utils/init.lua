@@ -108,6 +108,16 @@ function M.extract_all_placeholders(prompts)
   return all_placeholders
 end
 
+---Escape percent signs in a string for use as a gsub replacement value.
+---In Lua's gsub, the replacement string treats %0-%9 as capture references
+---and %% as a literal percent. This function doubles all percent signs so
+---that the replacement is inserted verbatim.
+---@param str string
+---@return string
+local function escape_gsub_replacement(str)
+  return (str:gsub("%%", "%%%%"))
+end
+
 ---Replace any placeholders (e.g. ${placeholder}) in a string or table
 ---@param t table|string The content to process
 ---@param replacements table<string, string> Map of placeholder names to replacement values
@@ -115,7 +125,7 @@ end
 function M.replace_placeholders(t, replacements)
   if type(t) == "string" then
     for placeholder, replacement in pairs(replacements) do
-      t = t:gsub("%${" .. vim.pesc(placeholder) .. "}", replacement)
+      t = t:gsub("%${" .. vim.pesc(placeholder) .. "}", escape_gsub_replacement(replacement))
     end
     return t
   else
@@ -124,7 +134,7 @@ function M.replace_placeholders(t, replacements)
         M.replace_placeholders(value, replacements)
       elseif type(value) == "string" then
         for placeholder, replacement in pairs(replacements) do
-          value = value:gsub("%${" .. vim.pesc(placeholder) .. "}", replacement)
+          value = value:gsub("%${" .. vim.pesc(placeholder) .. "}", escape_gsub_replacement(replacement))
         end
         t[key] = value
       end
@@ -173,6 +183,35 @@ function M.set_option(bufnr, opt, value)
   if api.nvim_buf_set_option then
     return api.nvim_buf_set_option(bufnr, opt, value)
   end
+end
+
+---Convert an ISO 8601 timestamp to a Unix timestamp
+---@param iso string ISO 8601 timestamp (e.g. "2026-03-18T22:29:29.993Z")
+---@return number|nil
+function M.timestamp_from_iso(iso)
+  local pattern = "(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)"
+  local year, month, day, hour, min, sec = iso:match(pattern)
+  if not year then
+    return nil
+  end
+
+  ---@type osdateparam
+  local date = {
+    day = tonumber(day), --[[@as number]]
+    hour = tonumber(hour), --[[@as number]]
+    min = tonumber(min), --[[@as number]]
+    month = tonumber(month), --[[@as number]]
+    sec = tonumber(sec), --[[@as number]]
+    year = tonumber(year), --[[@as number]]
+  }
+
+  -- The timestamp is UTC, but os.time() reads the table as local time, so add
+  -- the local offset from UTC to recover the true instant
+  local now = os.time()
+  local utc = os.date("!*t", now) --[[@as osdateparam]]
+  local utc_offset = os.difftime(now, os.time(utc))
+
+  return os.time(date) + utc_offset
 end
 
 ---Make a timestamp relative
@@ -235,6 +274,29 @@ function M.pluralize(count, word)
     return word or "item"
   end
   return count == 1 and word or word .. "s"
+end
+
+---Deep copy a table, truncating any string values
+---@param tbl table
+---@param max_len? number
+---@return table
+function M.truncate(tbl, max_len)
+  if not max_len then
+    max_len = 255
+  end
+
+  local output = {}
+  for k, v in pairs(tbl) do
+    if type(v) == "table" then
+      output[k] = M.truncate(v, max_len)
+    elseif type(v) == "string" and #v > max_len then
+      output[k] = v:sub(1, max_len) .. "...[truncated]"
+    else
+      output[k] = v
+    end
+  end
+
+  return output
 end
 
 return M

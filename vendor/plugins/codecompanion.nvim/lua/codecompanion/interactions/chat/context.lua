@@ -27,7 +27,7 @@ local context_header = "> Context:"
 local function ts_parse_buffer(chat)
   local query = query_get("markdown", "cc_context")
 
-  local tree = chat.chat_parser:parse({ chat.header_line - 1, -1 })[1]
+  local tree = chat.parsers.markdown:parse({ chat.header_line - 1, -1 })[1]
   local root = tree:root()
 
   -- Check if there are any context items already in the chat buffer
@@ -152,6 +152,16 @@ function Context:add(context)
     if context.opts.visible == nil then
       context.opts.visible = config.display.chat.show_context
     end
+
+    -- Prevent duplicate context items with the same id
+    if context.id then
+      for _, existing in ipairs(self.Chat.context_items) do
+        if existing.id == context.id then
+          return self
+        end
+      end
+    end
+
     table.insert(self.Chat.context_items, context)
     if context.bufnr and context.opts.sync_diff then
       self.Chat.buffer_diffs:sync(context.bufnr)
@@ -210,7 +220,7 @@ end
 local function get_range(chat)
   local query = query_get("markdown", "cc_context")
 
-  local tree = chat.chat_parser:parse()[1]
+  local tree = chat.parsers.markdown:parse()[1]
   local root = tree:root()
 
   local role = nil
@@ -275,6 +285,23 @@ function Context:clear_rendered()
   return self
 end
 
+---Remove context items by their IDs and re-render the context block
+---@param ids table<string, boolean> A set of IDs to remove
+---@return nil
+function Context:remove_items(ids)
+  self.Chat.context_items = vim
+    .iter(self.Chat.context_items)
+    :filter(function(ctx)
+      return not ids[ctx.id]
+    end)
+    :totable()
+
+  if self.Chat.bufnr and api.nvim_buf_is_valid(self.Chat.bufnr) then
+    self:clear_rendered()
+    self:render()
+  end
+end
+
 ---Fold all of the context items in the chat buffer
 ---@return nil
 function Context:create_folds()
@@ -293,8 +320,7 @@ end
 ---@param bufnr number
 ---@return string
 function Context:make_id_from_buf(bufnr)
-  local bufname = api.nvim_buf_get_name(bufnr)
-  return vim.fn.fnamemodify(bufname, ":.")
+  return vim.fn.fnamemodify(api.nvim_buf_get_name(bufnr), ":.")
 end
 
 ---Determine if a context item can be synced and all of its content shared
@@ -326,7 +352,7 @@ end
 function Context:get_from_chat()
   local query = query_get("markdown", "cc_context")
 
-  local tree = self.Chat.chat_parser:parse()[1]
+  local tree = self.Chat.parsers.markdown:parse()[1]
   local root = tree:root()
 
   local items = {}

@@ -26,11 +26,11 @@ format:
 
 test: deps
 	@echo Testing...
-	nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "lua MiniTest.run()"
+	LC_ALL=C nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "lua MiniTest.run()"
 
 test_file: deps
 	@echo Testing File...
-	nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "lua MiniTest.run_file('$(FILE)')"
+	LC_ALL=C nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "lua MiniTest.run_file('$(FILE)')"
 
 deps: deps/plenary.nvim deps/nvim-treesitter deps/mini.nvim deps/panvimdoc
 	@echo Pulling...
@@ -42,6 +42,7 @@ deps/plenary.nvim:
 deps/nvim-treesitter:
 	@mkdir -p deps
 	git clone --filter=blob:none https://github.com/nvim-treesitter/nvim-treesitter.git $@
+	cd $@ && git checkout 7caec27
 
 deps/mini.nvim:
 	@mkdir -p deps

@@ -1,26 +1,26 @@
 --[[
-The Inline Assistant - This is where code is applied directly to a Neovim buffer
+The Inline Interaction - This is where code is applied directly to a Neovim buffer
 --]]
 
 ---@class CodeCompanion.Inline
 ---@field id number The ID of the inline prompt
 ---@field adapter CodeCompanion.HTTPAdapter The adapter to use for the inline prompt
 ---@field aug number The ID for the autocmd group
----@field buffer_context table The context of the buffer the inline prompt was initiated from
+---@field buffer_context CodeCompanion.BufferContext
 ---@field bufnr number The buffer number to apply the inline edits to
 ---@field chat_context? table The content from the last opened chat buffer
 ---@field classification CodeCompanion.Inline.Classification Where to place the generated code in Neovim
 ---@field current_request? table The current request that's being processed
----@field diff? table The diff provider
+---@field diff_ui? CodeCompanion.DiffUI The diff UI instance
 ---@field lines table Lines in the buffer before the inline changes
 ---@field opts table
+---@field original_content? string[] The original buffer content before LLM changes
 ---@field prompts table The prompts to send to the LLM
 
 ---@class CodeCompanion.InlineArgs
 ---@field adapter? CodeCompanion.HTTPAdapter
----@field buffer_context? table The context of the buffer the inline prompt was initiated from
+---@field buffer_context? CodeCompanion.BufferContext
 ---@field chat_context? table Messages from a chat buffer
----@field diff? table The diff provider
 ---@field lines? table The lines in the buffer before the inline changes
 ---@field opts? table
 ---@field placement? string The placement of the code in Neovim
@@ -34,10 +34,10 @@ The Inline Assistant - This is where code is applied directly to a Neovim buffer
 local adapters = require("codecompanion.adapters")
 local client = require("codecompanion.http")
 local config = require("codecompanion.config")
+local editor_context = require("codecompanion.interactions.inline.editor_context")
 local keymaps = require("codecompanion.utils.keymaps")
 local log = require("codecompanion.utils.log")
 local utils = require("codecompanion.utils")
-local variables = require("codecompanion.interactions.inline.variables")
 
 local api = vim.api
 local fmt = string.format
@@ -196,7 +196,6 @@ function Inline.new(args)
       pos = {},
     },
     chat_context = args.chat_context or {},
-    diff = args.diff or {},
     lines = {},
     opts = args.opts or {},
     prompts = vim.deepcopy(args.prompts),
@@ -205,6 +204,9 @@ function Inline.new(args)
   self:set_adapter(args.adapter or config.interactions.inline.adapter)
   if not self.adapter then
     return log:error("[Inline] No adapter found")
+  end
+  if self.adapter.type ~= "http" then
+    return log:warn("Only HTTP adapters are supported for inline interactions")
   end
 
   -- Check if the user has manually overridden the adapter
@@ -228,7 +230,7 @@ function Inline:set_adapter(adapter)
   end
 end
 
----Parse special syntax from user prompt (adapters and maintain variables)
+---Parse special syntax from user prompt (adapters and maintain editor context)
 ---@param prompt string
 ---@return string The cleaned prompt
 function Inline:parse_special_syntax(prompt)
@@ -314,17 +316,17 @@ function Inline:prompt(user_prompt)
   end
 
   if user_prompt then
-    -- Parse adapters and variables from the entire prompt
+    -- Parse adapters and editor context from the entire prompt
     user_prompt = self:parse_special_syntax(user_prompt)
 
-    -- Check for any variables
-    local vars = variables.new({ inline = self, prompt = user_prompt })
-    local found = vars:find():replace():output()
+    -- Check for any editor context
+    local ec = editor_context.new({ inline = self, prompt = user_prompt })
+    local found = ec:find():replace():output()
     if found then
-      for _, var in ipairs(found) do
-        add_prompt(var, user_role, { visible = false })
+      for _, item in ipairs(found) do
+        add_prompt(item, user_role, { visible = false })
       end
-      user_prompt = vars.prompt
+      user_prompt = ec.prompt
     end
 
     -- Add the user's prompt
@@ -417,8 +419,6 @@ local _streaming = true
 ---@param prompt table The prompts to send to the LLM
 ---@return nil
 function Inline:submit(prompt)
-  log:info("[Inline] Request started")
-
   -- Inline editing only works with streaming off - We should remember the current status
   _streaming = self.adapter.opts.stream
   self.adapter.opts.stream = false
@@ -432,19 +432,22 @@ function Inline:submit(prompt)
       ---@param data table
       ---@param adapter CodeCompanion.HTTPAdapter The modified adapter from the http client
       callback = function(err, data, adapter)
+        require("codecompanion.interactions.inline.keymaps").clear_map(config.interactions.inline.keymaps, self.bufnr)
+
         local function error(msg)
           log:error("[Inline] Request failed with error %s", msg)
         end
 
         if err then
-          return error(err)
+          local msg = type(err) == "table" and err.message or err
+          return error(msg)
         end
 
         if data then
           data = adapters.call_handler(adapter, "parse_inline", data, self.buffer_context)
-          if data.status == CONSTANTS.STATUS_SUCCESS then
+          if data and data.status == CONSTANTS.STATUS_SUCCESS then
             return self:done(data.output)
-          else
+          elseif data then
             return error(data.output)
           end
         end
@@ -461,7 +464,6 @@ end
 ---@return nil
 function Inline:done(output)
   utils.fire("InlineFinished")
-  log:info("[Inline] Request finished")
 
   local adapter_name = self.adapter.formatted_name
 
@@ -488,7 +490,7 @@ function Inline:done(output)
   end
   placement = string.lower(placement)
 
-  -- An LLM won't send code if it deems the placement should go to a chat buffer
+  -- An LLM won't send a code response if it deems the placement should go to a chat buffer
   if json and not json.code and placement ~= "chat" then
     log:error("[%s] Returned no code", adapter_name)
     return self:reset()
@@ -500,15 +502,22 @@ function Inline:done(output)
   end
 
   vim.schedule(function()
-    local original_content = api.nvim_buf_get_lines(self.buffer_context.bufnr, 0, -1, true)
-    self:place(placement)
-    pcall(vim.cmd.undojoin)
-    self:output(json.code)
-    if config.display.diff.enabled and self.classification.placement ~= "new" then
-      self:start_diff(original_content)
-    else
-      self:reset()
+    if not config.display.diff.enabled or placement == "new" then
+      self:place(placement)
+      pcall(vim.cmd.undojoin)
+      self:output(json.code)
+      return self:reset()
     end
+
+    local original_content = api.nvim_buf_get_lines(self.buffer_context.bufnr, 0, -1, true)
+    local new_content = self:get_new_content(original_content, json.code, placement)
+
+    self:start_diff({
+      original_content = original_content,
+      new_content = new_content,
+      placement = placement,
+      code = json.code,
+    })
   end)
 end
 
@@ -518,6 +527,55 @@ function Inline:reset()
   self.adapter.opts.stream = _streaming
   self.current_request = nil
   api.nvim_clear_autocmds({ group = self.aug })
+end
+
+---Compute what the buffer content would look like after applying the LLM output
+---@param original string[] The original buffer lines
+---@param code string The code from the LLM
+---@param placement string The placement type
+---@return string[]
+function Inline:get_new_content(original, code, placement)
+  local new_lines = vim.split(code, "\n")
+  local result = vim.deepcopy(original)
+  local ctx = self.buffer_context
+
+  if placement == "replace" then
+    -- Replace the visual selection with the new code
+    local before = vim.list_slice(result, 1, ctx.start_line - 1)
+    local after = vim.list_slice(result, ctx.end_line + 1)
+
+    -- Handle partial line replacement
+    local start_prefix = ""
+    local end_suffix = ""
+    if ctx.start_col > 0 and result[ctx.start_line] then
+      start_prefix = result[ctx.start_line]:sub(1, ctx.start_col - 1)
+    end
+    if result[ctx.end_line] then
+      end_suffix = result[ctx.end_line]:sub(ctx.end_col + 1)
+    end
+
+    -- Combine prefix with first line and suffix with last line
+    if #new_lines > 0 then
+      new_lines[1] = start_prefix .. new_lines[1]
+      new_lines[#new_lines] = new_lines[#new_lines] .. end_suffix
+    else
+      new_lines = { start_prefix .. end_suffix }
+    end
+
+    result = vim.list_extend(vim.list_extend(before, new_lines), after)
+  elseif placement == "add" then
+    -- Insert after the end line
+    local before = vim.list_slice(result, 1, ctx.end_line)
+    local after = vim.list_slice(result, ctx.end_line + 1)
+    result = vim.list_extend(vim.list_extend(before, new_lines), after)
+  elseif placement == "before" then
+    -- Insert before the start line
+    local before = vim.list_slice(result, 1, ctx.start_line - 1)
+    local after = vim.list_slice(result, ctx.start_line)
+    result = vim.list_extend(vim.list_extend(before, new_lines), after)
+  end
+
+  return result
 end
 
 ---Extract a code block from markdown text
@@ -660,6 +718,8 @@ function Inline:place(placement)
         cmd = height .. cmd
       end
       vim.cmd(cmd)
+    elseif config.display.inline.layout == "tab" then
+      vim.cmd("tabnew")
     end
 
     api.nvim_win_set_buf(api.nvim_get_current_win(), bufnr)
@@ -678,10 +738,9 @@ function Inline:place(placement)
 end
 
 ---Send a prompt to the chat if the placement is chat
----@return CodeCompanion.Chat
+---@return CodeCompanion.Chat|nil
 function Inline:to_chat()
   local prompt = self.prompts
-  log:info("[Inline] Sending to chat")
 
   for i = #prompt, 1, -1 do
     -- Remove all of the system prompts
@@ -697,44 +756,98 @@ function Inline:to_chat()
   -- Turn streaming back on
   self.adapter.opts.stream = _streaming
 
-  return require("codecompanion.interactions.chat").new({
+  local chat_opts = {
     adapter = self.adapter,
     auto_submit = true,
     buffer_context = self.buffer_context,
     messages = prompt,
-  })
+  }
+
+  -- Add rules to the chat buffer
+  local rules_cb = require("codecompanion.interactions.shared.rules.helpers").add_callbacks(chat_opts)
+  if rules_cb then
+    chat_opts.callbacks = rules_cb
+  end
+
+  return require("codecompanion.interactions.chat").new(chat_opts)
+end
+
+---Build the banner text for the inline diff
+---@return string
+function Inline:build_diff_banner()
+  local keys = config.interactions.shared.keymaps
+  return fmt(
+    "%s Always Accept | %s Accept | %s Reject",
+    keys.always_accept.modes.n,
+    keys.accept_change.modes.n,
+    keys.reject_change.modes.n
+  )
 end
 
 ---Start the diff process
----@param original_content string[] The original buffer content before changes
+---@param args { original_content: string[], new_content: string[], placement: string, code: string }
 ---@return nil
-function Inline:start_diff(original_content)
-  log:debug("[Inline] Starting diff with provider: %s", config.display.diff.provider)
-  if config.display.diff.enabled == false then
+function Inline:start_diff(args)
+  log:debug("[Inline] Starting diff")
+
+  local approvals = require("codecompanion.interactions.chat.tools.approvals")
+
+  -- If the buffer has been added to the auto approval list, skip the diff
+  if approvals:is_approved(self.bufnr, { tool_name = "inline" }) then
+    self:place(args.placement)
+    pcall(vim.cmd.undojoin)
+    self:output(args.code)
     return self:reset()
   end
 
-  if self.classification.placement == "new" then
-    return self:reset()
-  end
+  -- Store original content for potential restoration on reject
+  self.original_content = args.original_content
 
-  self:set_keymaps(self.buffer_context.bufnr, { exclude_keymaps = { "stop" } })
-
-  local provider = config.display.diff.provider
-  local ok, diff = pcall(require, "codecompanion.providers.diff." .. provider)
-  if not ok then
-    log:error("[Inline] Diff provider not found: %s", provider)
-    return self:reset()
-  end
-
-  self.diff = diff.new({
+  -- Show the inline diff - this will transform the buffer from original to new
+  local helpers = require("codecompanion.helpers")
+  self.diff_ui = helpers.show_diff({
     bufnr = self.buffer_context.bufnr,
-    cursor_pos = self.buffer_context.cursor_pos,
-    filetype = self.buffer_context.filetype,
-    contents = original_content,
-    winnr = self.buffer_context.winnr,
-    id = self.id,
+    from_lines = args.original_content,
+    to_lines = args.new_content,
+    diff_id = self.id,
+    ft = self.buffer_context.filetype,
+    inline = true,
+    banner = self:build_diff_banner(),
+    keymaps = {
+      on_accept = function()
+        self:on_diff_accepted()
+      end,
+      on_reject = function()
+        self:on_diff_rejected()
+      end,
+      on_always_accept = function()
+        approvals:always(self.buffer_context.bufnr, { tool_name = "inline" })
+      end,
+    },
   })
+end
+
+---Handle diff accepted event
+---@return nil
+function Inline:on_diff_accepted()
+  log:trace("[Inline] Diff accepted for id=%s", self.id)
+  self.original_content = nil
+  self.diff_ui = nil
+  self:reset()
+end
+
+---Handle diff rejected event
+---@return nil
+function Inline:on_diff_rejected()
+  log:trace("[Inline] Diff rejected for id=%s, restoring original content", self.id)
+
+  if self.original_content and api.nvim_buf_is_valid(self.buffer_context.bufnr) then
+    api.nvim_buf_set_lines(self.buffer_context.bufnr, 0, -1, false, self.original_content)
+  end
+
+  self.original_content = nil
+  self.diff_ui = nil
+  self:reset()
 end
 
 return Inline

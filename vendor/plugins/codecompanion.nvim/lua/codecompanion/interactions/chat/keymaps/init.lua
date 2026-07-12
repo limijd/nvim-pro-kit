@@ -1,6 +1,8 @@
 local async = require("plenary.async")
 local completion = require("codecompanion.providers.completion")
 local config = require("codecompanion.config")
+local triggers = require("codecompanion.triggers")
+
 local ts = require("codecompanion.utils.treesitter")
 local ui_utils = require("codecompanion.utils.ui")
 local utils = require("codecompanion.utils")
@@ -13,13 +15,12 @@ local M = {}
 local _cached_options = {}
 M.options = {
   callback = function()
-    local float_opts = {
-      filetype = "codecompanion",
+    local float_opts = vim.tbl_extend("force", config.display.chat.floating_window, {
+      ft = "codecompanion",
       lock = true,
       style = "minimal",
       title = "Options",
-      window = config.display.chat.window,
-    }
+    })
 
     if next(_cached_options) ~= nil then
       return ui_utils.create_float(_cached_options, float_opts)
@@ -92,13 +93,13 @@ M.options = {
     -- Workout the column spacing
     local keymaps_max = max("description", keymaps)
 
-    local vars = {}
-    vim.iter(config.interactions.chat.variables):each(function(key, val)
+    local ec = {}
+    vim.iter(config.interactions.shared.editor_context):each(function(key, val)
       if not val.hide_in_help_window then
-        vars[key] = val
+        ec[key] = val
       end
     end)
-    local vars_max = max("key", vars)
+    local vars_max = max("key", ec)
 
     local tools = {}
     -- Add tools
@@ -167,13 +168,16 @@ M.options = {
       ::continue::
     end
 
-    -- Variables
+    -- Editor Context
     table.insert(lines, "")
-    table.insert(lines, "### Variables")
+    table.insert(lines, "### Editor Context")
 
-    for key, val in sorted_pairs(vars) do
+    for key, val in sorted_pairs(ec) do
       local desc = clean_and_truncate(val.description)
-      table.insert(lines, indent .. pad("#{" .. key .. "}", max_length, 4) .. " " .. desc)
+      table.insert(
+        lines,
+        indent .. pad(string.format("%s{%s}", triggers.mappings.editor_context, key), max_length, 4) .. " " .. desc
+      )
     end
 
     -- Tools
@@ -183,7 +187,10 @@ M.options = {
     for key, val in sorted_pairs(tools) do
       if key ~= "opts" then
         local desc = clean_and_truncate(val.description)
-        table.insert(lines, indent .. pad("@{" .. key .. "}", max_length, 4) .. " " .. desc)
+        table.insert(
+          lines,
+          indent .. pad(string.format("%s{%s}", triggers.mappings.tools, key), max_length, 4) .. " " .. desc
+        )
       end
     end
 
@@ -199,7 +206,7 @@ M.completion = {
       async.run(function()
         local slash_cmds = completion.slash_commands()
         local tools = completion.tools()
-        local vars = completion.variables()
+        local ec = completion.editor_context()
 
         local items = {}
 
@@ -209,18 +216,18 @@ M.completion = {
         if type(tools[1]) == "table" then
           vim.list_extend(items, tools)
         end
-        if type(vars[1]) == "table" then
-          vim.list_extend(items, vars)
+        if type(ec[1]) == "table" then
+          vim.list_extend(items, ec)
         end
 
         -- Process each item to match the completion format
         for _, item in ipairs(items) do
           if item.label then
-            -- Add bracket wrapping for variables and tools like cmp/blink do
-            if item.type == "variable" then
-              item.word = string.format("#{%s}", item.label:sub(2))
+            -- Add bracket wrapping for editor context and tools like cmp/blink do
+            if item.type == "editor_context" then
+              item.word = string.format("%s{%s}", triggers.mappings.editor_context, item.label:sub(2))
             elseif item.type == "tool" then
-              item.word = string.format("@{%s}", item.label:sub(2))
+              item.word = string.format("%s{%s}", triggers.mappings.tools, item.label:sub(2))
             else
               item.word = item.label
             end
@@ -278,6 +285,10 @@ M.completion = {
 
 M.send = {
   callback = function(chat)
+    -- The chat buffer can be submitted in insert mode, but we want to ensure that
+    -- we revert to normal mode so the user can scroll the chat buffer without
+    -- unintentionally hitting the "modifiable is off" error
+    vim.cmd("stopinsert")
     chat:submit()
   end,
 }
@@ -287,6 +298,40 @@ M.regenerate = {
     chat:regenerate()
   end,
 }
+
+---True when bufnr is hidden everywhere or visible in the current tab.
+---@param bufnr number
+---@return boolean
+local function bufnr_available_to_current_tab(bufnr)
+  local current_tab = api.nvim_get_current_tabpage()
+  local visible_anywhere = false
+
+  for _, w in ipairs(api.nvim_list_wins()) do
+    if api.nvim_win_get_buf(w) == bufnr then
+      visible_anywhere = true
+      if api.nvim_win_get_tabpage(w) == current_tab then
+        return true
+      end
+    end
+  end
+
+  return not visible_anywhere
+end
+
+---Registry filter that scopes chat cycling to the current tab when pertab is on.
+---@return fun(entry: CodeCompanion.Registry.Entry): boolean | nil
+local function chat_cycle_filter()
+  if not config.display.chat.window.pertab then
+    return nil
+  end
+
+  return function(entry)
+    if entry.interaction ~= "chat" then
+      return true
+    end
+    return bufnr_available_to_current_tab(entry.bufnr)
+  end
+end
 
 M.close = {
   callback = function(chat)
@@ -298,7 +343,21 @@ M.close = {
     end
 
     local window_opts = chat.ui.window_opts or { default = true }
-    chats[1].chat.ui:open({ window_opts = window_opts })
+
+    local target = chats[1]
+
+    -- In pertab mode, prefer a chat that isn't already visible in another tab
+    -- so closing one chat doesn't steal a sibling chat from another tab.
+    if config.display.chat.window.pertab then
+      for _, c in ipairs(chats) do
+        if bufnr_available_to_current_tab(c.chat.bufnr) then
+          target = c
+          break
+        end
+      end
+    end
+
+    target.chat.ui:open({ window_opts = window_opts })
   end,
 }
 
@@ -342,8 +401,14 @@ local function yank_node(node)
   local cursor_position = vim.fn.getcurpos()
 
   -- Create marks for the node range
-  vim.api.nvim_buf_set_mark(0, "[", start_row + 1, start_col, {})
-  vim.api.nvim_buf_set_mark(0, "]", end_row + 1, end_col - 1, {})
+  local ok, _ = pcall(function()
+    vim.api.nvim_buf_set_mark(0, "[", start_row + 1, start_col, {})
+    vim.api.nvim_buf_set_mark(0, "]", end_row + 1, end_col - 1, {})
+  end)
+
+  if not ok then
+    return utils.notify("Failed to copy code block", vim.log.levels.WARN)
+  end
 
   -- Yank using marks
   vim.cmd(string.format('normal! `["%sy`]', config.interactions.chat.opts.register))
@@ -455,61 +520,40 @@ M.buffer_sync_diff = {
   end,
 }
 
----@param chat CodeCompanion.Chat
----@param direction number
-local function move_buffer(chat, direction)
-  local bufs = _G.codecompanion_buffers
-  local len = #bufs
-  local next_buf = vim
-    .iter(bufs)
-    :enumerate()
-    :filter(function(_, v)
-      return v == chat.bufnr
-    end)
-    :map(function(i, _)
-      return direction > 0 and bufs[(i % len) + 1] or bufs[((i - 2 + len) % len) + 1]
-    end)
-    :next()
-
-  local codecompanion = require("codecompanion")
-
-  local prev_ui = codecompanion.buf_get_chat(chat.bufnr).ui
-  prev_ui:hide()
-  local window_opts = prev_ui.window_opts or { default = true }
-  codecompanion.buf_get_chat(next_buf).ui:open({ window_opts = window_opts })
-end
-
 M.next_chat = {
   desc = "Move to the next chat",
   callback = function(chat)
-    if vim.tbl_count(_G.codecompanion_buffers) == 1 then
-      return
-    end
-    move_buffer(chat, 1)
+    require("codecompanion.interactions.shared.registry").move(chat.bufnr, 1, { filter = chat_cycle_filter() })
   end,
 }
 
 M.previous_chat = {
   desc = "Move to the previous chat",
   callback = function(chat)
-    if vim.tbl_count(_G.codecompanion_buffers) == 1 then
-      return
-    end
-    move_buffer(chat, -1)
+    require("codecompanion.interactions.shared.registry").move(chat.bufnr, -1, { filter = chat_cycle_filter() })
   end,
 }
 
+---Resolve the role names from the chat's adapter
+---@param chat CodeCompanion.Chat
+---@return string[]
+local function resolve_roles(chat)
+  local roles = config.interactions.chat.roles
+  local llm_role = type(roles.llm) == "function" and roles.llm(chat.adapter) or roles.llm
+  return { roles.user, llm_role }
+end
+
 M.next_header = {
   desc = "Go to the next message",
-  callback = function()
-    ts.goto_heading("next", 1)
+  callback = function(chat)
+    ts.goto_heading({ direction = "next", count = 1, roles = resolve_roles(chat) })
   end,
 }
 
 M.previous_header = {
   desc = "Go to the previous message",
-  callback = function()
-    ts.goto_heading("prev", 1)
+  callback = function(chat)
+    ts.goto_heading({ direction = "prev", count = 1, roles = resolve_roles(chat) })
   end,
 }
 
@@ -559,16 +603,24 @@ M.clear_rules = {
   end,
 }
 
+M.clear_approvals = {
+  desc = "Clear approvals in the current buffer",
+  callback = function(chat)
+    local approvals = require("codecompanion.interactions.chat.tools.approvals")
+    approvals:reset(chat.bufnr)
+    return utils.notify("Cleared the approvals", vim.log.levels.INFO)
+  end,
+}
+
 M.yolo_mode = {
   desc = "Toggle YOLO mode",
   callback = function(chat)
-    if vim.g.codecompanion_yolo_mode then
-      vim.g.codecompanion_yolo_mode = nil
-      return utils.notify("YOLO mode disabled", vim.log.levels.INFO)
-    else
-      vim.g.codecompanion_yolo_mode = true
-      return utils.notify("YOLO mode enabled", vim.log.levels.INFO)
+    local approvals = require("codecompanion.interactions.chat.tools.approvals")
+    local status = approvals:toggle_yolo_mode(chat.bufnr)
+    if status then
+      return utils.notify("YOLO mode enabled!", vim.log.levels.INFO)
     end
+    return utils.notify("YOLO mode disabled!", vim.log.levels.INFO)
   end,
 }
 
@@ -617,6 +669,44 @@ M.goto_file_under_cursor = {
   end,
 }
 
+M.btw = {
+  callback = function(chat)
+    vim.ui.input({ prompt = "btw ..." }, function(input)
+      if input and input ~= "" then
+        chat:btw(input)
+      end
+    end)
+  end,
+
+  ---@param chat CodeCompanion.Chat
+  set = function(chat)
+    local btw_keymap = config.interactions.chat.keymaps._btw
+    if not btw_keymap then
+      return
+    end
+
+    local key = btw_keymap.modes.n
+    if key then
+      vim.keymap.set("n", key, function()
+        M.btw.callback(chat)
+      end, { buffer = chat.bufnr, desc = btw_keymap.description, nowait = true })
+    end
+  end,
+
+  ---@param chat CodeCompanion.Chat
+  remove = function(chat)
+    local btw_keymap = config.interactions.chat.keymaps._btw
+    if not btw_keymap then
+      return
+    end
+
+    local key = btw_keymap.modes.n
+    if key then
+      pcall(vim.keymap.del, "n", key, { buffer = chat.bufnr })
+    end
+  end,
+}
+
 M.copilot_stats = {
   desc = "Show Copilot usage statistics",
   callback = function(chat)
@@ -624,13 +714,6 @@ M.copilot_stats = {
       return utils.notify("Stats are only available when using the Copilot adapter", vim.log.levels.WARN)
     end
     chat.adapter.show_copilot_stats()
-  end,
-}
-
-M.super_diff = {
-  desc = "Show super diff buffer",
-  callback = function(chat)
-    require("codecompanion.interactions.chat.helpers.super_diff").show_super_diff(chat)
   end,
 }
 
