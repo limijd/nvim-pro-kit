@@ -191,6 +191,52 @@ describe('dap with fake server', function()
     )
   end)
 
+  it("jumps to location on stopped with threadId that is missing", function()
+    local session = run_and_wait_until_initialized(config, server)
+
+    server.spy.clear()
+    server.client.threads = function(self, request)
+      self:send_response(request, {
+        threads = { { id = 1, name = 'thread1' }, }
+      })
+    end
+    local frame1 = {
+      id = 1,
+      name = "stackFrame1",
+      line = 1,
+    }
+    server.client.stackTrace = function(self, request)
+      self:send_response(request, {
+        stackFrames = { frame1 },
+      })
+    end
+    session:event_stopped({
+      allThreadsStopped = false,
+      threadId = 2,
+      reason = 'breakpoint',
+    })
+    vim.wait(1000, function() return #server.spy.requests == 3 end)
+    local expected_commands = {"threads", "stackTrace", "scopes"}
+    assert.are.same(
+      expected_commands,
+      vim.tbl_map(function(x) return x.command end, server.spy.requests)
+    )
+    assert.are_same({
+      [1] = {
+        id = 1,
+        name = "thread1",
+      },
+      [2] = {
+        id = 2,
+        name = "Unknown",
+        stopped = true,
+        frames = {
+          frame1,
+        }
+      }
+    }, session.threads)
+  end)
+
   it('jumps to location on stopped with reason=pause and allThreadsStopped', function()
     local session = run_and_wait_until_initialized(config, server)
     server.spy.clear()
@@ -264,7 +310,12 @@ describe('dap with fake server', function()
       reason = 'breakpoint',
     })
     vim.wait(1000, function() return captured_msg ~= nil end)
-    local msg = 'Adapter reported a frame in buf %d line 40 column 3, but: Cursor position outside buffer. Ensure executable is up2date and if using a source mapping ensure it is correct'
+    local msg
+    if vim.fn.has("nvim-0.12") == 1 then
+      msg = "Adapter reported frame in buf %d line 40:3, but: Invalid cursor line: out of range. Ensure executable is up2date and if using a source mapping ensure it is correct"
+    else
+      msg = 'Adapter reported frame in buf %d line 40:3, but: Cursor position outside buffer. Ensure executable is up2date and if using a source mapping ensure it is correct'
+    end
     assert.are.same(string.format(msg, vim.uri_to_bufnr(path)), captured_msg)
   end)
 
@@ -490,6 +541,67 @@ describe('dap with fake server', function()
     assert.are.same(session, dap.session())
   end)
 
+  it("step_into askForTargets=true uses step fallbacks on empty targets response", function()
+    local session = run_and_wait_until_initialized(config, server)
+    session.capabilities.supportsStepInTargetsRequest = true
+    server.spy.clear()
+    server.client.threads = function(self, request)
+      self:send_response(request, {
+        threads = { { id = 1, name = 'thread1' }, }
+      })
+    end
+
+    local buf = api.nvim_create_buf(true, false)
+    local win = api.nvim_get_current_win()
+    local tmpname = os.tmpname()
+    os.remove(tmpname)
+    api.nvim_buf_set_name(buf, tmpname)
+    api.nvim_buf_set_lines(buf, 0, -1, false, {'line 1', 'line 2'})
+    api.nvim_win_set_buf(win, buf)
+    api.nvim_win_set_cursor(win, { 1, 0})
+    local path = vim.uri_from_bufnr(buf)
+
+    server.client.stackTrace = function(self, request)
+      self:send_response(request, {
+        stackFrames = {
+          {
+            id = 1,
+            name = 'stackFrame1',
+            line = 1,
+            column = 1,
+            source = {
+              path = path
+            }
+          },
+        },
+      })
+    end
+    server.client.scopes = function(self, request)
+      self:send_response(request, {
+        scopes = {}
+      })
+    end
+    server.client:send_event('stopped', {
+      threadId = 1,
+      reason = 'breakpoint',
+    })
+    wait_for_response(server, "scopes")
+
+    server.client.stepInTargets = function(self, request)
+      self:send_response(request, {
+        targets = {}
+      })
+    end
+    server.client.stepIn = function(self, request)
+      self:send_response(request, {})
+    end
+
+    dap.step_into({ askForTargets = true })
+    wait_for_response(server, "stepIn")
+    local commands = vim.tbl_map(function(x) return x.command end, server.spy.requests)
+    assert.are.same({"threads", "stackTrace", "scopes", "stepInTargets", "stepIn"}, commands)
+  end)
+
   it("Run aborts if config value is dap.ABORT", function()
     local msg = nil
     require('dap.utils').notify = function(m)
@@ -661,6 +773,15 @@ describe('request source', function()
   end)
 
   it('can jump to frame if source needs to be fetched', function()
+    api.nvim_create_autocmd("BufReadCmd", {
+      group = api.nvim_create_augroup("dap-readcmds", { clear = true }),
+      pattern = "dap-src://*",
+      ---@param args vim.api.keyset.create_autocmd.callback_args
+      callback = function(args)
+        require("dap._cmds").source(args.buf)
+      end,
+    })
+
     server.client.source = function(self, request)
       self:send_response(request, {
         content = 'foobar',
@@ -679,6 +800,7 @@ describe('request source', function()
             id = 1,
             name = 'stackFrame1',
             line = 1,
+            column = 1,
             source = {
               sourceReference = 1
             }
@@ -910,6 +1032,7 @@ describe('run_to_cursor', function()
     local expected_bps = {
       [buf1] = {
         {
+          buf = buf1,
           line = 1,
         },
       }
@@ -962,6 +1085,7 @@ describe('breakpoint events', function()
     local bps = breakpoints.get()
     assert.are.same(1, vim.tbl_count(bps))
     local expected_breakpoint = {
+      buf = buf1,
       line = 1,
       state = {
         id = 1,
@@ -1029,6 +1153,7 @@ describe('breakpoint events', function()
     local expected_breakpoints = {
       [buf2] = {
         [1] = {
+          buf = buf2,
           line = breakpoint_state.line,
           state = breakpoint_state,
         }
@@ -1193,8 +1318,8 @@ describe('event_terminated', function()
     expected_args.__restart = 'dummy_value'
     assert.are.same(expected_args, request.arguments)
     local new_session = dap.session()
-    assert.are.not_same(nil, new_session)
-    assert.are.not_same(session.id, new_session.id)
+    assert.is_not_nil(new_session)
+    assert.are_not_same(session.id, assert(new_session).id)
 
     server.client:send_event('terminated')
     dap.terminate()

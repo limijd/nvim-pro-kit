@@ -16,6 +16,7 @@ describe('breakpoints', function()
     local expected = {
       [1] = {
         {
+          buf = 1,
           line = 1,
         },
       },
@@ -30,6 +31,7 @@ describe('breakpoints', function()
     local expected = {
       [1] = {
         {
+          buf = 1,
           line = 1,
           logMessage = 'xs={xs}',
         },
@@ -44,6 +46,7 @@ describe('breakpoints', function()
     local expected = {
       [1] = {
         {
+          buf = 1,
           line = 1,
           logMessage = 'xs={xs}',
         },
@@ -67,12 +70,14 @@ describe('breakpoints', function()
     local expected = {
       [fstbuf] = {
         {
+          buf = fstbuf,
           line = lnum,
           state = state,
         },
       },
       [newbuf] = {
         {
+          buf = newbuf,
           line = 2,
         }
       }
@@ -88,7 +93,10 @@ describe('breakpoints', function()
     local buf = api.nvim_get_current_buf()
     local expected = {
       [buf] = {
-        { line = 1 },
+        {
+          buf = buf,
+          line = 1
+        },
       }
     }
     assert.are.same(expected, breakpoints.get())
