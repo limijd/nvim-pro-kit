@@ -241,8 +241,6 @@ if vim.api.nvim_call_function("has", { "nvim-0.8" }) == 1 then
         -- Misc
         ["@none"] = colors.Fg,
         ["@conceal"] = colors.Grey,
-        ["@nospell"] = colors.Fg,
-        ["@spell"] = colors.Fg,
 
         -- Operators
         ["@operator"] = colors.Fg,
@@ -264,6 +262,12 @@ if vim.api.nvim_call_function("has", { "nvim-0.8" }) == 1 then
         ["@string.special.path"] = {fg = c.green, fmt = cfg.code_style.strings},
         ["@string.special.symbol"] = colors.Cyan,
         ["@string.special.url"] = {fg = c.cyan, fmt = 'underline'},
+
+        -- Tags (HTML, JSX, TSX, XML)
+        ["@tag"] = colors.Purple,
+        ["@tag.builtin"] = colors.Purple,
+        ["@tag.attribute"] = colors.Yellow,
+        ["@tag.delimiter"] = colors.Purple,
 
         -- Types
         ["@type"] = colors.Yellow,
@@ -824,6 +828,11 @@ hl.plugins.mini = {
     MiniTestPass = { fg = c.green, fmt = "bold" },
 
     MiniTrailspace = { bg = c.red },
+}
+
+hl.plugins.indentmini = {
+    IndentLine = { fg = c.bg2 },
+    IndentLineCurrent = { fg = c.grey },
 }
 
 hl.plugins.illuminate = {
