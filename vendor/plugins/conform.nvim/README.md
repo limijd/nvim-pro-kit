@@ -250,12 +250,12 @@ You can view this list in vim with `:help conform-formatters`
 - [fnlfmt](https://git.sr.ht/~technomancy/fnlfmt) - A formatter for Fennel code.
 - [forge_fmt](https://github.com/foundry-rs/foundry) - Forge is a command-line tool that ships with Foundry. Forge tests, builds, and deploys your smart contracts.
 - [format-dune-file](https://github.com/ocaml/dune) - Auto-formatter for Dune files.
-- [format-queries](https://github.com/nvim-treesitter/nvim-treesitter/blob/main/CONTRIBUTING.md#formatting) - Tree-sitter query formatter.
 - [fourmolu](https://hackage.haskell.org/package/fourmolu) - A fork of ormolu that uses four space indentation and allows arbitrary configuration.
 - [fprettify](https://github.com/fortran-lang/fprettify) - Auto-formatter for modern fortran source code.
 - [gawk](https://www.gnu.org/software/gawk/manual/gawk.html) - Format awk programs with gawk.
 - [gci](https://github.com/daixiang0/gci) - GCI, a tool that controls Go package import order and makes it always deterministic.
 - [gdformat](https://github.com/Scony/godot-gdscript-toolkit) - A formatter for Godot's gdscript.
+- [gdscript-formatter](https://github.com/GDQuest/GDScript-formatter) - A faster code formatter for GDScript and Godot 4.
 - [gersemi](https://github.com/BlankSpruce/gersemi) - A formatter to make your CMake code the real treasure.
 - [ghdl](https://ghdl.github.io/ghdl/) - Open-source analyzer, compiler, simulator and synthesizer for VHDL.
 - [ghokin](https://github.com/antham/ghokin) - Parallelized formatter with no external dependencies for gherkin.
@@ -310,6 +310,7 @@ You can view this list in vim with `:help conform-formatters`
 - [mdsf](https://github.com/hougesen/mdsf) - Format markdown code blocks using your favorite code formatters.
 - [mdslw](https://github.com/razziel89/mdslw) - Prepare your markdown for easy diff'ing by adding line breaks after every sentence.
 - [meson](https://github.com/mesonbuild/meson) - Format meson source files.
+- [mh_style](https://github.com/florianschanda/miss_hit) - A simple coding style checker and code formatter for MATLAB or Octave code.
 - [mix](https://hexdocs.pm/mix/main/Mix.Tasks.Format.html) - Format Elixir files using the mix format command.
 - [mojo_format](https://docs.modular.com/mojo/cli/format) - Official Formatter for The Mojo Programming Language
 - [nginxfmt](https://github.com/slomkowski/nginx-config-formatter) - nginx config file formatter/beautifier written in Python with no additional dependencies.
@@ -325,9 +326,16 @@ You can view this list in vim with `:help conform-formatters`
 - [ocp-indent](https://github.com/OCamlPro/ocp-indent) - Automatic indentation of OCaml source files.
 - [odinfmt](https://github.com/DanielGavin/ols) - Auto-formatter for the Odin programming language.
 - [opa_fmt](https://www.openpolicyagent.org/docs/latest/cli/#opa-fmt) - Format Rego files using `opa fmt` command.
+- [openapi_format](https://github.com/thim81/openapi-format) - Format an OpenAPI document by ordering, formatting and filtering fields.
 - [ormolu](https://hackage.haskell.org/package/ormolu) - A formatter for Haskell source code.
+- [oxfmt](https://github.com/oxc-project/oxc) - A Prettier-compatible code formatter.
+- [oxlint](https://github.com/oxc-project/oxc) - An oxidized replacement for ESLint that fixes lint errors.
 - [packer_fmt](https://developer.hashicorp.com/packer/docs/commands/fmt) - The packer fmt Packer command is used to format HCL2 configuration files to a canonical format and style.
+- [palantir-java-format](https://github.com/palantir/palantir-java-format) - A modern, lambda-friendly, 120 character Java formatter.
+- [panache](https://github.com/jolars/panache) - A formatter, linter, and language server for Markdown, Quarto, and R Markdown.
+- [panache-fix](https://github.com/jolars/panache) - Linter for Markdown, Quarto, and R Markdown. Applies auto-fixable rule violations.
 - [pangu](https://github.com/vinta/pangu.py) - Insert whitespace between CJK and half-width characters.
+- [pasfmt](https://github.com/integrated-application-development/pasfmt) - Delphi code formatter.
 - [perlimports](https://github.com/perl-ide/App-perlimports) - Make implicit Perl imports explicit.
 - [perltidy](https://github.com/perltidy/perltidy) - Perl::Tidy, a source code formatter for Perl.
 - [pg_format](https://github.com/darold/pgFormatter) - PostgreSQL SQL syntax beautifier.
@@ -341,6 +349,7 @@ You can view this list in vim with `:help conform-formatters`
 - [pretty-php](https://github.com/lkrms/pretty-php) - The opinionated PHP code formatter.
 - [prettypst](https://github.com/antonWetzel/prettypst) - Formatter for Typst.
 - [prolog](https://github.com/jamesnvc/lsp_server) - Language Server Protocol server and formatter for SWI-Prolog.
+- [pruner](https://github.com/pruner-formatter/pruner) - A language-agnostic, treesitter powered formatter.
 - [puppet-lint](https://github.com/puppetlabs/puppet-lint) - Check that your Puppet manifests conform to the style guide.
 - [purs-tidy](https://github.com/natefaubion/purescript-tidy) - A syntax tidy-upper for PureScript.
 - [pycln](https://github.com/hadialqattan/pycln) - A Python formatter for finding and removing unused import statements.
@@ -362,6 +371,7 @@ You can view this list in vim with `:help conform-formatters`
 - [ruff_format](https://docs.astral.sh/ruff/) - An extremely fast Python linter, written in Rust. Formatter subcommand.
 - [ruff_organize_imports](https://docs.astral.sh/ruff/) - An extremely fast Python linter, written in Rust. Organize imports.
 - [rufo](https://github.com/ruby-formatter/rufo) - Rufo is an opinionated ruby formatter.
+- [rumdl](https://github.com/rvben/rumdl) - Markdown Linter and Formatter written in Rust.
 - [runic](https://github.com/fredrikekre/Runic.jl) - Julia code formatter.
 - [rustfmt](https://github.com/rust-lang/rustfmt) - A tool for formatting rust code according to style guidelines.
 - [rustywind](https://github.com/avencera/rustywind) - A tool for formatting Tailwind CSS classes.
@@ -393,6 +403,7 @@ You can view this list in vim with `:help conform-formatters`
 - [swiftlint](https://github.com/realm/SwiftLint) - A tool to enforce Swift style and conventions.
 - [syntax_tree](https://github.com/ruby-syntax-tree/syntax_tree) - Syntax Tree is a suite of tools built on top of the internal CRuby parser.
 - [taplo](https://github.com/tamasfe/taplo) - A TOML toolkit written in Rust.
+- [tclfmt](https://github.com/nmoroze/tclint) - A formatter for Tcl scripts, part of the tclint project.
 - [templ](https://templ.guide/developer-tools/cli/#formatting-templ-files) - Formats templ template files.
 - [terraform_fmt](https://www.terraform.io/docs/cli/commands/fmt.html) - The terraform-fmt command rewrites `terraform` configuration files to a canonical format and style.
 - [terragrunt_hclfmt](https://terragrunt.gruntwork.io/docs/reference/cli-options/#hclfmt) - Format hcl files into a canonical format.
@@ -403,7 +414,9 @@ You can view this list in vim with `:help conform-formatters`
 - [treefmt](https://github.com/numtide/treefmt) - one CLI to format your repo.
 - [trim_newlines](https://github.com/stevearc/conform.nvim/blob/master/lua/conform/formatters/trim_newlines.lua) - Trim empty lines at the end of the file.
 - [trim_whitespace](https://github.com/stevearc/conform.nvim/blob/master/lua/conform/formatters/trim_whitespace.lua) - Trim trailing whitespace.
+- [trunk](https://docs.trunk.io/code-quality/overview/getting-started/commands-reference/code-quality#trunk-check-run-format) - Trunk universal formatter.
 - [twig-cs-fixer](https://github.com/VincentLanglet/Twig-CS-Fixer) - Automatically fix Twig Coding Standards issues
+- [txtpbfmt](https://github.com/protocolbuffers/txtpbfmt) - txtpbfmt parses, edits and formats text proto files in a way that preserves comments.
 - [typespec](https://github.com/microsoft/typespec) - TypeSpec compiler and CLI.
 - [typos](https://github.com/crate-ci/typos) - Source code spell checker
 - [typstyle](https://github.com/Enter-tainer/typstyle) - Beautiful and reliable typst code formatter.
@@ -491,6 +504,15 @@ require("conform").formatters.shfmt = {
 }
 ```
 
+You can also specify which formatter to inherit from. This can be useful if you want to define multiple variants of a single formatter with slightly different options.
+
+```lua
+require("conform").formatters.deno_fmt_markdown = {
+  inherit = "deno_fmt",
+  append_args = { "--indent-width", "4" },
+}
+```
+
 ### Magic strings
 
 The following magic strings are available in `args` and `range_args`. They will be dynamically replaced at runtime with the relevant value.
@@ -511,6 +533,7 @@ The following magic strings are available in `args` and `range_args`. They will 
 - [Lazy loading with lazy.nvim](doc/recipes.md#lazy-loading-with-lazynvim)
 - [Leave visual mode after range format](doc/recipes.md#leave-visual-mode-after-range-format)
 - [Run the first available formatter followed by more formatters](doc/recipes.md#run-the-first-available-formatter-followed-by-more-formatters)
+- [Create a separate command to do special formatting you don't want to happen on save](doc/recipes.md#create-a-separate-command-to-do-special-formatting-you-dont-want-to-happen-on-save)
 
 <!-- /RECIPES -->
 
@@ -622,7 +645,8 @@ require("conform").setup({
       env = {
         VAR = "value",
       },
-      -- Set to false to disable merging the config with the base definition
+      -- Set to false to disable merging the config with the base definition.
+      -- Can also be set to the name of the formatter to merge with (e.g. inherit = "black")
       inherit = true,
       -- When inherit = true, add these additional arguments to the beginning of the command.
       -- This can also be a function, like args
@@ -733,7 +757,7 @@ conform.format({ lsp_format = "fallback" })
 -- Asynchronously format the current buffer; will not block the UI
 conform.format({ async = true }, function(err, did_edit)
   -- called after formatting
-end
+end)
 -- Format the current buffer with a specific formatter
 conform.format({ formatters = { "ruff_fix" } })
 ```

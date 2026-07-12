@@ -1,3 +1,4 @@
+local dir_manager = require("conform.dir_manager")
 local errors = require("conform.errors")
 local fs = require("conform.fs")
 local ft_to_ext = require("conform.ft_to_ext")
@@ -195,7 +196,7 @@ M.apply_format = function(
   end
   local bufname = vim.api.nvim_buf_get_name(bufnr)
   log.trace("Applying formatting to %s", bufname)
-  -- The vim.diff algorithm doesn't handle changes in newline-at-end-of-file well. The unified
+  -- The vim.text.diff algorithm doesn't handle changes in newline-at-end-of-file well. The unified
   -- result_type has some text to indicate that the eol changed, but the indices result_type has no
   -- such indication. To work around this, we just add a trailing newline to the end of both the old
   -- and the new text.
@@ -214,11 +215,19 @@ M.apply_format = function(
   end
 
   log.trace("Comparing lines %s and %s", original_lines, new_lines)
-  ---@diagnostic disable-next-line: missing-fields
-  local indices = vim.diff(original_text, new_text, {
-    result_type = "indices",
-    algorithm = "histogram",
-  })
+  local indices
+  if vim.fn.has("nvim-0.12") == 1 then
+    indices = vim.text.diff(original_text, new_text, {
+      result_type = "indices",
+      algorithm = "histogram",
+    })
+  else
+    ---@diagnostic disable-next-line: deprecated
+    indices = vim.diff(original_text, new_text, {
+      result_type = "indices",
+      algorithm = "histogram",
+    })
+  end
   assert(type(indices) == "table")
   log.trace("Diff indices %s", indices)
   local text_edits = {}
@@ -370,13 +379,14 @@ local function run_formatter(bufnr, formatter, config, ctx, input_lines, opts, c
 
   if not config.stdin then
     log.debug("Creating temp file %s", ctx.filename)
-    vim.fn.mkdir(vim.fs.dirname(ctx.filename), "p")
+    dir_manager.ensure_parent(ctx.filename)
     local fd = assert(uv.fs_open(ctx.filename, "w", 448)) -- 0700
     uv.fs_write(fd, buffer_text)
     uv.fs_close(fd)
     callback = util.wrap_callback(callback, function()
       log.debug("Cleaning up temp file %s", ctx.filename)
       uv.fs_unlink(ctx.filename)
+      dir_manager.cleanup()
     end)
   end
 
