@@ -12,14 +12,12 @@ local M = {}
 ---@field server table|nil The TCP server instance
 ---@field port number|nil The port server is running on
 ---@field auth_token string|nil The authentication token for validating connections
----@field clients table<string, WebSocketClient> A list of connected clients
 ---@field handlers table Message handlers by method name
 ---@field ping_timer table|nil Timer for sending pings
 M.state = {
   server = nil,
   port = nil,
   auth_token = nil,
-  clients = {},
   handlers = {},
   ping_timer = nil,
 }
@@ -53,8 +51,6 @@ function M.start(config, auth_token)
       M._handle_message(client, message)
     end,
     on_connect = function(client)
-      M.state.clients[client.id] = client
-
       -- Log connection with auth status
       if M.state.auth_token then
         logger.debug("server", "Authenticated WebSocket client connected:", client.id)
@@ -71,7 +67,6 @@ function M.start(config, auth_token)
       end
     end,
     on_disconnect = function(client, code, reason)
-      M.state.clients[client.id] = nil
       logger.debug(
         "server",
         "WebSocket client disconnected:",
@@ -81,6 +76,16 @@ function M.start(config, auth_token)
         ", reason:",
         (reason or "N/A") .. ")"
       )
+
+      -- Close diffs this client opened but never resolved (issue #248) -- only if
+      -- the diff module is in use. Scheduled: diff cleanup touches window APIs.
+      local diff = package.loaded["claudecode.diff"]
+      if diff then
+        local client_id = client.id
+        vim.schedule(function()
+          diff.close_diffs_for_client(client_id, "client disconnected")
+        end)
+      end
     end,
     on_error = function(error_msg)
       logger.error("server", "WebSocket server error:", error_msg)
@@ -114,6 +119,15 @@ function M.stop()
     M.state.ping_timer = nil
   end
 
+  -- Reject any still-pending diffs before teardown -- stop_server bypasses
+  -- on_disconnect (#248). Pending only, so saved-but-unflushed edits survive;
+  -- only if the diff module is in use, and while clients can still receive
+  -- DIFF_REJECTED.
+  local diff = package.loaded["claudecode.diff"]
+  if diff then
+    diff.close_pending_diffs("server stopping")
+  end
+
   tcp_server.stop_server(M.state.server)
 
   -- CRITICAL: Clear global deferred responses to prevent memory leaks and hanging
@@ -124,8 +138,6 @@ function M.stop()
   M.state.server = nil
   M.state.port = nil
   M.state.auth_token = nil
-  M.state.clients = {}
-
   return true
 end
 
@@ -213,8 +225,6 @@ end
 local module_instance_id = math.random(10000, 99999)
 logger.debug("server", "Server module loaded with instance ID:", module_instance_id)
 
--- Note: debug_deferred_table function removed as deferred_responses table is no longer used
-
 function M._setup_deferred_response(deferred_info)
   local co = deferred_info.coroutine
 
@@ -272,7 +282,6 @@ function M.register_handlers()
         capabilities = {
           logging = vim.empty_dict(), -- Ensure this is an object {} not an array []
           prompts = { listChanged = true },
-          resources = { subscribe = true, listChanged = true },
           tools = { listChanged = true },
         },
         serverInfo = {
