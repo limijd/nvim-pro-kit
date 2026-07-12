@@ -10,14 +10,43 @@ Nothing yet!
 
 ---
 
-## [v1.0.1] - 2025-11-08
+## [v1.0.3] - 2025-11-24
 
 ### 🐛 Fixed
 
-- **Comment color consistency**
+- **JSX/TSX/HTML highlighting broken** (#254)
+  - Restored missing `@tag` highlight groups that were accidentally removed in v1.0.0
+  - Fixed broken syntax highlighting in JSX, TSX, HTML, and XML files
+  - Added `@tag`, `@tag.builtin`, `@tag.attribute`, and `@tag.delimiter` highlights
+  - Tags now properly display in purple, attributes in yellow
+  - Affected users were seeing degraded readability in React/TypeScript components
+
+---
+
+## [v1.0.2] - 2025-11-24
+
+### 🐛 Fixed
+
+- **Comment color consistency across all languages** (#255)
+  - Removed `@spell` and `@nospell` highlight definitions that were overriding comment colors
+  - Fixes issue where comments with spell checking enabled appeared in wrong color (lighter grey instead of correct grey)
+  - Affected multiple languages including Ruby, Python, JavaScript, Lua, and others
+  - All comments now display in consistent grey color regardless of spell checking or position
+
+### ✨ Added
+
+- **indentmini support** (#256)
+  - Added highlight groups for [indentmini.nvim](https://github.com/nvimdev/indentmini.nvim) plugin
+  - `IndentLine`, `IndentLineCurrent` highlights
+
+---
+
+## [v1.0.1] - 2025-11-08
+
+### 🔧 Improvements
+
+- **Comment documentation consistency**
   - `@comment.documentation` now uses same grey color as `@comment`
-  - Fixes visual inconsistency in Ruby and other languages where comments above classes/methods appeared lighter
-  - All regular comments now visually consistent across all languages
   - Special comment types (TODO, NOTE, ERROR, WARNING) still retain distinct colors
 
 ---
