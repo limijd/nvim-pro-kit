@@ -6,12 +6,13 @@ local check = helpers.check
 local cleanup = helpers.cleanup
 local clear = helpers.clear
 local command = api.nvim_command
+local command_wait_gitsigns_update = helpers.command_wait_gitsigns_update
 local edit = helpers.edit
 local eq = helpers.eq
+local eq_path = helpers.eq_path
 local exec_lua = helpers.exec_lua
 local expectf = helpers.expectf
 local feed = helpers.feed
-local fn = helpers.fn
 local get_buf_var = api.nvim_buf_get_var
 local git = helpers.git
 local insert = helpers.insert
@@ -19,34 +20,31 @@ local match_dag = helpers.match_dag
 local match_debug_messages = helpers.match_debug_messages
 local match_lines = helpers.match_lines
 local n, p, np = helpers.n, helpers.p, helpers.np
-local newfile = helpers.newfile
-local scratch = helpers.scratch
+local path_pattern = helpers.path_pattern
 local setup_gitsigns = helpers.setup_gitsigns
 local setup_test_repo = helpers.setup_test_repo
 local split = vim.split
-local system = fn.system
 local test_config = helpers.test_config
-local test_file = helpers.test_file
+local wait_for_attach = helpers.wait_for_attach
 local write_to_file = helpers.write_to_file
+local fn = helpers.fn
+local newfile --- @type string
+local scratch --- @type string
+local test_file --- @type string
 
 helpers.env()
 
----@param bufnr? integer
-local function wait_for_attach(bufnr)
-  helpers.expectf(function()
-    return exec_lua(function(bufnr0)
-      return vim.b[bufnr0 or 0].gitsigns_status_dict.gitdir ~= nil
-    end, bufnr)
-  end)
-  match_debug_messages({
-    ('attach(1): attach complete'):format(bufnr or api.nvim_get_current_buf()),
-  })
+local function refresh_paths()
+  newfile = helpers.newfile
+  scratch = helpers.scratch
+  test_file = helpers.test_file
 end
 
-local revparse_pat = ('run_job: git .* rev-parse --show-toplevel --absolute-git-dir --abbrev-ref HEAD'):gsub(
+local revparse_pat = ('system.system: git .* rev-parse --show-toplevel --absolute-git-dir --abbrev-ref HEAD'):gsub(
   '%-',
   '%%-'
 )
+local attach_open_pat = 'attach%.attach%(1%): Attaching %(trigger=Buf%u%l+%u%l+%)'
 
 describe('gitsigns (with screen)', function()
   local screen --- @type test.screen
@@ -54,6 +52,7 @@ describe('gitsigns (with screen)', function()
 
   before_each(function()
     clear()
+    refresh_paths()
     screen = Screen.new(20, 17)
     screen:attach({ ext_messages = true })
 
@@ -86,7 +85,7 @@ describe('gitsigns (with screen)', function()
     screen:set_default_attr_ids(default_attrs)
 
     config = vim.deepcopy(test_config)
-    command('cd ' .. system({ 'dirname', os.tmpname() }))
+    helpers.chdir_tmp()
   end)
 
   after_each(function()
@@ -95,7 +94,7 @@ describe('gitsigns (with screen)', function()
   end)
 
   it('can run basic setup', function()
-    setup_gitsigns()
+    setup_gitsigns(config)
     check({ status = {}, signs = {} })
   end)
 
@@ -104,20 +103,19 @@ describe('gitsigns (with screen)', function()
     local nvim_ver = exec_lua('return vim.version().minor')
     screen:try_resize(20, 6)
     setup_test_repo({ no_add = true })
-    -- Don't set this too low, or else the test will lock up
-    config.watch_gitdir = { interval = 100 }
+    config.watch_gitdir.enable = true
     setup_gitsigns(config)
     edit(test_file)
 
     match_dag({
-      'attach(1): Attaching (trigger=BufReadPost)',
-      p('run_job: git .* config user.name'),
+      'attach.attach(1): Attaching (trigger=BufReadPost)',
+      p('system.system: git .* config user.name'),
       p(revparse_pat),
       p(
-        'run_job: git .* ls%-files %-%-stage %-%-others %-%-exclude%-standard %-%-eol '
-          .. vim.pesc(test_file)
+        'system.system: git .* ls%-files %-%-stage %-%-others %-%-exclude%-standard %-%-eol '
+          .. path_pattern(test_file)
       ),
-      'attach(1): Watching git dir',
+      p('attach%.attach%(1%): Watching git dir .*'),
     })
 
     check({
@@ -135,14 +133,14 @@ describe('gitsigns (with screen)', function()
 
   it('can open files not in a git repo', function()
     setup_gitsigns(config)
-    local tmpfile = os.tmpname()
+    local tmpfile = helpers.tempname()
     edit(tmpfile)
 
     match_debug_messages({
-      'attach(1): Attaching (trigger=BufReadPost)',
+      p(attach_open_pat),
       np(revparse_pat),
-      n('new: Not in git repo'),
-      n('attach(1): Empty git obj'),
+      np('Not in git repo'),
+      np('Empty git obj'),
     })
     command('Gitsigns clear_debug')
 
@@ -150,10 +148,10 @@ describe('gitsigns (with screen)', function()
     command('write')
 
     match_debug_messages({
-      n('attach(1): Attaching (trigger=BufWritePost)'),
+      n('attach.attach(1): Attaching (trigger=BufWritePost)'),
       np(revparse_pat),
-      n('new: Not in git repo'),
-      n('attach(1): Empty git obj'),
+      n('git.new: Not in git repo'),
+      n('attach.attach(1): Empty git obj'),
     })
   end)
 
@@ -185,11 +183,11 @@ describe('gitsigns (with screen)', function()
       edit(scratch .. '/.git/index')
 
       match_debug_messages({
-        'attach(1): Attaching (trigger=BufReadPost)',
-        n('run_job: git --version'),
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
+        n('system.system: git --version'),
         p(revparse_pat),
-        n('new: Not in git repo'),
-        n('attach(1): Empty git obj'),
+        n('git.new: Not in git repo'),
+        n('attach.attach(1): Empty git obj'),
       })
     end)
 
@@ -198,32 +196,165 @@ describe('gitsigns (with screen)', function()
 
       local ignored_file = scratch .. '/dummy_ignored.txt'
 
-      system({ 'touch', ignored_file })
+      helpers.touch(ignored_file)
       edit(ignored_file)
 
       match_debug_messages({
-        'attach(1): Attaching (trigger=BufReadPost)',
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
         np(revparse_pat),
-        np('run_job: git .* config user.name'),
-        np('run_job: git .* ls%-files .*/dummy_ignored.txt'),
-        n('attach(1): Cannot resolve file in repo'),
+        np('system.system: git .* config user.name'),
+        np('system.system: git .* ls%-files ' .. path_pattern(ignored_file)),
+        n('attach.attach(1): Cannot resolve file in repo'),
       })
 
       check({ status = { head = 'main' } })
+    end)
+
+    it('does not attach to nodiff files', function()
+      write_to_file(scratch .. '/.gitattributes', { '*.bar -diff' })
+
+      local nodiff_file = scratch .. '/dummy.bar'
+      write_to_file(nodiff_file, { 'dummy' })
+
+      git('add', scratch .. '/.gitattributes', nodiff_file)
+      git('commit', '-m', 'add nodiff file')
+
+      edit(nodiff_file)
+
+      match_debug_messages({
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
+        np(revparse_pat),
+        np('attach%.attach%(1%): File has %-diff attribute'),
+      })
+
+      check({ status = { head = 'main' }, signs = {} })
+    end)
+
+    it('requires --force to manually attach to nodiff files from the command line', function()
+      write_to_file(scratch .. '/.gitattributes', { '*.bar -diff' })
+
+      local nodiff_file = scratch .. '/dummy.bar'
+      write_to_file(nodiff_file, { 'dummy' })
+
+      git('add', scratch .. '/.gitattributes', nodiff_file)
+      git('commit', '-m', 'add nodiff file')
+
+      edit(nodiff_file)
+
+      match_debug_messages({
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
+        np(revparse_pat),
+        np('attach%.attach%(1%): File has %-diff attribute'),
+      })
+
+      command('Gitsigns attach')
+
+      match_debug_messages({
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
+        np(revparse_pat),
+        np('attach%.attach%(1%): File has %-diff attribute'),
+        'attach.attach(1): Attaching (trigger=command)',
+        np(revparse_pat),
+        np('attach%.attach%(1%): File has %-diff attribute'),
+      })
+
+      check({ status = { head = 'main' }, signs = {} })
+
+      command('Gitsigns attach --force')
+
+      wait_for_attach()
+      check({ status = { head = 'main', added = 0, changed = 0, removed = 0 }, signs = {} })
+    end)
+
+    it('can manually attach to nodiff files via attach({ force = true })', function()
+      write_to_file(scratch .. '/.gitattributes', { '*.bar -diff' })
+
+      local nodiff_file = scratch .. '/dummy.bar'
+      write_to_file(nodiff_file, { 'dummy' })
+
+      git('add', scratch .. '/.gitattributes', nodiff_file)
+      git('commit', '-m', 'add nodiff file')
+
+      edit(nodiff_file)
+
+      match_debug_messages({
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
+        np(revparse_pat),
+        np('attach%.attach%(1%): File has %-diff attribute'),
+      })
+
+      exec_lua([[require('gitsigns').attach({ force = true })]])
+
+      wait_for_attach()
+      check({ status = { head = 'main', added = 0, changed = 0, removed = 0 }, signs = {} })
+    end)
+
+    it('can manually attach to nodiff files with force and a custom trigger', function()
+      write_to_file(scratch .. '/.gitattributes', { '*.bar -diff' })
+
+      local nodiff_file = scratch .. '/dummy.bar'
+      write_to_file(nodiff_file, { 'dummy' })
+
+      git('add', scratch .. '/.gitattributes', nodiff_file)
+      git('commit', '-m', 'add nodiff file')
+
+      edit(nodiff_file)
+
+      match_debug_messages({
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
+        np(revparse_pat),
+        np('attach%.attach%(1%): File has %-diff attribute'),
+      })
+
+      exec_lua([=[
+        require('gitsigns').attach({
+          bufnr = vim.api.nvim_get_current_buf(),
+          trigger = 'test',
+          force = true,
+        })
+      ]=])
+
+      wait_for_attach()
+      check({ status = { head = 'main', added = 0, changed = 0, removed = 0 }, signs = {} })
+    end)
+
+    it('can manually attach to nodiff files with an explicit bufnr in opts', function()
+      write_to_file(scratch .. '/.gitattributes', { '*.bar -diff' })
+
+      local nodiff_file = scratch .. '/dummy.bar'
+      write_to_file(nodiff_file, { 'dummy' })
+
+      git('add', scratch .. '/.gitattributes', nodiff_file)
+      git('commit', '-m', 'add nodiff file')
+
+      edit(nodiff_file)
+
+      match_debug_messages({
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
+        np(revparse_pat),
+        np('attach%.attach%(1%): File has %-diff attribute'),
+      })
+
+      exec_lua(
+        [[require('gitsigns').attach({ bufnr = vim.api.nvim_get_current_buf(), force = true })]]
+      )
+
+      wait_for_attach()
+      check({ status = { head = 'main', added = 0, changed = 0, removed = 0 }, signs = {} })
     end)
 
     it("doesn't attach to non-existent files", function()
       edit(newfile)
 
       match_debug_messages({
-        'attach(1): Attaching (trigger=BufNewFile)',
+        'attach.attach(1): Attaching (trigger=BufNewFile)',
         np(revparse_pat),
-        np('run_job: git .* config user.name'),
+        np('system.system: git .* config user.name'),
         np(
-          'run_job: git .* ls%-files %-%-stage %-%-others %-%-exclude%-standard %-%-eol '
-            .. vim.pesc(newfile)
+          'system.system: git .* ls%-files %-%-stage %-%-others %-%-exclude%-standard %-%-eol '
+            .. path_pattern(newfile)
         ),
-        'attach(1): Cannot resolve file in repo',
+        'attach.attach(1): Cannot resolve file in repo',
       })
 
       check({ status = { head = 'main' } })
@@ -233,8 +364,8 @@ describe('gitsigns (with screen)', function()
       edit(scratch .. '/does/not/exist')
 
       match_debug_messages({
-        'attach(1): Attaching (trigger=BufNewFile)',
-        n('attach(1): Not a path'),
+        'attach.attach(1): Attaching (trigger=BufNewFile)',
+        n('attach.attach(1): Not a path'),
       })
 
       helpers.pcall_err(get_buf_var, 0, 'gitsigns_head')
@@ -244,8 +375,8 @@ describe('gitsigns (with screen)', function()
     it('can run copen', function()
       command('copen')
       match_debug_messages({
-        'attach(2): Attaching (trigger=BufReadPost)',
-        n('attach(2): Non-normal buffer'),
+        'attach.attach(2): Attaching (trigger=BufReadPost)',
+        n('attach.attach(2): Non-normal buffer'),
       })
     end)
 
@@ -272,7 +403,28 @@ describe('gitsigns (with screen)', function()
     before_each(function()
       config.current_line_blame = true
       config.current_line_blame_formatter = ' <author>, <author_time:%R> - <summary>'
+      config.current_line_blame_opts = { delay = 1 }
       setup_gitsigns(config)
+    end)
+
+    local function stub_notify_once()
+      exec_lua(function()
+        _G.__gitsigns_notify_once_orig = vim.notify_once
+        vim.notify_once = function() end
+      end)
+    end
+
+    local function restore_notify_once()
+      exec_lua(function()
+        if _G.__gitsigns_notify_once_orig then
+          vim.notify_once = _G.__gitsigns_notify_once_orig
+          _G.__gitsigns_notify_once_orig = nil
+        end
+      end)
+    end
+
+    after_each(function()
+      restore_notify_once()
     end)
 
     local function blame_line_ui_test(autocrlf, file_ending)
@@ -281,9 +433,11 @@ describe('gitsigns (with screen)', function()
 
       git('config', 'core.autocrlf', autocrlf)
       if file_ending == 'dos' then
-        system("printf 'This\r\nis\r\na\r\nwindows\r\nfile\r\n' > " .. newfile)
+        write_to_file(newfile, { 'This', 'is', 'a', 'windows', 'file' }, {
+          newline = '\r\n',
+        })
       else
-        system("printf 'This\nis\na\nwindows\nfile\n' > " .. newfile)
+        write_to_file(newfile, { 'This', 'is', 'a', 'windows', 'file' })
       end
 
       git('add', newfile)
@@ -295,7 +449,7 @@ describe('gitsigns (with screen)', function()
 
       screen:expect({
         grid = [[
-        ^{MATCH:This {6: You, %d second.}}|
+        ^{MATCH:This {6: You, .*}}|
         is                  |
         a                   |
         windows             |
@@ -329,6 +483,28 @@ describe('gitsigns (with screen)', function()
     it('does handle unix', function()
       blame_line_ui_test('false', 'unix')
     end)
+
+    it('falls back when function formatters return invalid virt_text', function()
+      -- nvim 0.10.4 can hang screen tests that render notify_once messages.
+      -- This spec only cares about falling back to the default formatter.
+      stub_notify_once()
+
+      exec_lua(function()
+        require('gitsigns.config').config.current_line_blame_formatter = function()
+          return 'not virt_text'
+        end
+      end)
+
+      setup_test_repo()
+      edit(test_file)
+      feed('gg')
+      check({ signs = {} })
+
+      expectf(function()
+        local line = exec_lua('return vim.b.gitsigns_blame_line')
+        return line ~= nil and line ~= 'not virt_text' and line:match('^ You, ') ~= nil
+      end)
+    end)
   end)
 
   describe('falls back from right_align to eol when text is too long  (#1322)', function()
@@ -343,7 +519,10 @@ describe('gitsigns (with screen)', function()
 
       config.current_line_blame = true
       config.current_line_blame_formatter = ' <author>, <author_time:%R> - <summary>'
-      config.current_line_blame_opts = { virt_text_pos = 'right_align' }
+      config.current_line_blame_opts = {
+        virt_text_pos = 'right_align',
+        delay = 1,
+      }
       setup_gitsigns(config)
     end)
 
@@ -354,7 +533,7 @@ describe('gitsigns (with screen)', function()
 
       screen:expect({
         grid = [[
-        ^short {MATCH:{6: You, %d+ second}}|
+        ^short {MATCH:{6: You, .*}}|
         aaaaaaaaaaaaaaaaaaaa|
         bbbbbbbbbbbbbbbbbbbb|
         {6:~                   }|
@@ -431,7 +610,7 @@ describe('gitsigns (with screen)', function()
       -- Short line: blame should appear with right_align (normal behavior)
       screen:expect({
         grid = [[
-        ^short {MATCH:{6: You, %d+ second}}|
+        ^short {MATCH:{6: You, .*}}|
         aaaaaaaaaaaaaaaaaaaa|
         aaaaa               |
         bbbbbbbbbbbbbbbbbbbb|
@@ -457,7 +636,7 @@ describe('gitsigns (with screen)', function()
         grid = [[
         short               |
         ^aaaaaaaaaaaaaaaaaaaa|
-        {MATCH:aaaaa {6: You, %d second.*}}|
+        {MATCH:aaaaa {6: You, .*}}|
         bbbbbbbbbbbbbbbbbbbb|
         bbbbbbbbbbbbbbbbbbbb|
         {6:~                   }|
@@ -501,15 +680,30 @@ describe('gitsigns (with screen)', function()
     end)
   end)
 
-  --  TODO(lewis6991): All deprecated fields removed. Re-add when we have another deprecated field
-  -- describe('configuration', function()
-  --   it('handled deprecated fields', function()
-  --     pending()
-  --     -- config.current_line_blame_delay = 100
-  --     -- setup_gitsigns(config)
-  --     -- eq(100, exec_lua([[return package.loaded['gitsigns.config'].config.current_line_blame_opts.delay]]))
-  --   end)
-  -- end)
+  describe('configuration', function()
+    it('validates union-typed fields', function()
+      helpers.setup_path()
+
+      for _, case in ipairs({
+        { field = 'current_line_blame_formatter', value = 1 },
+        { field = 'current_line_blame_formatter_nc', value = 1 },
+        { field = 'blame_formatter', value = true },
+      }) do
+        local result = exec_lua(function(field, value)
+          local ok, err = pcall(require('gitsigns.config').build, {
+            [field] = value,
+          })
+          return {
+            ok = ok,
+            err = tostring(err),
+          }
+        end, case.field, case.value)
+
+        eq(false, result.ok)
+        eq(true, result.err:find(case.field, 1, true) ~= nil)
+      end
+    end)
+  end)
 
   describe('on_attach()', function()
     it('can prevent attaching to a buffer', function()
@@ -518,12 +712,15 @@ describe('gitsigns (with screen)', function()
 
       edit(test_file)
       match_debug_messages({
-        'attach(1): Attaching (trigger=BufReadPost)',
+        'attach.attach(1): Attaching (trigger=BufReadPost)',
         np(revparse_pat),
-        np('run_job: git .* rev%-parse %-%-short HEAD'),
-        np('run_job: git .* config user.name'),
-        np('run_job: git .* %-%-git%-dir .* %-%-stage %-%-others %-%-exclude%-standard %-%-eol.*'),
-        n('attach(1): User on_attach() returned false'),
+        np('system.system: git .* rev%-parse %-%-short HEAD'),
+        np('system.system: git .* config user.name'),
+        np(
+          'system.system: git .* %-%-git%-dir .* %-%-stage %-%-others %-%-exclude%-standard %-%-eol.*'
+        ),
+        np('system.system: git .* check%-attr diff %-%-stdin'),
+        n('attach.attach(1): User on_attach() returned false'),
       })
     end)
   end)
@@ -630,24 +827,36 @@ describe('gitsigns (with screen)', function()
       it('attaches to newly created files', function()
         setup_gitsigns(config)
         edit(newfile)
-        match_debug_messages({
-          'attach(1): Attaching (trigger=BufNewFile)',
+        local messages = {
+          'attach.attach(1): Attaching (trigger=BufNewFile)',
           np(revparse_pat),
-          np('run_job: git .* config user.name'),
-          np('run_job: git .* ls%-files .*'),
-          n('attach(1): Cannot resolve file in repo'),
-        })
+          np('system.system: git .* config user.name'),
+          np('system.system: git .* ls%-files .*'),
+          n('attach.attach(1): Cannot resolve file in repo'),
+        }
+
+        if fn.has('win32') == 1 then
+          table.insert(
+            messages,
+            5,
+            p(vim.pesc('system.system: cygpath --absolute --unix ') .. path_pattern(newfile))
+          )
+        end
+
+        match_debug_messages(messages)
         command('write')
 
         local messages = {
-          'attach(1): Attaching (trigger=BufWritePost)',
+          'attach.attach(1): Attaching (trigger=BufWritePost)',
           np(revparse_pat),
-          np('run_job: git .* ls%-files .*'),
-          n('attach(1): Watching git dir'),
+          np('system.system: git .* ls%-files .*'),
         }
 
         if not internal_diff then
-          table.insert(messages, np('run_job: git .* diff .* /.* /.*'))
+          table.insert(
+            messages,
+            np(vim.pesc('system.system: git ') .. '.* diff .* .*[\\/].* .*[\\/].*')
+          )
         end
 
         match_debug_messages(messages)
@@ -680,9 +889,38 @@ describe('gitsigns (with screen)', function()
         })
       end)
 
-      it('tracks files in new repos', function()
+      it('can manually attach untracked files with --force (#1026)', function()
+        config.attach_to_untracked = false
         setup_gitsigns(config)
-        system({ 'touch', newfile })
+
+        edit(newfile)
+        feed('iline<esc>')
+        command('write')
+
+        check({
+          status = { head = 'main' },
+          signs = {},
+        })
+
+        command('Gitsigns attach --force')
+
+        check({
+          status = { head = 'main', added = 1, changed = 0, removed = 0 },
+          signs = { untracked = 1 },
+        })
+
+        command('Gitsigns stage_buffer')
+
+        check({
+          status = { head = 'main', added = 0, changed = 0, removed = 0 },
+          signs = {},
+        })
+      end)
+
+      it('tracks files in new repos', function()
+        config.watch_gitdir.enable = true
+        setup_gitsigns(config)
+        helpers.touch(newfile)
         edit(newfile)
 
         feed('iEDIT<esc>')
@@ -770,7 +1008,7 @@ describe('gitsigns (with screen)', function()
           signs = { changed = 1, added = 4 },
         })
 
-        exec_lua('require("gitsigns.actions").stage_hunk()')
+        helpers.stage_hunk()
 
         check({
           status = { head = 'HEAD(rebasing)', added = 0, changed = 0, removed = 0 },
@@ -823,35 +1061,36 @@ describe('gitsigns (with screen)', function()
 
     helpers.exc_exec('vimgrep ben ' .. scratch .. '/*')
 
-    if fn.has('nvim-0.12') > 0 then
-      screen:expect({
-        messages = {
-          {
-            kind = '',
-            content = { { scratch .. '/dummy.txt' } },
-          },
-          {
-            kind = 'quickfix',
-            content = { { '(1 of 2): hello ben' } },
-          },
-        },
-      })
-    else
-      screen:expect({
-        messages = {
-          {
-            kind = 'quickfix',
-            content = { { '(1 of 2): hello ben' } },
-          },
-        },
-      })
-    end
+    -- Neovim may emit a varying number of path echoes before the stable quickfix message.
+    expectf(function()
+      screen:sleep(10)
+
+      local messages = screen.messages
+      local message = messages[#messages]
+      local scratch_path0 = scratch:gsub('\\', '/')
+      local scratch_path = vim.fs.normalize(scratch_path0)
+
+      eq('quickfix', message.kind)
+      eq('(1 of 2): hello ben', message.content[1][2])
+
+      for i = 1, #messages - 1 do
+        local entry = messages[i]
+        local path0 = entry.content[1][2]:gsub('\\', '/')
+        local path = vim.fs.normalize(path0)
+
+        eq('', entry.kind)
+        assert(
+          vim.startswith(path, scratch_path .. '/'),
+          ('unexpected path message: %s'):format(path)
+        )
+      end
+    end, 10)
 
     match_debug_messages({
-      'attach_autocmd(2): Attaching is disabled',
-      n('attach_autocmd(3): Attaching is disabled'),
-      n('attach_autocmd(4): Attaching is disabled'),
-      n('attach_autocmd(5): Attaching is disabled'),
+      'gitsigns.attach_autocmd(2): Attaching is disabled',
+      n('gitsigns.attach_autocmd(3): Attaching is disabled'),
+      n('gitsigns.attach_autocmd(4): Attaching is disabled'),
+      n('gitsigns.attach_autocmd(5): Attaching is disabled'),
     })
   end)
 
@@ -883,6 +1122,25 @@ describe('gitsigns (with screen)', function()
     end
   end)
 
+  it('redraws statuscolumn signs after async updates', function()
+    setup_test_repo()
+    setup_gitsigns(config)
+    edit(test_file)
+    exec_lua(function()
+      vim.wo.signcolumn = 'yes'
+      vim.wo.statuscolumn = "%{%v:lua.require'gitsigns'.statuscolumn()%}"
+    end)
+
+    wait_for_attach()
+    feed('x')
+    check({
+      status = { head = 'main', added = 0, changed = 1, removed = 0 },
+      signs = { changed = 1 },
+    })
+
+    screen:expect({ any = [[{2:~}{5: }^his]] })
+  end)
+
   it('handles filenames with unicode characters', function()
     screen:try_resize(20, 2)
     setup_test_repo()
@@ -896,10 +1154,12 @@ describe('gitsigns (with screen)', function()
 
     edit(uni_filename)
 
-    screen:expect({ grid = [[
+    screen:expect({
+      grid = [[
       ^Lorem ipsum         |
       {6:~                   }|
-    ]] })
+    ]],
+    })
 
     feed('x')
 
@@ -965,6 +1225,29 @@ describe('gitsigns (with screen)', function()
 
     check_screen(true)
   end)
+
+  it('shows "No newline at end of file" in preview popup', function()
+    setup_test_repo({ test_file_text = { 'a' } })
+    setup_gitsigns(config)
+    screen:try_resize(30, 5)
+    edit(test_file)
+    wait_for_attach()
+
+    -- Remove newline at end of file (`printf a >a`)
+    local f = assert(io.open(test_file, 'wb'))
+    f:write('a') -- Write without trailing newline
+    f:close()
+
+    command_wait_gitsigns_update('checktime')
+    expectf(function()
+      local hunk = exec_lua(function()
+        return require('gitsigns').get_hunks()[1]
+      end)
+      return hunk and (hunk.added.no_nl_at_eof or hunk.removed.no_nl_at_eof)
+    end)
+    feed('mhp')
+    screen:expect({ any = [[\ No newline at end of file]] })
+  end)
 end)
 
 describe('gitsigns attach', function()
@@ -972,13 +1255,30 @@ describe('gitsigns attach', function()
 
   before_each(function()
     clear()
+    refresh_paths()
     config = vim.deepcopy(test_config)
-    command('cd ' .. system({ 'dirname', os.tmpname() }))
+    helpers.chdir_tmp()
   end)
 
   after_each(function()
     cleanup()
   end)
+
+  --- @param bufnr integer
+  --- @param ctx Gitsigns.GitContext
+  local function attach_with_context(bufnr, ctx)
+    exec_lua(function(bufnr0, ctx0)
+      local async = require('gitsigns.async')
+      async
+        .run(require('gitsigns.attach').attach, {
+          bufnr = bufnr0,
+          ctx = ctx0,
+          trigger = 'test',
+        })
+        :wait(5000)
+    end, bufnr, ctx)
+    wait_for_attach(bufnr)
+  end
 
   it('handle #888', function()
     setup_test_repo()
@@ -992,15 +1292,22 @@ describe('gitsigns attach', function()
     git('commit', '-m', 'add cargo')
 
     -- move file and stage move
-    system({ 'mkdir', subdir })
-    system({ 'mv', path1, path2 })
+    helpers.mkdir(subdir)
+    helpers.move(path1, path2)
     git('add', path1, path2)
 
     config.base = 'HEAD'
     setup_gitsigns(config)
     edit(path1)
+    wait_for_attach()
     command('write')
-    helpers.sleep(100)
+    expectf(function()
+      return exec_lua(function()
+        local bufnr = vim.api.nvim_get_current_buf()
+        local cache = require('gitsigns.cache').cache[bufnr]
+        return cache ~= nil and cache.git_obj.file == vim.api.nvim_buf_get_name(bufnr)
+      end)
+    end)
   end)
 
   it('does not error on non-file fugitive buffers (#1277)', function()
@@ -1014,14 +1321,75 @@ describe('gitsigns attach', function()
     edit(('fugitive://%s/.git//'):format(scratch))
     command('Gitsigns attach')
     match_debug_messages({
-      'attach(1): Empty git obj',
+      'attach.attach(1): Empty git obj',
     })
+  end)
+
+  it('attaches to a tracked file in a subdirectory', function()
+    helpers.git_init_scratch()
+
+    local relpath = 'sub/test.txt'
+    local file = scratch .. '/' .. relpath
+
+    write_to_file(file, { 'hello', 'world' })
+    git('add', file)
+    git('commit', '-m', 'add nested file')
+
+    setup_gitsigns(config)
+    edit(file)
+    wait_for_attach()
+
+    local result = exec_lua(function(bufnr)
+      local cache = assert(require('gitsigns.cache').cache[bufnr])
+      return {
+        relpath = cache.git_obj.relpath,
+        object_name = cache.git_obj.object_name or '',
+        toplevel = cache.git_obj.repo.toplevel,
+      }
+    end, api.nvim_get_current_buf())
+
+    eq(relpath, result.relpath)
+    eq(false, result.object_name == '')
+    eq_path(scratch, result.toplevel)
+  end)
+
+  it('attaches with a relative file path in the git context', function()
+    helpers.git_init_scratch()
+
+    local relpath = 'sub/relative.txt'
+    local file = scratch .. '/' .. relpath
+
+    write_to_file(file, { 'hello', 'world' })
+    git('add', file)
+    git('commit', '-m', 'add relative file')
+
+    config.auto_attach = false
+    setup_gitsigns(config)
+    edit(file)
+
+    attach_with_context(api.nvim_get_current_buf(), {
+      file = relpath,
+      gitdir = scratch .. '/.git',
+      toplevel = scratch,
+    })
+
+    local result = exec_lua(function(bufnr)
+      local cache = assert(require('gitsigns.cache').cache[bufnr])
+      return {
+        relpath = cache.git_obj.relpath,
+        object_name = cache.git_obj.object_name or '',
+        file = cache.git_obj.file,
+      }
+    end, api.nvim_get_current_buf())
+
+    eq(relpath, result.relpath)
+    eq(false, result.object_name == '')
+    eq_path(file, result.file)
   end)
 
   it('can run diffthis/show when cwd is a subdir of a git repo (#1277)', function()
     helpers.git_init_scratch()
     local file = scratch .. '/sub/test'
-    system({ 'mkdir', vim.fs.dirname(file) })
     write_to_file(file, { 'hello' })
     git('add', file)
     git('commit', '-m', 'commit 1')
@@ -1033,19 +1401,60 @@ describe('gitsigns attach', function()
     wait_for_attach()
 
     command('Gitsigns show')
-    wait_for_attach()
 
-    eq('gitsigns://' .. scratch .. '/.git//:0:sub/test', api.nvim_buf_get_name(0))
+    local show_bufnr --- @type integer?
+    expectf(function()
+      show_bufnr = exec_lua(function()
+        local bufnr = vim.api.nvim_get_current_buf()
+        if not vim.api.nvim_buf_get_name(bufnr):match('^gitsigns://') then
+          return
+        end
+        return bufnr
+      end)
+      return show_bufnr ~= nil
+    end)
+    wait_for_attach(show_bufnr)
 
     local gfile, toplevel, gitdir, abbrev_head = exec_lua(function()
-      local git_obj = require('gitsigns.cache').cache[1].git_obj
+      local git_obj = assert(require('gitsigns.cache').cache[1]).git_obj
       return git_obj.file, git_obj.repo.toplevel, git_obj.repo.gitdir, git_obj.repo.abbrev_head
     end)
 
-    eq(file, gfile)
-    eq(scratch, toplevel)
-    eq(scratch .. '/.git', gitdir)
+    eq(('gitsigns://%s//:0:sub/test'):format(gitdir), api.nvim_buf_get_name(0))
+
+    eq_path(file, gfile)
+    eq_path(scratch, toplevel)
+    eq_path(scratch .. '/.git', gitdir)
     eq('main', abbrev_head)
+  end)
+
+  it('does not error after git system callbacks (#1425)', function()
+    setup_test_repo()
+    setup_gitsigns(config)
+
+    edit(test_file)
+    wait_for_attach()
+
+    local ok = exec_lua(function()
+      local async = require('gitsigns.async')
+      local git_cmd = require('gitsigns.git.cmd')
+
+      return async
+        .run(function()
+          -- `git_cmd()` ultimately uses `vim.system`, whose on_exit callback runs
+          -- in fast event context. Ensure we yield to the scheduler after the
+          -- command completes so Neovim API calls here don't raise E5560.
+          git_cmd({ '--version' }, { text = true })
+
+          local b = vim.api.nvim_create_buf(false, true)
+          vim.bo[b].buftype = 'nofile'
+          vim.api.nvim_buf_delete(b, { force = true })
+          return true
+        end)
+        :wait()
+    end)
+
+    eq(true, ok)
   end)
 
   it('does not error when attaching to files out of tree (#1297)', function()
@@ -1061,7 +1470,7 @@ describe('gitsigns attach', function()
 
     match_debug_messages({
       p("get_info: '.*' is outside worktree '.*'"),
-      'attach(1): Empty git obj',
+      'attach.attach(1): Empty git obj',
     })
   end)
 end)

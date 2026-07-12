@@ -1,7 +1,7 @@
 local api = vim.api
 local uv = vim.uv or vim.loop ---@diagnostic disable-line: deprecated
 
---- @class gitsigns.main
+--- @class gitsigns.main: gitsigns.actions,gitsigns.attach,gitsigns.debug
 local M = {}
 
 local cwd_watcher ---@type uv.uv_fs_event_t?
@@ -91,8 +91,8 @@ local function setup_cwd_watcher(cwd, towatch)
   end)
 
   -- Watch .git/HEAD to detect branch changes
-  cwd_watcher:start(towatch, {}, function()
-    async().run(function(err)
+  cwd_watcher:start(towatch, {}, function(err)
+    async().run(function()
       local __FUNC__ = 'cwd_watcher_cb'
       if err then
         log().dprintf('Git dir update error: %s', err)
@@ -149,7 +149,9 @@ end
 
 local function setup_cli()
   api.nvim_create_user_command('Gitsigns', function(params)
-    require('gitsigns.cli').run(params)
+    async().run(function()
+      require('gitsigns.cli').run(params)
+    end)
   end, {
     force = true,
     nargs = '*',
@@ -177,7 +179,7 @@ local function setup_attach()
         log().dprint('Attaching is disabled')
         return
       end
-      require('gitsigns.actions').attach(bufnr, nil, args.event)
+      require('gitsigns.actions').attach({ bufnr = bufnr, trigger = args.event })
     end,
   })
 
@@ -198,7 +200,7 @@ local function setup_attach()
       if api.nvim_buf_is_loaded(buf) and api.nvim_buf_get_name(buf) ~= '' then
         -- Make sure to run each attach in its on async context in case one of the
         -- attaches is aborted.
-        require('gitsigns.actions').attach(buf, nil, 'setup')
+        require('gitsigns.actions').attach({ bufnr = buf, trigger = 'setup' })
       end
     end
   end
@@ -245,8 +247,9 @@ function M.setup(cfg)
   if init then
     api.nvim_create_augroup('gitsigns', {})
     setup_cli()
-    -- TODO(lewis6991): do this lazily
-    require('gitsigns.highlight').setup()
+    -- Highlights are global editor state, so define them during setup even
+    -- when attach-time rendering features stay lazy.
+    require('gitsigns.highlight')
     setup_attach()
     setup_cwd_head()
 
@@ -254,7 +257,13 @@ function M.setup(cfg)
   end
 end
 
---- @type gitsigns.main|gitsigns.actions|gitsigns.attach|gitsigns.debug
+--- @param bufnr? integer Buffer number. Defaults to current buffer.
+--- @param lnum? integer Line number to return status for. Defaults to `vim.v.lnum`
+--- @return string
+function M.statuscolumn(bufnr, lnum)
+  return require('gitsigns.sign_renderer').statuscolumn(bufnr, lnum)
+end
+
 M = setmetatable(M, {
   __index = function(_, f)
     local actions = require('gitsigns.actions')

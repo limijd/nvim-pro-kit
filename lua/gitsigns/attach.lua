@@ -11,13 +11,16 @@ local cache = Cache.cache
 local config = require('gitsigns.config').config
 local dprint = log.dprint
 local dprintf = log.dprintf
-local throttle_by_id = require('gitsigns.debounce').throttle_by_id
+local throttle_async = require('gitsigns.debounce').throttle_async
 
 local api = vim.api
+local current_buf = api.nvim_get_current_buf
 local uv = vim.uv or vim.loop ---@diagnostic disable-line: deprecated
 
 --- @class gitsigns.attach
 local M = {}
+
+local group = api.nvim_create_augroup('gitsigns.attach', {})
 
 --- @param name string
 --- @return string? rel_path
@@ -61,22 +64,21 @@ local function on_lines(_, bufnr, _, first, last_orig, last_new, byte_count)
     -- call which indicates no changes.
     return
   end
-  return manager.on_lines(bufnr, first, last_orig, last_new)
+  return manager.handle_on_lines(bufnr, first, last_orig, last_new)
 end
 
 --- @param _ 'reload'
 --- @param bufnr integer
 local function on_reload(_, bufnr)
-  local __FUNC__ = 'on_reload'
   assert(cache[bufnr]):invalidate()
   dprint('Reload')
-  manager.update_debounced(bufnr)
+  manager.update_sync_debounced(bufnr)
 end
 
 --- @param _ 'detach'
 --- @param bufnr integer
 local function on_detach(_, bufnr)
-  api.nvim_clear_autocmds({ group = 'gitsigns', buffer = bufnr })
+  api.nvim_clear_autocmds({ group = group, buffer = bufnr })
   M.detach(bufnr, true)
 end
 
@@ -103,31 +105,11 @@ local function on_attach_pre(bufnr)
   return gitdir, toplevel
 end
 
-local setup = Util.once(function()
-  manager.setup()
-
-  require('gitsigns.current_line_blame').setup()
-
-  api.nvim_create_autocmd('BufFilePre', {
-    group = 'gitsigns',
-    desc = 'Gitsigns: detach when changing buffer names',
-    callback = function(args)
-      M.detach(args.buf)
-    end,
-  })
-
-  api.nvim_create_autocmd('VimLeavePre', {
-    desc = 'Gitsigns: detach from all buffers',
-    group = 'gitsigns',
-    callback = M.detach_all,
-  })
-end)
-
---- @class Gitsigns.GitContext
---- @field file string
---- @field toplevel? string
---- @field gitdir? string
---- @field base? string
+--- @class (exact) Gitsigns.GitContext
+--- @field file string Path to the file represented by the buffer.
+--- @field toplevel? string Path to the top-level of the parent git repository.
+--- @field gitdir? string Path to the git directory of the parent git repository.
+--- @field base? string Git revision to compare against.
 
 --- @async
 --- @param bufnr integer
@@ -223,7 +205,7 @@ end
 
 --- @async
 --- @param bufnr integer
-local function watcher_handler(bufnr)
+local function repo_update_handler(bufnr)
   local bcache = cache[bufnr]
   if not bcache then
     return
@@ -237,15 +219,34 @@ local function watcher_handler(bufnr)
 
   local was_tracked = git_obj.object_name ~= nil
   local old_relpath = git_obj.relpath
+  local old_object_name = git_obj.object_name
+  local old_mode_bits = git_obj.mode_bits
 
-  bcache:invalidate(true)
   git_obj:refresh()
+
+  local new_object_name = git_obj.object_name
+  local new_mode_bits = git_obj.mode_bits
+
   if not bcache:schedule() then
     dprint('buffer invalid (1)')
     return
   end
 
-  if config.watch_gitdir.follow_files and was_tracked and not git_obj.object_name then
+  local head_oid = git_obj.repo.head_oid
+
+  if
+    old_object_name ~= new_object_name
+    or old_mode_bits ~= new_mode_bits
+    -- Invalidate when the repo HEAD moves (checkout, pull/rebase, etc). The
+    -- file object can stay the same while the comparison base changes.
+    or bcache.head_oid ~= head_oid
+  then
+    bcache:invalidate(true)
+  end
+
+  bcache.head_oid = head_oid
+
+  if config.watch_gitdir.follow_files and was_tracked and not new_object_name then
     -- File was tracked but is no longer tracked. Must of been removed or
     -- moved. Check if it was moved and switch to it.
     handle_moved(bufnr, old_relpath)
@@ -255,29 +256,34 @@ local function watcher_handler(bufnr)
     end
   end
 
-  require('gitsigns.manager').update(bufnr)
+  manager.update(bufnr)
+end
+
+--- @param opts Gitsigns.AttachOpts?
+local function attach_hash(opts)
+  return opts and opts.bufnr or current_buf()
 end
 
 --- @async
 --- Ensure attaches cannot be interleaved for the same buffer.
 --- Since attaches are asynchronous we need to make sure an attach isn't
 --- performed whilst another one is in progress.
---- @param cbuf integer
---- @param ctx? Gitsigns.GitContext
---- @param aucmd? string
-M.attach = throttle_by_id(function(cbuf, ctx, aucmd)
+--- @param opts Gitsigns.AttachOpts?
+M.attach = throttle_async({ hash = attach_hash }, function(opts)
   local __FUNC__ = 'attach'
+  local attach_opts = opts or {}
+  local cbuf = attach_opts.bufnr or current_buf()
+  local ctx = attach_opts.ctx
   local passed_ctx = ctx ~= nil
-
-  setup()
+  local trigger = attach_opts.trigger
 
   if cache[cbuf] then
     dprint('Already attached')
     return
   end
 
-  if aucmd then
-    dprintf('Attaching (trigger=%s)', aucmd)
+  if trigger then
+    dprintf('Attaching (trigger=%s)', trigger)
   else
     dprint('Attaching')
   end
@@ -327,6 +333,7 @@ M.attach = throttle_by_id(function(cbuf, ctx, aucmd)
 
   async.schedule()
   if not api.nvim_buf_is_valid(cbuf) then
+    git_obj:close()
     return
   end
 
@@ -338,11 +345,25 @@ M.attach = throttle_by_id(function(cbuf, ctx, aucmd)
 
   if not git_obj.relpath then
     dprint('Cannot resolve file in repo')
+    git_obj:close()
     return
   end
 
-  if not config.attach_to_untracked and git_obj.object_name == nil then
+  local is_untracked = git_obj.object_name == nil
+
+  -- Forced attaches should still be allowed for buffers skipped by
+  -- auto-attach filters.
+  if not attach_opts.force and not config.attach_to_untracked and is_untracked then
     dprint('File is untracked')
+    git_obj:close()
+    return
+  end
+
+  local relpath = git_obj.relpath --[[@as string]]
+  local diff_attr = git_obj.repo:check_attr('diff', { relpath })[relpath]
+  if not attach_opts.force and diff_attr == 'unset' then
+    dprint('File has -diff attribute')
+    git_obj:close()
     return
   end
 
@@ -350,31 +371,42 @@ M.attach = throttle_by_id(function(cbuf, ctx, aucmd)
   -- variable on the main thread.
   async.schedule()
   if not api.nvim_buf_is_valid(cbuf) then
+    git_obj:close()
     return
   end
 
   if config.on_attach and config.on_attach(cbuf) == false then
     dprint('User on_attach() returned false')
+    git_obj:close()
     return
   end
 
+  -- From here the buffer is accepted; activate manager infrastructure and the
+  -- modules that subscribe to it.
+  manager.setup()
+
   cache[cbuf] = Cache.new(cbuf, file, git_obj)
 
-  if config.watch_gitdir.enable then
-    dprintf('Watching git dir')
+  if not api.nvim_buf_is_loaded(cbuf) then
+    dprint('Un-loaded buffer')
+    Cache.destroy(cbuf)
+    return
+  end
+
+  if git_obj.repo:has_watcher() then
+    dprintf('Watching git dir %s', git_obj.repo.gitdir)
+
     --- Throttle to:
     --- - ensure handler is only triggered once per git operation.
     --- - prevent updates to the same buffer from interleaving as the handler is
     ---   async.
-    local throttled_watcher_handler = throttle_by_id(watcher_handler, true)
-    cache[cbuf].deregister_watcher = git_obj.repo:register_callback(function()
-      async.run(throttled_watcher_handler, cbuf):raise_on_error()
+    local throttled_repo_update_handler = throttle_async({ schedule = true }, function()
+      repo_update_handler(cbuf)
     end)
-  end
 
-  if not api.nvim_buf_is_loaded(cbuf) then
-    dprint('Un-loaded buffer')
-    return
+    cache[cbuf].deregister_watcher = git_obj.repo:on_update(function()
+      async.run(throttled_repo_update_handler):raise_on_error()
+    end)
   end
 
   -- Make sure to attach before the first update (which is async) so we pick up
@@ -386,10 +418,10 @@ M.attach = throttle_by_id(function(cbuf, ctx, aucmd)
   })
 
   api.nvim_create_autocmd('BufWrite', {
-    group = 'gitsigns',
+    group = group,
     buffer = cbuf,
     callback = function()
-      manager.update_debounced(cbuf)
+      manager.update_sync_debounced(cbuf)
     end,
   })
 
@@ -422,7 +454,7 @@ function M.detach(bufnr, keep_signs)
   -- updated due to the file externally changing. When this happens a detach and
   -- attach event happen in sequence and so we keep the old signs to stop the
   -- sign column width moving about between updates.
-  bufnr = bufnr or api.nvim_get_current_buf()
+  bufnr = bufnr or current_buf()
   dprint('Detached')
   local bcache = cache[bufnr]
   if not bcache then
@@ -432,10 +464,25 @@ function M.detach(bufnr, keep_signs)
 
   manager.detach(bufnr, keep_signs)
 
-  -- Clear status variables
-  Status.clear(bufnr)
-
   Cache.destroy(bufnr)
+end
+
+do -- Module-level activation
+  api.nvim_create_autocmd('BufFilePre', {
+    group = group,
+    desc = 'Gitsigns: detach when changing buffer names',
+    callback = function(args)
+      M.detach(args.buf)
+    end,
+  })
+
+  api.nvim_create_autocmd('VimLeavePre', {
+    desc = 'Gitsigns: detach from all buffers',
+    group = group,
+    callback = function()
+      M.detach_all()
+    end,
+  })
 end
 
 return M

@@ -20,6 +20,7 @@ local M = {
 --- @field compare_text?      string[]
 --- @field hunks?             Gitsigns.Hunk.Hunk[]
 --- @field force_next_update? boolean
+--- @field head_oid?          string
 ---
 --- An update is required for the buffer next time it comes into view
 --- @field update_on_view?    boolean
@@ -64,6 +65,27 @@ function CacheEntry:invalidate(all)
   end
 end
 
+--- Keep line-indexed cache state aligned with buffer edits.
+--- @param first integer
+--- @param last_orig integer
+--- @param last_new integer
+function CacheEntry:on_lines(first, last_orig, last_new)
+  local blame = self.blame and self.blame.entries
+  if not blame then
+    return
+  end
+
+  if last_new < last_orig then
+    util.list_remove(blame, last_new + 1, last_orig)
+  elseif last_new > last_orig then
+    util.list_insert(blame, last_orig + 1, last_new)
+  end
+
+  for i = first + 1, last_new do
+    blame[i] = nil
+  end
+end
+
 --- @param bufnr integer
 --- @param file string
 --- @param git_obj Gitsigns.GitObj
@@ -74,21 +96,37 @@ function M.new(bufnr, file, git_obj)
     file = file,
     git_obj = git_obj,
     staged_diffs = {},
+    -- Snapshot HEAD OID so per-buffer invalidation can detect repo HEAD moves.
+    -- `git_obj.repo.head_oid` is shared and may change between updates.
+    head_oid = git_obj.repo.head_oid,
   }, { __index = CacheEntry })
 end
 
+--- @param duration integer
+--- @param cb fun()
 local sleep = async.wrap(2, function(duration, cb)
   vim.defer_fn(cb, duration)
 end)
 
 --- @async
 --- @private
-function CacheEntry:wait_for_hunks()
-  local loop_protect = 0
-  while not self.hunks and loop_protect < 10 do
-    loop_protect = loop_protect + 1
+--- @param staged? boolean
+--- @return boolean
+function CacheEntry:wait_for_hunks(staged)
+  if staged and not config.signs_staged_enable then
+    return false
+  end
+
+  local hunks_key = staged and 'hunks_staged' or 'hunks'
+
+  for _ = 1, 10 do
+    if self[hunks_key] ~= nil then
+      return true
+    end
     sleep(100)
   end
+
+  return self[hunks_key] ~= nil
 end
 
 -- If a file contains has up to this amount of lines, then
@@ -98,7 +136,7 @@ local BLAME_THRESHOLD_LEN = 10000
 
 --- @async
 --- @private
---- @param lnum? integer
+--- @param lnum? integer|[integer, integer]
 --- @param opts? Gitsigns.BlameOpts
 --- @return table<integer,Gitsigns.BlameInfo?>
 --- @return table<string,Gitsigns.CommitInfo?>
@@ -116,6 +154,12 @@ function CacheEntry:run_blame(lnum, opts)
     or (not self.git_obj:from_tree() and not require('gitsigns.git.version').check(2, 41))
 
   while true do
+    -- The buffer may have been detached (and the git object closed) while an
+    -- earlier blame was in flight, leaving git_obj.repo nil. Bail out instead
+    -- of running blame against a closed object.
+    if self.git_obj:closed() then
+      return {}, {}
+    end
     local contents = send_contents and util.buf_lines(bufnr) or nil
     local tick = vim.b[bufnr].changedtick
     local lnum0 = api.nvim_buf_line_count(bufnr) > BLAME_THRESHOLD_LEN and lnum or nil
@@ -157,29 +201,58 @@ end
 
 --- If lnum is nil then run blame for the entire buffer.
 --- @async
---- @param lnum? integer
+--- @param lnum? integer|[integer, integer]
 --- @param opts? Gitsigns.BlameOpts
 --- @return Gitsigns.BlameInfo?
 function CacheEntry:get_blame(lnum, opts)
   local blame = self.blame
 
-  if not blame or not self:blame_valid(lnum) then
+  local blame_valid = true
+  if type(lnum) == 'table' then
+    local curr_lnum = lnum[1]
+    while blame_valid and curr_lnum <= lnum[2] do
+      blame_valid = self:blame_valid(curr_lnum)
+      curr_lnum = curr_lnum + 1
+    end
+  else
+    blame_valid = self:blame_valid(lnum)
+  end
+  if not blame or not blame_valid then
     self:wait_for_hunks()
     blame = blame or { entries = {} }
     local Hunks = require('gitsigns.hunks')
-    if lnum and Hunks.find_hunk(lnum, self.hunks) then
+    local has_blameable_line = true
+    if lnum then
+      local start_lnum = type(lnum) == 'table' and lnum[1] or lnum
+      local end_lnum = type(lnum) == 'table' and lnum[2] or lnum
+      for curr_lnum = start_lnum, end_lnum do
+        has_blameable_line = not Hunks.find_hunk(curr_lnum, self.hunks)
+        if has_blameable_line then
+          break
+        end
+      end
+    end
+    if lnum and not has_blameable_line then
       --- Bypass running blame (which can be expensive) if we know lnum is in a hunk
       local Blame = require('gitsigns.git.blame')
       local relpath = assert(self.git_obj.relpath)
-      local info = Blame.get_blame_nc(relpath, lnum)
-      blame.entries[lnum] = info
-      blame.max_time = info.commit.author_time
+      local start_lnum = type(lnum) == 'table' and lnum[1] or lnum
+      local end_lnum = type(lnum) == 'table' and lnum[2] or lnum
+      for curr_lnum = start_lnum, end_lnum do
+        local info = Blame.get_blame_nc(relpath, curr_lnum)
+        blame.entries[curr_lnum] = info
+        blame.max_time = info.commit.author_time
+      end
     else
       -- Refresh/update cache
       local b, commits, full = self:run_blame(lnum, opts)
       self.commits = vim.tbl_extend('force', self.commits or {}, commits)
       if lnum and not full then
-        blame.entries[lnum] = b[lnum]
+        local start_lnum = type(lnum) == 'table' and lnum[1] or lnum
+        local end_lnum = type(lnum) == 'table' and lnum[2] or lnum
+        for curr_lnum = start_lnum, end_lnum do
+          blame.entries[curr_lnum] = b[curr_lnum]
+        end
       else
         blame.entries = b
       end
@@ -259,7 +332,7 @@ function CacheEntry:get_cursor_hunk(hunks)
 
   local lnum = api.nvim_win_get_cursor(0)[1]
   local Hunks = require('gitsigns.hunks')
-  return Hunks.find_hunk(lnum, hunks)
+  return Hunks.find_hunk(lnum, hunks, api.nvim_buf_line_count(self.bufnr))
 end
 
 --- @async
@@ -269,6 +342,10 @@ end
 --- @return Gitsigns.Hunk.Hunk?
 function CacheEntry:get_hunk(range, greedy, staged)
   local Hunks = require('gitsigns.hunks')
+
+  if not self:wait_for_hunks(staged) then
+    return
+  end
 
   local hunks = self:get_hunks(greedy, staged)
 
@@ -344,6 +421,8 @@ function CacheEntry:destroy()
     self.deregister_watcher()
     self.deregister_watcher = nil
   end
+
+  self.git_obj:close()
 end
 
 ---@type table<integer,Gitsigns.CacheEntry?>

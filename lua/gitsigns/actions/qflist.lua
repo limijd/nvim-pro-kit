@@ -24,11 +24,8 @@ local function hunks_to_qflist(buf_or_filename, hunks, qflist)
       hunk.added.start,
       hunk.added.count ~= 1 and ',' .. tostring(hunk.added.count) or ''
     )
-    local text = ('%-7s (%s): %s'):format(
-      kind,
-      header,
-      hunk.added.lines[1] or hunk.removed.lines[1]
-    )
+    local line = hunk.added.lines[1] or hunk.removed.lines[1] or ''
+    local text = ('%-7s (%s): %s'):format(kind, header, util.lua2viml_str(line))
     qflist[#qflist + 1] = {
       bufnr = type(buf_or_filename) == 'number' and buf_or_filename or nil,
       filename = type(buf_or_filename) == 'string' and buf_or_filename or nil,
@@ -57,7 +54,9 @@ local function buildqflist(target)
     hunks_to_qflist(bufnr, bcache.hunks, qflist)
   elseif target == 'attached' then
     for bufnr, bcache in pairs(cache) do
-      hunks_to_qflist(bufnr, assert(bcache.hunks), qflist)
+      if bcache.hunks then
+        hunks_to_qflist(bufnr, bcache.hunks, qflist)
+      end
     end
   elseif target == 'all' then
     local repos = {} --- @type table<string,Gitsigns.Repo>
@@ -68,29 +67,46 @@ local function buildqflist(target)
       end
     end
 
-    local repo = git.Repo.get((assert(uv.cwd())))
-    if repo and not repos[repo.gitdir] then
-      repos[repo.gitdir] = repo
+    local cwd_repo = git.Repo.get((assert(uv.cwd())))
+    if cwd_repo and not repos[cwd_repo.gitdir] then
+      repos[cwd_repo.gitdir] = cwd_repo
     end
 
     for _, r in pairs(repos) do
-      for _, f in ipairs(r:files_changed(config.base)) do
-        local f_abs = r.toplevel .. '/' .. f
-        local stat = uv.fs_stat(f_abs)
-        if stat and stat.type == 'file' then
-          ---@type string
+      local changed_files = r:files_changed(config.base, config.attach_to_untracked)
+      local changed_paths = {} --- @type string[]
+      for i, changed_file in ipairs(changed_files) do
+        changed_paths[i] = changed_file.path
+      end
+      local diff_attrs = r:check_attr('diff', changed_paths)
+
+      for _, changed_file in ipairs(changed_files) do
+        local f = changed_file.path
+        if diff_attrs[f] ~= 'unset' then
+          local f_abs = r.toplevel .. '/' .. f
+          local stat = uv.fs_stat(f_abs)
+          --- @type string
           local obj
           if config.base and config.base ~= ':0' then
-            obj = config.base .. ':' .. f
+            obj = config.base .. ':' .. (changed_file.oldpath or f)
           else
             obj = ':0:' .. f
           end
-          local a = r:get_show_text(obj)
-          async.schedule()
-          local hunks = run_diff(a, util.file_lines(f_abs))
-          hunks_to_qflist(f_abs, hunks, qflist)
+          if changed_file.deleted or (stat and stat.type == 'file') then
+            local a, stderr = r:get_show_text(obj)
+            if stderr and changed_file.deleted and (not config.base or config.base == ':0') then
+              a = r:get_show_text('HEAD:' .. (changed_file.oldpath or f))
+            end
+            local b = changed_file.deleted and {} or util.file_lines(f_abs)
+            local hunks = run_diff(a, b)
+            hunks_to_qflist(f_abs, hunks, qflist)
+          end
         end
       end
+    end
+
+    if cwd_repo then
+      cwd_repo:unref()
     end
   end
   return qflist

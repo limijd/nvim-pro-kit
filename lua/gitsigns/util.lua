@@ -1,12 +1,27 @@
 local uv = vim.uv or vim.loop ---@diagnostic disable-line: deprecated
 
 local is_win = vim.fn.has('win32') == 1
+local nvim011 = vim.fn.has('nvim-0.11') == 1
 
 --- @class Gitsigns.Util.Path
 local Path = {}
 
 --- @class Gitsigns.Util
 local M = {}
+
+--- Compatibility wrapper for the old and new vim.validate() signatures.
+--- @param name string
+--- @param value any
+--- @param validator type|type[]|fun(v:any): boolean
+--- @param optional? boolean
+function M.validate(name, value, validator, optional)
+  if nvim011 then
+    --- @diagnostic disable-next-line: redundant-parameter,param-type-mismatch
+    vim.validate(name, value, validator, optional)
+  else
+    vim.validate({ [name] = { value, validator, optional or false } })
+  end
+end
 
 --- @param path? string
 --- @return boolean
@@ -29,9 +44,8 @@ end
 --- @param path string
 --- @return boolean
 function Path.is_abs(path)
-  -- Check if the path is absolute on Windows
-  if is_win and M.cygpath(path):match('^%a:[/\\]') then
-    return true
+  if is_win then
+    return path:match('^%a:[/\\]') ~= nil or vim.startswith(path, '/') or vim.startswith(path, '\\')
   end
 
   -- Check if the path is absolute on Unix-like systems
@@ -58,6 +72,18 @@ function M.file_lines(path)
   local contents = file:read('*a')
   file:close()
   return vim.split(contents, '\n')
+end
+
+--- Convert a Lua string to a value accepted by VimL APIs.
+--- @param line string
+--- @return string
+function M.lua2viml_str(line)
+  -- VimL String values cannot safely carry embedded NUL bytes. Replace them
+  -- with a readable sentinel before crossing the vim.fn.* boundary.
+  if line:find('\0', 1, true) then
+    return (line:gsub('%z', '<NUL>'))
+  end
+  return line
 end
 
 M.path_sep = package.config:sub(1, 1)
@@ -126,21 +152,34 @@ function M.buf_lines(bufnr)
   return buftext
 end
 
---- @param buf integer
-local function delete_alt(buf)
-  local alt = vim.api.nvim_buf_call(buf, function()
-    return vim.fn.bufnr('#')
-  end)
-  if alt ~= buf and alt ~= -1 then
-    pcall(vim.api.nvim_buf_delete, alt, { force = true })
+--- @param bufnr integer
+--- @param old_name string
+local function delete_old_name_buffer(bufnr, old_name)
+  if old_name == '' then
+    return
   end
+
+  local stale_buf --- @type integer?
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if buf ~= bufnr and vim.api.nvim_buf_get_name(buf) == old_name then
+      stale_buf = buf
+      break
+    end
+  end
+
+  if not stale_buf or vim.bo[stale_buf].buflisted then
+    return
+  end
+
+  pcall(vim.api.nvim_buf_delete, stale_buf, { force = true })
 end
 
 --- @param bufnr integer
 --- @param name string
 function M.buf_rename(bufnr, name)
+  local old_name = vim.api.nvim_buf_get_name(bufnr)
   vim.api.nvim_buf_set_name(bufnr, name)
-  delete_alt(bufnr)
+  delete_old_name_buffer(bufnr, old_name)
 end
 
 --- @param events string[]
@@ -162,7 +201,7 @@ function M.set_lines(bufnr, start_row, end_row, lines)
   end
   if start_row == 0 and end_row == -1 then
     if lines[#lines] == '' then
-      lines = vim.deepcopy(lines)
+      lines = vim.deepcopy(lines) --[[@as string[] ]]
       lines[#lines] = nil
     else
       vim.bo[bufnr].eol = false
@@ -337,6 +376,9 @@ function M.convert_blame_info(x)
   --- @type Gitsigns.BlameInfoPublic
   local ret = vim.tbl_extend('error', x, x.commit)
   ret.commit = nil
+  if ret.previous_sha and ret.previous_filename then
+    ret.previous = ret.previous_sha .. ' ' .. ret.previous_filename
+  end
   return ret
 end
 
@@ -414,7 +456,7 @@ local has_cygpath --- @type boolean?
 
 --- @async
 --- @param path string
---- @param mode? 'unix'|'windows' (default: 'windows')
+--- @param mode? 'unix'|'windows'|'mixed' (default: 'windows')
 --- @return string
 function M.cygpath(path, mode)
   local async = require('gitsigns.async')
@@ -440,26 +482,50 @@ function M.cygpath(path, mode)
 
   async.schedule()
 
-  return assert(vim.split(stdout, '\n')[1])
+  local result = vim.split(stdout, '\n')[1]
+  -- Strip trailing newline/carriage return that may be present in cygpath output on MSYS2
+  if result then
+    result = result:match('^(.-)[\r\n]*$')
+  end
+
+  return assert(result)
 end
 
 --- Flattens a nested table structure into a flat array of strings. Only
 --- traverses numeric keys, recursively flattening tables and collecting
 --- strings.
---- @param x table<any,any> The input table to flatten.
---- @return string[] A flat array of strings extracted from the nested table.
+--- @param x table<integer,string|string[]?> The input table to flatten.
+--- @return string[] # A flat array of strings extracted from the nested table.
 function M.flatten(x)
   local ret = {} --- @type string[]
-  for k, v in pairs(x) do
-    if type(k) == 'number' then
-      if type(v) == 'table' then
-        vim.list_extend(ret, M.flatten(v))
-      elseif type(v) == 'string' then
-        ret[#ret + 1] = v
-      end
+  for i = 1, table.maxn(x) do
+    local v = x[i]
+    if type(v) == 'table' then
+      vim.list_extend(ret, M.flatten(v))
+    elseif type(v) == 'string' then
+      ret[#ret + 1] = v
+    elseif not v then
+      -- skip
+    else
+      error('Expected string, table, false or nil, got ' .. type(v))
     end
   end
   return ret
+end
+
+--- @param fn fun()
+--- @return userdata
+function M.gc_proxy(fn)
+  local proxy = newproxy(true)
+  getmetatable(proxy).__gc = fn
+  return proxy
+end
+
+--- @generic T
+--- @param x T
+--- @return {ref: T}
+function M.weak_ref(x)
+  return setmetatable({ ref = x }, { __mode = 'v' })
 end
 
 return M

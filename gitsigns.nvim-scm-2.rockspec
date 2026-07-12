@@ -1,4 +1,4 @@
-local _MODREV, _SPECREV = 'scm', '-1'
+local _MODREV, _SPECREV = 'scm', '-2'
 
 rockspec_format = "3.0"
 package = 'gitsigns.nvim'
@@ -32,6 +32,7 @@ end
 build = {
   type = 'builtin',
   copy_directories = {
-    'doc'
-  }
+    'doc',
+    'plugin',
+  },
 }

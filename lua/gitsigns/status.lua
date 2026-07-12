@@ -29,6 +29,11 @@ function M.update(bufnr, status)
   if bstatus then
     status = vim.tbl_extend('force', bstatus, status)
   end
+
+  if vim.deep_equal(bstatus, status) then
+    return
+  end
+
   vim.b[bufnr].gitsigns_head = status.head or ''
   vim.b[bufnr].gitsigns_status_dict = status
 
@@ -39,14 +44,31 @@ function M.update(bufnr, status)
   autocmd_update(bufnr)
 end
 
-function M.clear(bufnr)
-  if not api.nvim_buf_is_loaded(bufnr) then
-    return
-  end
-  vim.b[bufnr].gitsigns_head = nil
-  vim.b[bufnr].gitsigns_status_dict = nil
-  vim.b[bufnr].gitsigns_status = nil
-  autocmd_update(bufnr)
+do -- Module-level activation
+  local manager = require('gitsigns.manager')
+
+  manager.on_update(function(ctx)
+    local summary = require('gitsigns.hunks').get_summary(ctx.bcache.hunks or {})
+    summary.head = ctx.bcache.git_obj.repo.abbrev_head
+    M.update(ctx.bufnr, summary)
+  end)
+
+  manager.on_detach(function(bufnr)
+    if not api.nvim_buf_is_loaded(bufnr) then
+      return
+    end
+
+    local b = vim.b[bufnr]
+
+    if b.gitsigns_head == nil and b.gitsigns_status_dict == nil and b.gitsigns_status == nil then
+      return
+    end
+
+    b.gitsigns_head = nil
+    b.gitsigns_status_dict = nil
+    b.gitsigns_status = nil
+    autocmd_update(bufnr)
+  end)
 end
 
 return M
