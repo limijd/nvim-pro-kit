@@ -63,6 +63,8 @@
 <div align="center">
     <img src="https://github.com/OXY2DEV/markview.nvim/blob/images/v27/markview.nvim-splitview_2.png">
     <img src="https://github.com/OXY2DEV/markview.nvim/blob/images/v27/markview.nvim-hybrid_mode.png">
+    <img src="https://github.com/OXY2DEV/markview.nvim/blob/images/v27/markview.nvim-comment.png">
+    <img src="https://github.com/OXY2DEV/markview.nvim/blob/images/v27/markview.nvim-asciidoc.png">
 </div>
 
 <div align="center">
@@ -73,13 +75,14 @@
 
 Core features,
 
-+ Preview `Markdown`, <code>HTML</code>, $LaTeX$, `Typst` & `YAML` within Neovim.
++ Preview `Markdown`, <code>HTML</code>, $LaTeX$, `Typst` & `Asciidoc`(See [integrations#Asciidoc](https://github.com/OXY2DEV/markview.nvim/wiki/Usage#Asciidoc)) within Neovim.
 + *Hybrid* editing mode! Allowing *editing* & *previewing* at the same time.
 + *Splitview*! Allows editing & previewing *side-by-side*.
 + `Wrap` support(markdown only, at the moment)! Allows using text wrapping while not losing *most* rendering features! See [integrations#wrap](https://github.com/OXY2DEV/markview.nvim/wiki/Integrations#-wrap) for fixing visual glitches or [integrations#nowrap](https://github.com/OXY2DEV/markview.nvim/wiki/Integrations#-nowrap) for disabling it.
 + Highly customisable! You can change almost anything using the config!
 + Dynamic `highlight groups` that automatically updates with the colorscheme!
 + `Callout`, `checkbox` completions for `blink.cmp` & `nvim-cmp`.
++ Works with `tree-sitter injections` too!
 
 <TOC/>
 
@@ -103,6 +106,58 @@ Also see,
 <details>
     <summary>Expand to see complete feature list</summary>
 <!--markdoc_ignore_end-->
+
+#### Asciidoc
+
+<img src="https://github.com/OXY2DEV/markview.nvim/blob/images/v27/markview.nvim-asciidoc.png">
+
+Supported syntax,
+
++ Admonitions
++ Checkboxes(also supports custom checkbox states).
++ Horizontal rules
++ Literal blocks
++ Hiding document attributes
++ Image macros
++ Keycode macros
++ List items(ordered & unordered)
++ Automated TOC(Table of Contents)
+
+#### Asciidoc inline
+
+Supported syntax,
+
++ Bold
++ Highlights
++ Italic
++ Monospace
++ URI
+
+#### Fancy comments,
+
+<img src="https://github.com/OXY2DEV/markview.nvim/wiki/images/comment/markview.nvim-comment.injection.png">
+
+> Comments are still experimental! The original parser only supports basic features.
+
+Conventional commit style comments with support for a subset of `markdown` & `vimdoc`. See [integrations#fancy-comments](https://github.com/OXY2DEV/markview.nvim/wiki/Integrations#-fancy-comments) For more info.
+
+Supported syntax,
+
++ Tasks(e.g. `feat`, `TODO` etc.)
++ Task scopes.
+
+Extra syntax(needs external parser),
+
++ `**Bold**`
++ `*Italic*`
++ `Code`
++ `'Quoted_text'`
++ `"Double quoted text"`
++ `@mentions`
++ `issues/reference#52`
++ `https://example.com`
++ `|help-section|`
++ Code blocks
 
 #### HTML,
 
@@ -235,6 +290,7 @@ Also see,
     + Block reference links.
     + Embed file links.
     + Internal links(supports *aliases*).
+    + Tags.
 
 + Wide variety of HTML entity names & codes support.
     + Supported named entities: **786**.
@@ -270,6 +326,7 @@ Also see,
     + Symbol shorthands: **40**
 
 + Supports Unicode based *subscript* & *superscript* texts.
++ `Org-mode` like indentation for headings.
 
 #### YAML,
 
@@ -372,10 +429,13 @@ Parsers,
 
 - `markdown`
 - `markdown_inline`
+- `comment`(optional)
 - `html`(optional)
 - `latex`(optional)
 - `typst`(optional)
 - `yaml`(optional)
+- [tree-sitter-asciidoc](https://github.com/cathaysia/tree-sitter-asciidoc)(optional)
+  See [integrations#Asciidoc](https://github.com/OXY2DEV/markview.nvim/wiki/Usage#Asciidoc) to see how to get started.
 
 Fonts,
 
@@ -386,6 +446,16 @@ Fonts,
 > It is recommended to run `:checkhealth markview` after installing the plugin to check if any potential issues exist.
 
 ## 📐 Installation
+
+### 📦 vim.pack
+
+Add this to your init.lua. 
+
+```lua
+vim.pack.add({
+    "https://github.com/OXY2DEV/markview.nvim",
+})
+```
 
 ### 🧩 Vim-plug
 

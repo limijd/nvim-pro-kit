@@ -3,6 +3,26 @@ local autocmds = {};
 autocmds.did_enter = false;
 autocmds.pased_vimenter = false;
 
+--[[
+Corrects buffer number.
+
+NOTE: Some `autocmd`s use 0 as the buffer. This function replaces them with the **current** buffer id.
+This fixes edge case errors(for example the last comment in #478).
+]]
+---@param original any
+---@return integer
+local function as_buf(original)
+	---|fS
+
+	if type(original) ~= "number" or original == 0 then
+		return vim.api.nvim_get_current_buf();
+	end
+
+	return original;
+
+	---|fE
+end
+
 ---@param buffer integer
 ---@param event_name string
 ---@param args vim.api.keyset.create_autocmd.callback_args
@@ -86,15 +106,27 @@ autocmds.should_detach = function (args)
 
 	local condition = spec.get({ "preview", "condition" }, { eval_args = { args.buf } });
 
-	if vim.list_contains(ignore_bt, bt) == true then
-		return true;
-	elseif vim.list_contains(attach_ft, ft) == false then
-		return true;
-	elseif condition == false then
-		return true;
+	--[[
+		feat: Attaching to buffers.
+
+		If condition is `true`(either `preview.condition = true` or the evaluated function value is `true`), attach to `buffer`.
+
+		Otherwise, check if the **buftype** is included in `preview.ignore_buftypes`. If it is then we don't attach to `buffer`.
+		Then check if the **filetype** is included in `preview.filetypes`. IF it is we attach to `buffer`.
+	]]
+	if condition == nil then
+		-- No condition specified.
+
+		if vim.list_contains(ignore_bt, bt) == true then
+			--- Ignored buffer type.
+			return true;
+		elseif vim.list_contains(attach_ft, ft) == false then
+			--- Ignored file type.
+			return true;
+		end
 	end
 
-	return false;
+	return condition == false;
 
 	---|fE
 end
@@ -109,8 +141,12 @@ autocmds.modeChanged = function (args)
 
 	if not args.buf or not state.enabled() or not state.buf_attached(args.buf) then
 		return;
-	elseif not state.get_buffer_state(args.buf, false) then
-		return;
+	else
+		local buf_state = state.get_buffer_state(args.buf, false);
+
+		if not buf_state or not buf_state.enable then
+			return;
+		end
 	end
 
 	local use_delay, ignore = autocmds.use_delay(args.buf, args.event, args);
@@ -134,8 +170,10 @@ autocmds.modeChanged = function (args)
 		if args.buf == state.get_splitview_source() then
 			return;
 		elseif p_now then
+			actions.autocmd("on_mode_change", args.buf, vim.fn.win_findbuf(args.buf), vim.fn.mode());
 			actions.render(args.buf);
 		else
+			actions.autocmd("on_mode_change", args.buf, vim.fn.win_findbuf(args.buf), vim.fn.mode());
 			actions.clear(args.buf);
 		end
 
@@ -157,17 +195,18 @@ autocmds.bufHandle = function (args)
 	---|fS
 
 	local state = require("markview.state");
+	local buf = as_buf(args.buf);
 
 	if not state.enabled() then
 		return;
-	elseif not state.buf_safe(args.buf) then
+	elseif not state.buf_safe(buf) then
 		return;
-	elseif state.buf_attached(args.buf) then
-		local buf_state = state.get_buffer_state(args.buf);
+	elseif state.buf_attached(buf) then
+		local buf_state = state.get_buffer_state(buf);
 
 		if buf_state and buf_state.enable then
 			-- NOTE: Re-entering a buffer resets the queries.
-			require("markview.actions").set_query(args.buf);
+			require("markview.actions").set_query(buf);
 		end
 
 		return;
@@ -176,20 +215,33 @@ autocmds.bufHandle = function (args)
 	local spec = require("markview.spec");
 
 	---@type string, string
-	local bt, ft = vim.bo[args.buf].buftype, vim.bo[args.buf].filetype;
+	local bt, ft = vim.bo[buf].buftype, vim.bo[buf].filetype;
 
 	local attach_ft = spec.get({ "preview", "filetypes" }, { fallback = {}, ignore_enable = true });
 	local ignore_bt = spec.get({ "preview", "ignore_buftypes" }, { fallback = {}, ignore_enable = true });
 
-	local condition = spec.get({ "preview", "condition" }, { eval_args = { args.buf }, ignore_enable = true });
+	local condition = spec.get({ "preview", "condition" }, { eval_args = { buf }, ignore_enable = true });
 
-	if vim.list_contains(ignore_bt, bt) == true then
-		--- Ignored buffer type.
-		return;
-	elseif vim.list_contains(attach_ft, ft) == false then
-		--- Ignored file type.
-		return;
+	--[[
+		feat: Attaching to buffers.
+
+		If condition is `true`(either `preview.condition = true` or the evaluated function value is `true`), attach to `buffer`.
+
+		Otherwise, check if the **buftype** is included in `preview.ignore_buftypes`. If it is then we don't attach to `buffer`.
+		Then check if the **filetype** is included in `preview.filetypes`. IF it is we attach to `buffer`.
+	]]
+	if condition == nil then
+		-- No condition specified.
+
+		if vim.list_contains(ignore_bt, bt) == true then
+			--- Ignored buffer type.
+			return;
+		elseif vim.list_contains(attach_ft, ft) == false then
+			--- Ignored file type.
+			return;
+		end
 	elseif condition == false then
+		-- Condition not met.
 		return;
 	end
 
@@ -197,10 +249,24 @@ autocmds.bufHandle = function (args)
 		from = "markview/autocmds.lua",
 		fn = "bufHandle() -> " .. (args.match or "???"),
 
-		message = string.format("Buffer state changed.", args.buf),
+		message = string.format("Buffer state changed.", buf),
 	});
 
-	require("markview.actions").attach(args.buf);
+	require("markview.actions").attach(buf);
+
+	--[[
+		FIX: Apply query for `codecompanion.nvim`
+
+		Codecompanion causes queries to be overwritten. So, we set the queries again for those buffers.
+		Closes #480
+	]]
+	if ft == "codecompanion" then
+		vim.schedule(function ()
+			if vim.api.nvim_buf_is_valid(buf) then
+				require("markview.actions").set_query(buf);
+			end
+		end);
+	end
 
 	---|fE
 end
@@ -286,6 +352,14 @@ autocmds.cursor = function (args)
 	end
 
 	local function action ()
+		-- The debounce timer + vim.schedule_wrap mean this closure runs on a
+		-- later event-loop tick than the autocmd that queued it. The buffer
+		-- captured in `args.buf` may have been wiped in the meantime (e.g. a
+		-- transient Telescope preview or scratch buffer), leaving a dangling
+		-- id. Re-validate here, before any nvim_buf_* call reaches it.
+		if not args.buf or not vim.api.nvim_buf_is_valid(args.buf) then
+			return;
+		end
 		require("markview.health").print({
 			from = "markview/autocmds.lua",
 			fn = "cursor() -> action()",
@@ -375,6 +449,17 @@ autocmds.lazy_loaded = function ()
 
 	require("markview.highlights").setup();
 	require("markview.integrations").setup();
+
+	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+		autocmds.bufHandle({
+			buf = buf,
+			event = "BufEnter",
+			match = "Lazy",
+			file = vim.api.nvim_buf_get_name(buf),
+
+			id = -1,
+		});
+	end
 
 	--[[
 	BUG: Do not attempt to attach to buffers.

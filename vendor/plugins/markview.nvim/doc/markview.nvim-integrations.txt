@@ -113,6 +113,68 @@ You can use `markview.nvim` to prettify the LSP hover window.
 
 You can see an example here {6}.
 
+--------------------------------------------------------------------------------
+📦 Fancy comments               *markview.nvim-integrations.nvim-fancy_comments*
+
+▋  Important
+▋ This will remap `gx` by default! Set preview.map_gx {7} to `false` to
+▋ overwrite this behavior.
+
+Conventional commit style commits can be rendered by `markview.nvim`.
+
+Demo {img:2}
+
+For this you would need a `comment` parser. You can use either,
+
+◆ stsewd/tree-sitter-comment {8}, which supports some simple syntax.
+◆ OXY2DEV/tree-sitter-comment {10}, which also supports a subset of `markdown` &
+  `vimdoc`. See installation {9}.
+
+--------------------------------------------------------------------------------
+📦 Asciidoc                           *markview.nvim-integrations.nvim-asciidoc*
+
+`markview.nvim` provides support for `asciidoc` via a third party tree-sitter
+parser.
+
+To get started, add this to your configuration table for `nvim-treesitter`.
+
+▋ 󰋽 Note
+▋ This is only for the `main` branch of `nvim-treesitter`. `master` branch isn't
+▋ supported.
+
+>lua
+	vim.api.nvim_create_autocmd("User", {
+	    pattern = "TSUpdate",
+	    callback = function ()
+	        require("nvim-treesitter.parsers").asciidoc = {
+	            install_info = {
+	                branch = "master",
+	                location = "tree-sitter-asciidoc",
+	                queries = "queries/asciidoc/",
+	                requires = { "asciidoc_inline" },
+	                url = "https://github.com/cathaysia/tree-sitter-asciidoc"
+	            }
+	        };
+	        require("nvim-treesitter.parsers").asciidoc_inline = {
+	            install_info = {
+	                branch = "master",
+	                location = "tree-sitter-asciidoc_inline",
+	                queries = "queries/asciidoc_inline",
+	                url = "https://github.com/cathaysia/tree-sitter-asciidoc"
+	            }
+	        };
+	    end
+	});
+<
+
+Exit and open `Neovim` and run,
+
+>vim
+	:TSInstall asciidoc asciidoc_inline
+<
+
+Markview should now preview `asciidoc` files.
+
 Links ~
 
 1: https://github.com/OXY2DEV/markview.nvim/wiki/Integrations
@@ -121,9 +183,14 @@ Links ~
 4: `markview.nvim-markdown.headings`
 5: `markview.nvim-markdown.list_items`
 6: https://gist.github.com/OXY2DEV/645c90df32095a8a397735d0be646452
+7: `markview.nvim-preview.map_gx`
+8: https://github.com/stsewd/tree-sitter-comment
+9: https://github.com/OXY2DEV/markview.nvim/wiki/images/comment/markview.nvim-comment.injection.png
+10: https://github.com/OXY2DEV/tree-sitter-comment
 
 Images ~
 
 1: ./images/markview.nvim-lsp_hover.png
+2: ./images/comment/markview.nvim-comment.png
 
 vim:ft=help:textwidth=80:tabstop=4:noexpandtab:

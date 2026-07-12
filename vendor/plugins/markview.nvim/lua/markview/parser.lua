@@ -23,6 +23,10 @@ parser.create_ignore_range = function (language, items)
 		for _, item in ipairs(items["markdown_code_block"] or {}) do
 			table.insert(_r, { item.range.row_start, item.range.row_end })
 		end
+	elseif language == "asciidoc" then
+		for _, item in ipairs(items["asciidoc_code_block"] or {}) do
+			table.insert(_r, { item.range.row_start, item.range.row_end })
+		end
 	elseif language == "typst" then
 		-- Do not parse things inside raw block.
 		for _, item in ipairs(items["typst_raw_block"] or {}) do
@@ -81,6 +85,32 @@ parser.should_ignore = function (TSTree)
 	---|fE
 end
 
+--[[
+Checks if a `yaml block` should be ignored.
+
+This is to prevent rendering inside `code blocks` in **markdown**.
+]]
+---@param root vim.treesitter.LanguageTree
+---@param TSTree TSTree
+---@return boolean
+parser.should_ignore_yaml = function (root, TSTree)
+	---|fS
+
+	if root:lang() ~= "markdown" then
+		return false;
+	end
+
+	---@diagnostic disable-next-line: missing-fields
+	local metadata = root:named_node_for_range({ TSTree:root():range() }, {});
+	if metadata then
+		return metadata:type() ~= "minus_metadata";
+	end
+
+	return true;
+
+	---|fE
+end
+
 ---@type markview.parsed
 parser.content = {};
 ---@type markview.parsed_sorted
@@ -99,6 +129,9 @@ parser.init = function (buffer, from, to, cache)
 	---|fS
 
 	local _parsers = {
+		asciidoc = require("markview.parsers.asciidoc"),
+		asciidoc_inline = require("markview.parsers.asciidoc_inline"),
+		comment = require("markview.parsers.comment");
 		markdown = require("markview.parsers.markdown");
 		markdown_inline = require("markview.parsers.markdown_inline");
 		html = require("markview.parsers.html");
@@ -117,13 +150,26 @@ parser.init = function (buffer, from, to, cache)
 		return parser.content, parser.sorted;
 	end
 
-    vim.treesitter.get_parser(buffer):parse(true);
 	local root_parser = vim.treesitter.get_parser(buffer);
 
 	if not root_parser then
 		-- Can't find root parser.
 		return parser.content, parser.sorted;
 	end
+
+	root_parser:parse(true);
+
+	--[[
+		WARN: Recursion when parsing `asciidoc_inline` trees
+
+		`cathaysia/tree-sitter-asciidoc` uses `#injection.include-children` for it's inline parser.
+		This causes the same text to be parsed multiple times,
+
+		FIX(asciidoc_inline): Check parse range
+
+		Check if a parser range has been parsed before. If it has, do not parse again.
+	]]
+	_parsers.asciidoc_inline.parsed_ranges = {};
 
 	---|fS "chore: Announce start of parsing"
 	---@type integer Start time
@@ -145,7 +191,10 @@ parser.init = function (buffer, from, to, cache)
 		local language = language_tree:lang();
 		local content, sorted = {}, {};
 
-		if _parsers[language] and not parser.should_ignore(TSTree) then
+		if language == "yaml" and not parser.should_ignore_yaml(root_parser, TSTree) then
+			content, sorted = _parsers[language].parse(buffer, TSTree, from, to);
+			parser.create_ignore_range(language, sorted)
+		elseif _parsers[language] and not parser.should_ignore(TSTree) then
 			content, sorted = _parsers[language].parse(buffer, TSTree, from, to);
 			parser.create_ignore_range(language, sorted)
 		end
@@ -201,13 +250,14 @@ parser.parse_links = function (buffer)
 		return;
 	end
 
-    vim.treesitter.get_parser(buffer):parse(true);
 	local root_parser = vim.treesitter.get_parser(buffer);
 
 	if not root_parser then
 		-- Can't find root parser.
 		return parser.content, parser.sorted;
 	end
+
+	root_parser:parse(true);
 
 	---|fS "chore: Announce start of parsing"
 	---@type integer Start time

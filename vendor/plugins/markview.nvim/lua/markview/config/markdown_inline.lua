@@ -1,3 +1,4 @@
+---@type markview.config.markdown_inline
 return {
 	enable = true,
 
@@ -513,5 +514,16 @@ return {
 			icon = " ",
 			hl = "MarkviewPalette2Fg"
 		},
+	},
+
+	tags = {
+		enable = true,
+
+		default = {
+			padding_left = " ",
+			padding_right = " ",
+
+			hl = "MarkviewPalette7"
+		}
 	},
 };

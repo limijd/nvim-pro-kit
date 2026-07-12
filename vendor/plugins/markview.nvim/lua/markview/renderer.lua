@@ -15,6 +15,39 @@ renderer.__filter_cache = {
 renderer.option_maps = {
 	---|fS
 
+	asciidoc = {
+		admonitions = { "asciidoc_admonition", "asciidoc_admonition_block" },
+		block_quotes = { "asciidoc_block_quote" },
+		delimited_blocks = { "asciidoc_admonition", "asciidoc_delimited_block" },
+		document_attribute = { "asciidoc_document_attribute" },
+		document_title = { "asciidoc_document_title" },
+		horizontal_rules = { "asciidoc_hr" },
+		images = { "asciidoc_image" },
+		keycode = { "asciidoc_keycode" },
+		list_item = { "asciidoc_list_item" },
+		literal_block = { "asciidoc_literal_block" },
+		section_title = { "asciidoc_section_title" },
+		toc = { "asciidoc_toc" },
+	},
+	asciidoc_inline = {
+		bold = { "asciidoc_inline_bold" },
+		highlight = { "asciidoc_inline_highlight" },
+		italic = { "asciidoc_inline_italic" },
+		labeled_uri = { "asciidoc_inline_labeled_uri" },
+		monospace = { "asciidoc_inline_monospace" },
+		uri = { "asciidoc_inline_uri" },
+	},
+	comment = {
+		autolinks = { "comment_autolink" },
+		code_blocks = { "comment_code_block" },
+		inline_codes = { "comment_inline_code" },
+		issues = { "comment_issue" },
+		mentions = { "comment_mention" },
+		taglinks = { "comment_taglink" },
+		task_scopes = { "comment_task_scope" },
+		tasks = { "comment_task" },
+		urls = { "comment_url" },
+	},
 	html = {
 		container_elements = { "html_container_element" },
 		headings = { "html_heading" },
@@ -34,31 +67,30 @@ renderer.option_maps = {
 	},
 	markdown = {
 		block_quotes = { "markdown_block_quote" },
+		checkboxes = { "markdown_checkbox" },
 		code_blocks = { "markdown_code_block" },
 		headings = { "markdown_atx_heading", "markdown_setext_heading" },
 		horizontal_rules = { "markdown_hr" },
 		list_items = { "markdown_list_item" },
 		metadata_minus = { "markdown_metadata_minus" },
 		metadata_plus = { "markdown_metadata_plus" },
-		tables = { "markdown_table" },
 		reference_definitions = { "markdown_link_ref_definition" },
-
-		checkboxes = { "markdown_checkbox" },
+		tables = { "markdown_table" },
 	},
 	markdown_inline = {
+		block_references = { "inline_link_block_ref" },
 		checkboxes = { "inline_checkbox" },
-		inline_codes = { "inline_code_span" },
+		emails = { "inline_link_email" },
+		embed_files = { "inline_embed_files" },
 		entities = { "inline_entity" },
 		escapes = { "inline_escaped" },
 		footnotes = { "inline_footnote" },
 		highlights = { "inline_highlight" },
-		block_references = { "inline_link_block_ref" },
-		embed_files = { "inline_embed_files" },
-		emails = { "inline_link_email" },
 		hyperlinks = { "inline_link_hyperlink", "inline_link_shortcut" },
 		images = { "inline_link_image" },
-		uri_autolinks = { "inline_link_uri_autolink" },
+		inline_codes = { "inline_code_span" },
 		internal_links = { "inline_link_internal" },
+		uri_autolinks = { "inline_link_uri_autolink" },
 	},
 	typst = {
 		code_blocks = { "typst_code_block" },
@@ -67,16 +99,16 @@ renderer.option_maps = {
 		headings = { "typst_heading" },
 		labels = { "typst_label" },
 		list_items = { "typst_list_item" },
-		reference_links = { "typst_link_ref" },
-		url_links = { "typst_link_url" },
 		math_blocks = { "typst_math_blocks" },
 		math_spans = { "typst_math_spans" },
 		raw_blocks = { "typst_raw_block" },
 		raw_spans = { "typst_raw_span" },
+		reference_links = { "typst_link_ref" },
 		subscripts = { "typst_subscript" },
 		superscripts = { "typst_superscript" },
 		symbols = { "typst_symbol" },
 		terms = { "typst_terms" },
+		url_links = { "typst_link_url" },
 	},
 	yaml = {
 		properties = { "yaml_property" },
@@ -356,6 +388,9 @@ renderer.render = function (buffer, parsed_content)
 	---|fS
 
 	local _renderers = {
+		asciidoc = require("markview.renderers.asciidoc"),
+		asciidoc_inline = require("markview.renderers.asciidoc_inline"),
+		comment = require("markview.renderers.comment"),
 		html = require("markview.renderers.html"),
 		markdown = require("markview.renderers.markdown"),
 		markdown_inline = require("markview.renderers.markdown_inline"),
@@ -459,6 +494,9 @@ renderer.clear = function (buffer, from, to, hybrid_mode)
 	---|fS
 
 	local _renderers = {
+		asciidoc = require("markview.renderers.asciidoc"),
+		asciidoc_inline = require("markview.renderers.asciidoc_inline"),
+		comment = require("markview.renderers.comment");
 		html = require("markview.renderers.html");
 		markdown = require("markview.renderers.markdown");
 		markdown_inline = require("markview.renderers.markdown_inline");

@@ -1035,6 +1035,103 @@ inline.link_uri_autolink = function (buffer, item)
 	});
 end
 
+--- Render ==tag==.
+---@param buffer integer
+---@param item markview.parsed.markdown_inline.tags
+inline.tag = function (buffer, item, heading_lines)
+	---@type markview.config.markdown_inline.tags?
+	local main_config = spec.get({ "markdown_inline", "tags" }, { fallback = nil });
+	local range = item.range;
+
+	if not main_config then
+		return;
+	end
+
+	---@type markview.config.__inline?
+	local config = utils.match(
+		main_config,
+		item.label,
+		{
+			eval_args = { buffer, item }
+		}
+	);
+
+	if config == nil then
+		return;
+	end
+
+	--[[
+		NOTE: `hl_mode` shouldn't be "combine".
+
+		As tags don't have delimiter surrounding it,
+		using "combine" prevents adding `paddings`/`margins`
+		to the right side.
+	]]
+
+	vim.api.nvim_buf_set_extmark(buffer, inline.ns, range.row_start, range.col_start, {
+		undo_restore = false, invalidate = true,
+		end_col = range.col_start + 1,
+		conceal = "",
+
+		virt_text_pos = "inline",
+		virt_text = {
+			{ config.corner_left or "", utils.set_hl(config.corner_left_hl or config.hl) },
+			{ config.padding_left or "", utils.set_hl(config.padding_left_hl or config.hl) },
+
+			{ config.icon or "", utils.set_hl(config.icon_hl or config.hl) }
+		},
+
+		-- hl_mode = "combine"
+	});
+
+	if heading_lines[range.row_start] or config.virtual then
+		local text = item.text[1] or "";
+
+		text = string.gsub(text, "^`+", "");
+		text = string.gsub(text, "`+$", "");
+
+		local chars = vim.fn.split(text, "\\zs");
+		local col_offset = 0;
+
+		--[[
+			NOTE: Virtual texts do not wrap with the text.
+
+			So, the text is split into characters and each character gets a mask applied to it.
+		]]
+		for c = 2, #chars do
+			vim.api.nvim_buf_set_extmark(buffer, inline.ns, range.row_start, (range.col_start + 1) + col_offset, {
+				undo_restore = false, invalidate = true,
+
+				virt_text_pos = "overlay",
+				virt_text = {
+					{ chars[c], utils.set_hl(config.hl) }
+				}
+			});
+
+			col_offset = col_offset + #chars[c];
+		end
+	else
+		vim.api.nvim_buf_set_extmark(buffer, inline.ns, range.row_start, range.col_start + 1, {
+			undo_restore = false, invalidate = true,
+			end_row = range.row_end,
+			end_col = range.col_end,
+			hl_group = utils.set_hl(config.hl)
+		});
+	end
+
+	vim.api.nvim_buf_set_extmark(buffer, inline.ns, range.row_start, range.col_end, {
+		undo_restore = false, invalidate = true,
+
+		virt_text_pos = "inline",
+		virt_text = {
+			{ config.corner_right or "", utils.set_hl(config.corner_right_hl or config.hl) },
+			{ config.padding_right or "", utils.set_hl(config.padding_right_hl or config.hl) }
+		},
+
+		-- hl_mode = "combine"
+	});
+end
+
 --- Renders inline markdown.
 ---@param buffer integer
 ---@param content markview.parsed.markdown_inline[]
