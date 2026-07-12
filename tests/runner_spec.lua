@@ -106,7 +106,7 @@ describe("runner", function()
       local dirname = vim.fs.dirname(bufname)
       assert.equal(bufnr, ctx.buf)
       assert.equal(dirname, ctx.dirname)
-      assert.truthy(ctx.filename:match(dirname .. "/.conform.%d+.README.md$"))
+      assert.truthy(ctx.filename:match(vim.pesc(dirname) .. "/%.conform%.%d+%.README%.md$"))
     end)
 
     it(
@@ -147,7 +147,7 @@ describe("runner", function()
         local dirname = vim.fs.dirname(bufname)
         assert.equal(bufnr, ctx.buf)
         assert.equal(dirname, ctx.dirname)
-        assert.truthy(ctx.filename:match(dirname .. "/../.conform.%d+.README.md$"))
+        assert.truthy(ctx.filename:match(vim.pesc(dirname) .. "/%.%./%.conform%.%d+%.README%.md$"))
       end
     )
   end)
