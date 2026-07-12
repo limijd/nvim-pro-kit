@@ -91,8 +91,10 @@ describe("WebSocket Server", function()
     expect(success).to_be_true()
     expect(server.state.server).to_be_nil()
     expect(server.state.port).to_be_nil()
-    expect(server.state.clients).to_be_table()
-    expect(#server.state.clients).to_be(0)
+
+    local status = server.get_status()
+    expect(status.running).to_be_false()
+    expect(status.client_count).to_be(0)
   end)
 
   it("should not stop server if not running", function()
@@ -114,6 +116,21 @@ describe("WebSocket Server", function()
     expect(server.state.handlers).to_be_table()
     expect(type(server.state.handlers["initialize"])).to_be("function") -- Function, not table
     expect(type(server.state.handlers["tools/list"])).to_be("function") -- Function, not table
+  end)
+
+  it("should not advertise unsupported MCP resources", function()
+    server.register_handlers()
+
+    vim.empty_dict = vim.empty_dict or function()
+      return {}
+    end
+
+    local result = server.state.handlers["initialize"]({}, {})
+
+    expect(result).to_be_table()
+    expect(result.capabilities).to_be_table()
+    expect(result.capabilities.resources).to_be_nil()
+    expect(result.capabilities.tools).to_be_table()
   end)
 
   it("should send message to client", function()

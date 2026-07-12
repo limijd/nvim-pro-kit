@@ -27,6 +27,26 @@ When Anthropic released Claude Code, they only supported VS Code and JetBrains. 
   "coder/claudecode.nvim",
   dependencies = { "folke/snacks.nvim" },
   config = true,
+  -- `cmd` lets lazy.nvim create command stubs that load the plugin on first use,
+  -- so `:ClaudeCode` and friends work on a fresh start. Without it, a keys-only
+  -- spec defers loading until a <leader>a* mapping is pressed and the commands
+  -- would not exist yet.
+  cmd = {
+    "ClaudeCode",
+    "ClaudeCodeFocus",
+    "ClaudeCodeSelectModel",
+    "ClaudeCodeAdd",
+    "ClaudeCodeSend",
+    "ClaudeCodeTreeAdd",
+    "ClaudeCodeStatus",
+    "ClaudeCodeStart",
+    "ClaudeCodeStop",
+    "ClaudeCodeOpen",
+    "ClaudeCodeClose",
+    "ClaudeCodeDiffAccept",
+    "ClaudeCodeDiffDeny",
+    "ClaudeCodeCloseAllDiffs",
+  },
   keys = {
     { "<leader>a", nil, desc = "AI/Claude Code" },
     { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
@@ -40,7 +60,7 @@ When Anthropic released Claude Code, they only supported VS Code and JetBrains. 
       "<leader>as",
       "<cmd>ClaudeCodeTreeAdd<cr>",
       desc = "Add file",
-      ft = { "NvimTree", "neo-tree", "oil", "minifiles", "netrw" },
+      ft = { "NvimTree", "neo-tree", "oil", "minifiles", "netrw", "snacks_picker_list" },
     },
     -- Diff management
     { "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
@@ -50,6 +70,12 @@ When Anthropic released Claude Code, they only supported VS Code and JetBrains. 
 ```
 
 That's it! The plugin will auto-configure everything else.
+
+> **Lazy-loading:** with this spec the plugin loads on first use — when a listed
+> `cmd` is run or a mapped key is pressed — not at startup. The `cmd` list is what
+> makes `:ClaudeCode` (and the other commands below) available before any keymap is
+> pressed. If you would rather load the plugin eagerly at startup, set `lazy = false`
+> (the `cmd`/`keys` triggers then become optional).
 
 ## Requirements
 
@@ -96,6 +122,8 @@ If you have a local installation, configure the plugin with the direct path:
     terminal_cmd = "~/.claude/local/claude", -- Point to local installation
   },
   config = true,
+  -- Also copy the `cmd = { ... }` list from the Installation section above so the
+  -- :ClaudeCode* commands load without having to press a key first.
   keys = {
     -- Your keymaps here
   },
@@ -153,6 +181,8 @@ Configure the plugin with the detected path:
     terminal_cmd = "/path/to/your/claude", -- Use output from 'which claude'
   },
   config = true,
+  -- Also copy the `cmd = { ... }` list from the Installation section above so the
+  -- :ClaudeCode* commands load without having to press a key first.
   keys = {
     -- Your keymaps here
   },
@@ -182,7 +212,8 @@ Configure the plugin with the detected path:
 1. **Launch Claude**: Run `:ClaudeCode` to open Claude in a split terminal
 2. **Send context**:
    - Select text in visual mode and use `<leader>as` to send it to Claude
-   - In `nvim-tree`/`neo-tree`/`oil.nvim`/`mini.nvim`, press `<leader>as` on a file to add it to Claude's context
+   - In `nvim-tree`/`neo-tree`/`oil.nvim`/`mini.nvim`, or a focused snacks picker list / the Snacks Explorer sidebar, press `<leader>as` on a file to add it to Claude's context
+   - For modal snacks pickers (`Snacks.picker.files()`/`grep()`), which keep focus in the input box, bind a picker action that calls `require("claudecode").send_at_mention(...)` for the selected item(s) — the [claude-fzf.nvim](#-claude-fzfnvim) community extension does the equivalent for `fzf-lua`
 3. **Let Claude work**: Claude can now:
    - See your current file and selections in real-time
    - Open files in your editor
@@ -195,9 +226,23 @@ Configure the plugin with the detected path:
 - `:ClaudeCodeFocus` - Smart focus/toggle Claude terminal
 - `:ClaudeCodeSelectModel` - Select Claude model and open terminal with optional arguments
 - `:ClaudeCodeSend` - Send current visual selection to Claude
+- `:ClaudeCodeSendText {text}` - Send text to the open Claude terminal and submit it (`!` to insert without submitting; `native`/`snacks` providers only)
 - `:ClaudeCodeAdd <file-path> [start-line] [end-line]` - Add specific file to Claude context with optional line range
 - `:ClaudeCodeDiffAccept` - Accept diff changes
 - `:ClaudeCodeDiffDeny` - Reject diff changes
+- `:ClaudeCodeCloseAllDiffs` - Close pending Claude diffs (leaves accepted/saved diffs intact)
+
+## Sending text to the Claude terminal
+
+`:ClaudeCodeSendText {text}` types `{text}` into the open Claude terminal and submits it — useful for scripting and keymaps. Use `:ClaudeCodeSendText!` to insert the text without submitting. The same is available programmatically:
+
+```lua
+local terminal = require("claudecode.terminal")
+terminal.send_to_terminal("run the test suite") -- types + submits
+terminal.send_to_terminal("draft prompt", { submit = false }) -- insert only
+```
+
+This writes directly to the terminal's job channel, so it only works with the in-editor providers (`native`/`snacks`). The `external`/`none` providers run Claude outside Neovim, where there is no pane to write to (a warning is logged).
 
 ## Working with Diffs
 
@@ -207,6 +252,45 @@ When Claude proposes changes, the plugin opens a native Neovim diff view:
 - **Reject**: `:q` or `<leader>ad`
 
 You can edit Claude's suggestions before accepting them.
+
+If a diff is resolved outside this Neovim (for example via Claude remote control on another device) the diff windows would otherwise stay open. They are now closed automatically when the Claude session that opened them disconnects. If you resolve diffs remotely while the session is still connected, run `:ClaudeCodeCloseAllDiffs` to clear the leftover pending proposals — it leaves any diff you have already accepted (`:w`) but whose file has not been written yet untouched, so your saved edits are never discarded.
+
+## Events
+
+The plugin fires `User` autocmds you can hook with `nvim_create_autocmd`.
+
+### `ClaudeCodeSendComplete`
+
+Fired once per file, synchronously, when a send (`:ClaudeCodeSend`, `:ClaudeCodeAdd`, tree add, etc.) is **accepted while a Claude client is connected**. This is the recommended way to focus a Claude session that runs **outside** Neovim (`provider = "none"`/`"external"`), where `focus_after_send` cannot help.
+
+The autocmd `data` carries:
+
+| field        | type           | notes                                                                                |
+| ------------ | -------------- | ------------------------------------------------------------------------------------ |
+| `file_path`  | `string`       | The formatted/cwd-relative path Claude received                                      |
+| `start_line` | `integer\|nil` | **0-indexed** (Claude convention, not 1-indexed editor lines); `nil` for whole files |
+| `end_line`   | `integer\|nil` | 0-indexed; `nil` for whole-file/directory sends                                      |
+| `context`    | `string\|nil`  | Internal trigger tag (e.g. `"ClaudeCodeSend"`); best-effort, may change              |
+
+Notes and caveats:
+
+- Fires at **acceptance** time, not delivery — sending is debounced, so a later transport failure is logged, not reported here.
+- Fires **per file**: sending a multi-file selection from a file-explorer buffer (`:ClaudeCodeSend` / `:ClaudeCodeTreeAdd`) fires it once per file. `:ClaudeCodeAdd` sends a single path and fires once. Keep handlers idempotent.
+- Fires only when Claude is **already connected** at send time; a send that queues while Claude is launching is delivered later without firing this event.
+
+Example — focus a tmux pane after sending (supply your own pane target):
+
+```lua
+vim.api.nvim_create_autocmd("User", {
+  pattern = "ClaudeCodeSendComplete",
+  callback = function(ev)
+    -- ev.data.file_path / ev.data.start_line / ev.data.end_line / ev.data.context
+    if vim.env.TMUX then
+      vim.fn.system({ "tmux", "select-pane", "-t", "{last}" }) -- replace target as needed
+    end
+  end,
+})
+```
 
 ## How It Works
 
@@ -250,7 +334,10 @@ For deep technical details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
                         -- For native binary: use output from 'which claude'
 
     -- Send/Focus Behavior
-    -- When true, successful sends will focus the Claude terminal if already connected
+    -- When true, successful sends focus the in-editor Claude terminal if already
+    -- connected. NOTE: this only works for in-editor providers (snacks/native);
+    -- it has no effect with provider = "none"/"external" (Claude runs outside
+    -- Neovim). For those, hook the `User ClaudeCodeSendComplete` event (see Events).
     focus_after_send = false,
 
     -- Selection Tracking
@@ -261,9 +348,21 @@ For deep technical details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
     terminal = {
       split_side = "right", -- "left" or "right"
       split_width_percentage = 0.30,
+      -- Optional: shrink (or widen) the terminal while a diff is open. Defaults to
+      -- split_width_percentage when unset, preserving today's behavior.
+      diff_split_width_percentage = nil, -- e.g. 0.20 to give diffs more room
       provider = "auto", -- "auto", "snacks", "native", "external", "none", or custom provider table
       auto_close = true,
+      -- Auto-enter insert/terminal mode whenever the Claude terminal window gains
+      -- focus. Set to false to stay in Normal mode and preserve your scroll position
+      -- when switching back to the terminal (e.g. via <C-w>l); press `i` to type.
+      -- Note: false also opens the terminal in Normal mode (it gates start-insert too).
+      auto_insert = true,
       snacks_win_opts = {}, -- Opts to pass to `Snacks.terminal.open()` - see Floating Window section below
+      -- Work around a Neovim core bug (< 0.12.2) that fragments large pastes into
+      -- the terminal, making Cmd+V appear to truncate ([#161]). true | false | "auto"
+      -- ("auto", the default, enables it only on affected Neovim versions).
+      fix_streamed_paste = "auto",
 
       -- Provider-specific options
       provider_opts = {
@@ -277,10 +376,20 @@ For deep technical details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
     -- Diff Integration
     diff_opts = {
-      auto_close_on_accept = true,
-      vertical_split = true,
-      open_in_current_tab = true,
+      layout = "vertical", -- "vertical" (default), "horizontal", or "unified"
+      -- "unified": VS Code-style unified diff in a single buffer with deleted
+      --   (red/strikethrough) and added (green) lines interleaved. Requires
+      --   Neovim >= 0.9.0. Highlight groups are customizable: ClaudeCodeInlineDiffAdd,
+      --   ClaudeCodeInlineDiffDelete, ClaudeCodeInlineDiffAddSign, ClaudeCodeInlineDiffDeleteSign.
+      open_in_new_tab = false,
       keep_terminal_focus = false, -- If true, moves focus back to terminal after diff opens
+      hide_terminal_in_new_tab = false,
+      auto_resize_terminal = true, -- Let the plugin manage the terminal width across the diff lifecycle; set false to own it via the User autocmds below
+      -- on_new_file_reject = "keep_empty", -- "keep_empty" or "close_window"
+
+      -- Legacy aliases (still supported):
+      -- vertical_split = true,
+      -- open_in_current_tab = true,
     },
   },
   keys = {
@@ -288,6 +397,48 @@ For deep technical details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
   },
 }
 ```
+
+### Diff Lifecycle Events
+
+The plugin fires `User` autocmds when a diff opens and closes, so you can react to
+the review lifecycle from your own config (resize windows, toggle a colorscheme,
+update a statusline, etc.). They are emitted regardless of `auto_resize_terminal`.
+
+| Event pattern          | When                                  | `event.data` fields                                                                                                      |
+| ---------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ClaudeCodeDiffOpened` | A proposed-edit diff has opened       | `tab_name`, `file_path`, `new_file_path`, `is_new_file`, `diff_window`, `target_window`, `terminal_window`, `tab_number` |
+| `ClaudeCodeDiffClosed` | The diff was accepted/rejected/closed | `tab_name`, `file_path`, `reason`                                                                                        |
+
+`reason` is a best-effort, human-readable label (e.g. `"diff accepted"`, `"diff rejected"`, `"replaced by new diff"`); treat it as diagnostic text, not a stable enum to branch on. `tab_number` is only set when the diff opened in its own tab, and `terminal_window` may be `nil` if no Claude terminal is visible.
+
+To fully own the terminal width during diffs, set `diff_opts.auto_resize_terminal = false`
+(so the plugin applies no width policy of its own) and resize from the events yourself.
+Note this is "own the width via the events", not "freeze the width": the diff layout still
+runs `wincmd =`, which equalizes splits, so set your desired width in the `ClaudeCodeDiffOpened`
+handler — it fires after the layout is built, so it wins:
+
+```lua
+vim.api.nvim_create_autocmd("User", {
+  pattern = "ClaudeCodeDiffOpened",
+  callback = function(ev)
+    local term = ev.data.terminal_window
+    if term and vim.api.nvim_win_is_valid(term) then
+      vim.api.nvim_win_set_width(term, math.floor(vim.o.columns * 0.20))
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd("User", {
+  pattern = "ClaudeCodeDiffClosed",
+  callback = function(ev)
+    -- restore your preferred idle layout here
+  end,
+})
+```
+
+> For the common "just make the terminal narrower during diffs" case you don't need
+> the events at all — set `terminal.diff_split_width_percentage` and leave
+> `auto_resize_terminal = true`.
 
 ### Working Directory Control
 
@@ -509,6 +660,7 @@ Notes:
 
 - No windows/buffers are created. `:ClaudeCode` and related commands will not open anything.
 - The WebSocket server still starts and broadcasts work as usual. Launch the Claude CLI externally when desired.
+- `focus_after_send` has no effect here (there is no in-editor terminal to focus); enabling it logs a one-time warning at startup. To focus your external session after a send, hook the [`User ClaudeCodeSendComplete`](#claudecodesendcomplete) event.
 
 ### External Terminal Provider
 
@@ -768,6 +920,7 @@ opts = {
 
 ## Troubleshooting
 
+- **First stop:** Run `:checkhealth claudecode` — it verifies the Claude CLI is installed, the WebSocket server is running, the lock file exists, and whether Claude is connected
 - **Claude not connecting?** Check `:ClaudeCodeStatus` and verify lock file exists in `~/.claude/ide/` (or `$CLAUDE_CONFIG_DIR/ide/` if `CLAUDE_CONFIG_DIR` is set)
 - **Need debug logs?** Set `log_level = "debug"` in opts
 - **Terminal issues?** Try `provider = "native"` if using snacks.nvim
@@ -776,7 +929,7 @@ opts = {
 
 ## Contributing
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for build instructions and development guidelines. Tests can be run with `make test`.
+See [DEVELOPMENT.md](./DEVELOPMENT.md) for build instructions and development guidelines. Tests can be run with `mise run test`.
 
 ## License
 

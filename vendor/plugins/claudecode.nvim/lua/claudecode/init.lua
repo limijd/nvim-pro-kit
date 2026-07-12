@@ -273,6 +273,36 @@ function M._ensure_terminal_visible_if_connected()
   return true
 end
 
+---Fire the `User ClaudeCodeSendComplete` autocmd so integrations can react after
+---a send (e.g. focus an externally-managed Claude session). Fires once per file,
+---synchronously on the same tick, right after the focus action.
+---NOTE: the `data` field of nvim_exec_autocmds requires Neovim >= 0.8.0 (the
+---plugin floor). Guarded so minimal vim stubs are a no-op, and pcall'd so a
+---faulty user callback cannot break the send path or abort batch loops.
+---`modeline = false` because this is a notification-only event: without it
+---nvim_exec_autocmds defaults `modeline = true` and would re-process the current
+---buffer's modeline on every send (re-applying options / surfacing unrelated
+---modeline errors).
+---@param file_path string Path Claude received (formatted/relative)
+---@param start_line number|nil Start line (0-indexed for Claude), or nil
+---@param end_line number|nil End line (0-indexed for Claude), or nil
+---@param context string|nil Internal logging context tag
+local function fire_send_complete(file_path, start_line, end_line, context)
+  if not (vim.api and vim.api.nvim_exec_autocmds) then
+    return
+  end
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "ClaudeCodeSendComplete",
+    modeline = false,
+    data = {
+      file_path = file_path,
+      start_line = start_line,
+      end_line = end_line,
+      context = context,
+    },
+  })
+end
+
 ---Send @ mention to Claude Code, handling connection state automatically
 ---@param file_path string The file path to send
 ---@param start_line number|nil Start line (0-indexed for Claude)
@@ -291,7 +321,7 @@ function M.send_at_mention(file_path, start_line, end_line, context)
   -- Check if Claude Code is connected
   if M.is_claude_connected() then
     -- Claude is connected, send immediately and ensure terminal is visible
-    local success, error_msg = M._broadcast_at_mention(file_path, start_line, end_line)
+    local success, error_msg, sent = M._broadcast_at_mention(file_path, start_line, end_line)
     if success then
       local terminal = require("claudecode.terminal")
       if M.state.config and M.state.config.focus_after_send then
@@ -300,6 +330,13 @@ function M.send_at_mention(file_path, start_line, end_line, context)
       else
         terminal.ensure_visible()
       end
+      -- Fire ClaudeCodeSendComplete. NOTE: in production `success` means the
+      -- mention was ACCEPTED/queued, not yet delivered (delivery is debounced and
+      -- failures are logged, not returned), so this is an "accepted/dispatched"
+      -- signal. `sent` carries the formatted path/lines Claude received; fall back
+      -- to the raw args when a caller/test stubs _broadcast_at_mention.
+      sent = sent or { file_path = file_path, start_line = start_line, end_line = end_line }
+      fire_send_complete(sent.file_path, sent.start_line, sent.end_line, context)
     end
     return success, error_msg
   else
@@ -313,6 +350,42 @@ function M.send_at_mention(file_path, start_line, end_line, context)
     logger.debug(context, "Queued @ mention and launched Claude Code: " .. file_path)
 
     return true, nil
+  end
+end
+
+---Warn once (at setup) when focus_after_send is enabled but the effective provider
+---runs Claude outside Neovim, where focus_after_send cannot take effect (#228). The
+---"none" provider is a no-op, and "external" cannot move focus to an already-running
+---external terminal -- but ONLY when it is actually usable: a misconfigured
+---"external" (no valid external_terminal_cmd) falls back to the native provider,
+---where focus_after_send works, so we must not warn there. Only the two built-in
+---string providers are checked; a custom table provider that is itself a no-op for
+---focus is the author's responsibility.
+---@param config table|nil The resolved configuration
+function M._maybe_warn_unfocusable_provider(config)
+  if not (config and config.focus_after_send == true) then
+    return
+  end
+  local terminal = config.terminal
+  local provider = terminal and terminal.provider
+
+  local unfocusable = provider == "none"
+  if provider == "external" then
+    -- Mirror terminal.lua's has_external_cmd check: without a usable command,
+    -- "external" silently falls back to native (focusable), so do not warn.
+    local cmd = terminal.provider_opts and terminal.provider_opts.external_terminal_cmd
+    unfocusable = type(cmd) == "function" or (type(cmd) == "string" and cmd ~= "" and cmd:find("%%s") ~= nil)
+  end
+
+  if unfocusable then
+    logger.warn(
+      "config",
+      string.format(
+        "focus_after_send=true does not focus a Claude session running outside Neovim "
+          .. "(terminal.provider=%q). Use a `User ClaudeCodeSendComplete` autocmd to focus it yourself.",
+        provider
+      )
+    )
   end
 end
 
@@ -361,6 +434,10 @@ function M.setup(opts)
   else
     logger.error("init", "Failed to load claudecode.terminal module for setup.")
   end
+
+  -- Surface the #228 footgun: focus_after_send is inert for providers that run
+  -- Claude outside Neovim. Warns once here at setup (not per-send).
+  M._maybe_warn_unfocusable_provider(M.state.config)
 
   local diff = require("claudecode.diff")
   diff.setup(M.state.config)
@@ -650,16 +727,19 @@ function M._create_commands()
 
   local function handle_send_normal(opts)
     local current_ft = (vim.bo and vim.bo.filetype) or ""
-    local current_bufname = (vim.api and vim.api.nvim_buf_get_name and vim.api.nvim_buf_get_name(0)) or ""
 
+    -- Classify tree/explorer buffers by FILETYPE only. Matching the buffer name
+    -- (an absolute path) misfires on ordinary files whose path merely contains a
+    -- substring like "neo-tree"/"NvimTree" (issue #289). The downstream
+    -- extractors (integrations.get_selected_files_from_tree /
+    -- visual_commands.get_tree_state) are filetype-only, so a name-only match
+    -- could never extract anyway.
     local is_tree_buffer = current_ft == "NvimTree"
       or current_ft == "neo-tree"
       or current_ft == "oil"
       or current_ft == "minifiles"
       or current_ft == "netrw"
-      or string.match(current_bufname, "neo%-tree")
-      or string.match(current_bufname, "NvimTree")
-      or string.match(current_bufname, "minifiles://")
+      or current_ft == "snacks_picker_list"
 
     if is_tree_buffer then
       local integrations = require("claudecode.integrations")
@@ -703,18 +783,16 @@ function M._create_commands()
   end
 
   local function handle_send_visual(visual_data, opts)
-    -- Check if we're in a tree buffer first
+    -- Check if we're in a tree buffer first. Classify by FILETYPE only; matching
+    -- the buffer name (an absolute path) misfires on ordinary files whose path
+    -- merely contains "neo-tree"/"NvimTree" (issue #289).
     local current_ft = (vim.bo and vim.bo.filetype) or ""
-    local current_bufname = (vim.api and vim.api.nvim_buf_get_name and vim.api.nvim_buf_get_name(0)) or ""
 
     local is_tree_buffer = current_ft == "NvimTree"
       or current_ft == "neo-tree"
       or current_ft == "oil"
       or current_ft == "minifiles"
       or current_ft == "netrw"
-      or string.match(current_bufname, "neo%-tree")
-      or string.match(current_bufname, "NvimTree")
-      or string.match(current_bufname, "minifiles://")
 
     if is_tree_buffer then
       local integrations = require("claudecode.integrations")
@@ -722,7 +800,7 @@ function M._create_commands()
       local files, error
 
       -- For mini.files, try to get the range from visual marks for accuracy
-      if current_ft == "minifiles" or string.match(current_bufname, "minifiles://") then
+      if current_ft == "minifiles" then
         local start_line = vim.fn.line("'<")
         local end_line = vim.fn.line("'>")
 
@@ -952,7 +1030,19 @@ function M._create_commands()
       return
     end
 
-    file_path = vim.fn.expand(file_path)
+    -- Resolve the path argument. Vim's current/alternate-file tokens (`%`,
+    -- `%:p`, `#`, `<cfile>`, ...) must still be expanded -- `:ClaudeCodeAdd %`
+    -- is the documented "add current buffer" keymap (README). But a plain
+    -- filesystem path must NOT go through `vim.fn.expand`, which treats `$name`
+    -- as an environment variable and strips undefined ones -- mangling literal
+    -- `$` in paths (e.g. TanStack Router `$param` files like `src/routes/$post.tsx`)
+    -- so the existence check below would fail. So: expand() only the special
+    -- token forms; otherwise expand just a leading `~` and leave `$` intact.
+    if file_path:match("^[%%#<]") then
+      file_path = vim.fn.expand(file_path)
+    else
+      file_path = require("claudecode.utils").expand_tilde(file_path)
+    end
     if vim.fn.filereadable(file_path) == 0 and vim.fn.isdirectory(file_path) == 0 then
       logger.error("command", "ClaudeCodeAdd: File or directory does not exist: " .. file_path)
       return
@@ -1020,6 +1110,22 @@ function M._create_commands()
     end, {
       desc = "Close the Claude Code terminal window",
     })
+
+    vim.api.nvim_create_user_command("ClaudeCodeSendText", function(opts)
+      local text = opts.args
+      if not text or text == "" then
+        logger.warn("command", "ClaudeCodeSendText: no text provided")
+        return
+      end
+      -- Sends to the currently-open Claude pane; the primitive warns if none is
+      -- running or the provider runs Claude outside Neovim (external/none). Bang
+      -- (`:ClaudeCodeSendText!`) inserts the text without submitting it.
+      terminal.send_to_terminal(text, { submit = not opts.bang })
+    end, {
+      nargs = "+",
+      bang = true,
+      desc = "Send text to the open Claude Code terminal and submit it (! to insert without submitting; native/snacks providers only)",
+    })
   else
     logger.error(
       "init",
@@ -1040,6 +1146,22 @@ function M._create_commands()
     diff.deny_current_diff()
   end, {
     desc = "Deny/reject the current diff changes",
+  })
+
+  vim.api.nvim_create_user_command("ClaudeCodeCloseAllDiffs", function()
+    -- Pending only: a status="saved" diff holds the user's :w'd edits in its
+    -- proposed buffer until Claude writes the file, and closing it would discard
+    -- them (same data-loss branch the auto-cleanup avoids). So this clears
+    -- orphaned proposals but leaves accepted diffs for the user to handle.
+    local diff = require("claudecode.diff")
+    local count = diff.close_pending_diffs("user command")
+    if count > 0 then
+      vim.notify(("Closed %d pending Claude diff(s)"):format(count), vim.log.levels.INFO)
+    else
+      vim.notify("No pending Claude diffs to close", vim.log.levels.WARN)
+    end
+  end, {
+    desc = "Close pending Claude Code diffs (leaves accepted/saved diffs intact)",
   })
 
   vim.api.nvim_create_user_command("ClaudeCodeSelectModel", function(opts)
@@ -1165,6 +1287,15 @@ function M._broadcast_at_mention(file_path, start_line, end_line)
     lineEnd = end_line,
   }
 
+  -- What Claude actually received, surfaced to send_at_mention so the
+  -- ClaudeCodeSendComplete event payload reflects the formatted path and the
+  -- directory-adjusted line numbers rather than the raw caller arguments.
+  local sent = {
+    file_path = formatted_path,
+    start_line = start_line,
+    end_line = end_line,
+  }
+
   -- For tests or when explicitly configured, broadcast immediately without queuing
   if
     (M.state.config and M.state.config.disable_broadcast_debouncing)
@@ -1172,7 +1303,7 @@ function M._broadcast_at_mention(file_path, start_line, end_line)
   then
     local broadcast_success = M.state.server.broadcast("at_mentioned", params)
     if broadcast_success then
-      return true, nil
+      return true, nil, sent
     else
       local error_msg = "Failed to broadcast " .. (is_directory and "directory" or "file") .. " " .. formatted_path
       logger.error("command", error_msg)
@@ -1185,7 +1316,7 @@ function M._broadcast_at_mention(file_path, start_line, end_line)
 
   -- Always return success since we're queuing the message
   -- The actual broadcast result will be logged in the queue processing
-  return true, nil
+  return true, nil, sent
 end
 
 function M._add_paths_to_claude(file_paths, options)

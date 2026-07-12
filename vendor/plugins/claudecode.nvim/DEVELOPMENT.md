@@ -2,6 +2,17 @@
 
 Quick guide for contributors to the claudecode.nvim project.
 
+## Development Environment
+
+The toolchain (Neovim, LuaJIT, formatters, test runners) is provisioned by [mise](https://mise.jdx.dev) via `mise.toml`. After installing mise:
+
+```bash
+mise install      # install all tools (builds Lua/LuaJIT from source)
+mise run setup     # build the Lua test rocks (busted/luacheck/luacov) into ./.luarocks
+```
+
+Activate mise in your shell — add `eval "$(mise activate bash)"` (or `zsh`/`fish`) to your shell rc, per the [mise docs](https://mise.jdx.dev/getting-started.html) — so its tools are on PATH. Common tasks: `mise run all` (format + lint + test), `mise run test`, `mise run check`, `mise run format` — run `mise tasks` to list them all. (`mise run <task>` works even without shell activation.)
+
 ## Project Structure
 
 ```none
@@ -54,19 +65,16 @@ claudecode.nvim/
 ## Development Priorities
 
 1. **Advanced MCP Tools**
-
    - Add Neovim-specific tools (LSP integration, diagnostics, Telescope integration)
    - Implement diffview.nvim integration for the diff provider system
    - Add Git integration tools (branch info, status, etc.)
 
 2. **Performance Optimization**
-
    - Monitor WebSocket server performance under load
    - Optimize selection tracking for large files
    - Fine-tune debouncing and event handling
 
 3. **User Experience**
-
    - Add more user commands and keybindings
    - Improve error messages and user feedback
    - Create example configurations for popular setups
@@ -82,34 +90,49 @@ Run tests using:
 
 ```bash
 # Run all tests
-make test
+mise run test
 
 # Run specific test file
 nvim --headless -u tests/minimal_init.lua -c "lua require('tests.unit.config_spec')"
 
 # Run linting
-make check
+mise run check
 
 # Format code
-make format
+mise run format
+```
+
+## Release Automation
+
+Releases are managed by Release Please. After feature and fix PRs land on `main`, the `Release Please` workflow opens or updates a single release PR that bumps `VERSION`, updates `.release-please-manifest.json`, and rewrites the next `CHANGELOG.md` entry with Communique-generated notes. Merging that release PR creates the `v<version>` tag and GitHub Release, then dispatches the `Release Notes` workflow to rewrite the GitHub Release body with Communique's GitHub-release format.
+
+Release notes require either `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; when using OpenAI-compatible credentials, set `COMMUNIQUE_MODEL` so Communique knows which model to call. The pinned Communique Linux binary currently requires a glibc 2.39-compatible environment (for example Ubuntu 24.04 or the GitHub-hosted `ubuntu-latest` runner); on older Linux hosts, run the dry-run in a newer container or runner.
+
+To dogfood release automation without mutating GitHub, install the pinned tools from `mise.toml`, install the locked Release Please dependency graph under `scripts/`, and run the runner in dry-run mode against a branch that already contains the release config:
+
+```bash
+mise install
+NPM_CONFIG_IGNORE_SCRIPTS=true npm ci --prefix scripts
+GITHUB_TOKEN=... \
+GITHUB_REPOSITORY=coder/claudecode.nvim \
+RELEASE_PLEASE_TARGET_BRANCH=your-branch \
+ANTHROPIC_API_KEY=... \
+./scripts/run-release-please.sh --dry-run
 ```
 
 ## Implementation Guidelines
 
 1. **Error Handling**
-
    - All public functions should have error handling
    - Return `success, result_or_error` pattern
    - Log meaningful error messages
 
 2. **Performance**
-
    - Minimize impact on editor performance
    - Debounce event handlers
    - Use asynchronous operations where possible
 
 3. **Compatibility**
-
    - Support Neovim >= 0.8.0
    - Zero external dependencies (pure Lua implementation)
    - Follow Neovim plugin best practices
@@ -153,6 +176,9 @@ vv netrw      # Start Neovim with built-in netrw configuration
 
 # List available configurations
 list-configs
+
+# Minimal repro environment (copies fixtures/repro/example into /tmp)
+repro
 ```
 
 **Example fixture structure** (`fixtures/my-integration/`):

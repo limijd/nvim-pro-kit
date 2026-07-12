@@ -44,6 +44,9 @@ local function bxor(a, b)
   return result
 end
 
+local bit_ok, bit = pcall(require, "bit")
+local native_bxor = bit_ok and bit and bit.bxor or nil
+
 local function bnot(a)
   return bxor(a, 0xFFFFFFFF)
 end
@@ -364,32 +367,6 @@ function M.bytes_to_uint64(bytes)
   return num
 end
 
----XOR lookup table for faster operations
-local xor_table = {}
-for i = 0, 255 do
-  xor_table[i] = {}
-  for j = 0, 255 do
-    local result = 0
-    local a, b = i, j
-    local bit_val = 1
-
-    while a > 0 or b > 0 do
-      local a_bit = a % 2
-      local b_bit = b % 2
-
-      if a_bit ~= b_bit then
-        result = result + bit_val
-      end
-
-      a = math.floor(a / 2)
-      b = math.floor(b / 2)
-      bit_val = bit_val * 2
-    end
-
-    xor_table[i][j] = result
-  end
-end
-
 ---Apply XOR mask to payload data
 ---@param data string The data to mask/unmask
 ---@param mask string The 4-byte mask
@@ -401,20 +378,41 @@ function M.apply_mask(data, mask)
   for i = 1, #data do
     local mask_idx = ((i - 1) % 4) + 1
     local data_byte = data:byte(i)
-    result[i] = string.char(xor_table[data_byte][mask_bytes[mask_idx]])
+    local mask_byte = mask_bytes[mask_idx]
+    local masked_byte = native_bxor and native_bxor(data_byte, mask_byte) or bxor(data_byte, mask_byte)
+    result[i] = string.char(masked_byte)
   end
 
   return table.concat(result)
 end
 
----Shuffle an array in place using Fisher-Yates algorithm
----@param tbl table The array to shuffle
-function M.shuffle_array(tbl)
-  math.randomseed(os.time())
-  for i = #tbl, 2, -1 do
-    local j = math.random(i)
-    tbl[i], tbl[j] = tbl[j], tbl[i]
+---Compare two strings in constant time relative to their length.
+---Returns false immediately on a length mismatch; otherwise every byte is
+---examined so total work does not depend on the matching-prefix length.
+---@param a string First string
+---@param b string Second string
+---@return boolean equal True if the strings are byte-for-byte equal
+function M.constant_time_compare(a, b)
+  if type(a) ~= "string" or type(b) ~= "string" then
+    return false
   end
+
+  if #a ~= #b then
+    return false
+  end
+
+  -- Accumulate a value that is non-zero iff any byte differs, doing identical,
+  -- branchless work per byte (subtract + multiply + add). This keeps the timing
+  -- independent of the matching-prefix length without the bit module or the
+  -- file-local arithmetic-emulated bor/bxor, whose loop counts depend on operand
+  -- magnitude and would themselves reintroduce prefix-length timing leakage.
+  local diff = 0
+  for i = 1, #a do
+    local d = a:byte(i) - b:byte(i)
+    diff = diff + d * d
+  end
+
+  return diff == 0
 end
 
 return M

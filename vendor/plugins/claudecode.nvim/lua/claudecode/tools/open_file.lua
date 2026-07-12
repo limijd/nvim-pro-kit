@@ -72,6 +72,13 @@ local function find_main_editor_window()
       is_suitable = false
     end
 
+    -- Skip windows that are part of a diff (vimdiff, diffview.nvim, fugitive, or
+    -- claudecode's own diff): :edit-ing into one clears its window-local 'diff'
+    -- and destroys the user's diff layout (issue #277).
+    if is_suitable and vim.api.nvim_win_get_option(win, "diff") then
+      is_suitable = false
+    end
+
     -- Skip known sidebar filetypes
     if
       is_suitable
@@ -107,7 +114,10 @@ local function handler(params)
     error({ code = -32602, message = "Invalid params", data = "Missing filePath parameter" })
   end
 
-  local file_path = vim.fn.expand(params.filePath)
+  -- Expand a leading `~` only. `vim.fn.expand` would treat `$name` as an
+  -- environment variable and strip undefined ones, breaking literal `$` paths
+  -- (e.g. TanStack Router `$param` files like `src/routes/$post.tsx`).
+  local file_path = require("claudecode.utils").expand_tilde(params.filePath)
 
   if vim.fn.filereadable(file_path) == 0 then
     -- Using a generic error code for tool-specific operational errors
@@ -118,6 +128,8 @@ local function handler(params)
   local preview = params.preview or false
   local make_frontmost = params.makeFrontmost ~= false -- default true
   local select_to_end_of_line = params.selectToEndOfLine or false
+  local start_text = type(params.startText) == "string" and params.startText ~= "" and params.startText or nil
+  local end_text = type(params.endText) == "string" and params.endText ~= "" and params.endText or nil
 
   local message = "Opened file: " .. file_path
 
@@ -143,12 +155,20 @@ local function handler(params)
     vim.cmd("wincmd t") -- Go to top-left
     vim.cmd("wincmd l") -- Move right (to middle if layout is left|middle|right)
 
-    -- If we're still in a special window, create a new split
-    local buf = vim.api.nvim_win_get_buf(vim.api.nvim_get_current_win())
+    -- If we're still in a special window (or a diff window — issue #277), create
+    -- a new split so we don't :edit over a terminal, sidebar, or someone's diff.
+    local cur_win = vim.api.nvim_get_current_win()
+    local buf = vim.api.nvim_win_get_buf(cur_win)
     local buftype = vim.api.nvim_buf_get_option(buf, "buftype")
 
-    if buftype == "terminal" or buftype == "nofile" then
+    if buftype == "terminal" or buftype == "nofile" or vim.api.nvim_win_get_option(cur_win, "diff") then
       vim.cmd("vsplit")
+      -- The new split inherits window-local options (including 'diff') from the
+      -- window we split off. Clear diff on it so the file we open never joins the
+      -- user's diff set -- e.g. opening a file that is itself one of the diffed
+      -- buffers would otherwise leave it diffing as an extra pane (issue #277).
+      -- :diffoff acts on the current (new) window only, never :diffoff!.
+      vim.cmd("diffoff")
     end
 
     if preview then
@@ -156,87 +176,95 @@ local function handler(params)
     else
       vim.cmd("edit " .. vim.fn.fnameescape(file_path))
     end
+    target_win = vim.api.nvim_get_current_win()
+  end
+
+  local function run_in_target_window(callback)
+    if target_win then
+      return vim.api.nvim_win_call(target_win, callback)
+    end
+    return callback()
   end
 
   -- Handle text selection by line numbers
   if params.startLine or params.endLine then
-    local start_line = params.startLine or 1
-    local end_line = params.endLine or start_line
+    run_in_target_window(function()
+      local start_line = params.startLine or 1
+      local end_line = params.endLine or start_line
 
-    -- Convert to 0-based indexing for vim API
-    local start_pos = { start_line - 1, 0 }
-    local end_pos = { end_line - 1, -1 } -- -1 means end of line
+      -- Convert to 0-based indexing for vim API
+      local start_pos = { start_line - 1, 0 }
+      local end_pos = { end_line - 1, -1 } -- -1 means end of line
 
-    vim.api.nvim_buf_set_mark(0, "<", start_pos[1], start_pos[2], {})
-    vim.api.nvim_buf_set_mark(0, ">", end_pos[1], end_pos[2], {})
-    vim.cmd("normal! gv")
+      vim.api.nvim_buf_set_mark(0, "<", start_pos[1], start_pos[2], {})
+      vim.api.nvim_buf_set_mark(0, ">", end_pos[1], end_pos[2], {})
+      vim.cmd("normal! gv")
 
-    message = "Opened file and selected lines " .. start_line .. " to " .. end_line
+      message = "Opened file and selected lines " .. start_line .. " to " .. end_line
+    end)
   end
 
   -- Handle text pattern selection
-  if params.startText then
-    local buf = vim.api.nvim_get_current_buf()
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    local start_line_idx, start_col_idx
-    local end_line_idx, end_col_idx
+  if start_text then
+    run_in_target_window(function()
+      local buf = vim.api.nvim_get_current_buf()
+      local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      local start_line_idx, start_col_idx
+      local end_line_idx, end_col_idx
 
-    -- Find start text
-    for line_idx, line in ipairs(lines) do
-      local col_idx = string.find(line, params.startText, 1, true) -- plain text search
-      if col_idx then
-        start_line_idx = line_idx - 1 -- Convert to 0-based
-        start_col_idx = col_idx - 1 -- Convert to 0-based
-        break
+      -- Find start text
+      for line_idx, line in ipairs(lines) do
+        local col_idx = string.find(line, start_text, 1, true) -- plain text search
+        if col_idx then
+          start_line_idx = line_idx - 1 -- Convert to 0-based
+          start_col_idx = col_idx - 1 -- Convert to 0-based
+          break
+        end
       end
-    end
 
-    if start_line_idx then
-      -- Find end text if provided
-      if params.endText then
-        for line_idx = start_line_idx + 1, #lines do
-          local line = lines[line_idx] -- Access current line directly
-          if line then
-            local col_idx = string.find(line, params.endText, 1, true)
-            if col_idx then
-              end_line_idx = line_idx
-              end_col_idx = col_idx + string.len(params.endText) - 1
-              if select_to_end_of_line then
-                end_col_idx = string.len(line)
+      if start_line_idx then
+        -- Find end text if provided
+        if end_text then
+          for line_idx = start_line_idx + 1, #lines do
+            local line = lines[line_idx] -- Access current line directly
+            if line then
+              local col_idx = string.find(line, end_text, 1, true)
+              if col_idx then
+                end_line_idx = line_idx
+                end_col_idx = col_idx + string.len(end_text) - 1
+                if select_to_end_of_line then
+                  end_col_idx = string.len(line)
+                end
+                break
               end
-              break
             end
           end
-        end
 
-        if end_line_idx then
-          message = 'Opened file and selected text from "' .. params.startText .. '" to "' .. params.endText .. '"'
+          if end_line_idx then
+            message = 'Opened file and selected text from "' .. start_text .. '" to "' .. end_text .. '"'
+          else
+            -- End text not found, select only start text
+            end_line_idx = start_line_idx
+            end_col_idx = start_col_idx + string.len(start_text) - 1
+            message = 'Opened file and positioned at "' .. start_text .. '" (end text "' .. end_text .. '" not found)'
+          end
         else
-          -- End text not found, select only start text
+          -- Only start text provided
           end_line_idx = start_line_idx
-          end_col_idx = start_col_idx + string.len(params.startText) - 1
-          message = 'Opened file and positioned at "'
-            .. params.startText
-            .. '" (end text "'
-            .. params.endText
-            .. '" not found)'
+          end_col_idx = start_col_idx + string.len(start_text) - 1
+          message = 'Opened file and selected text "' .. start_text .. '"'
         end
-      else
-        -- Only start text provided
-        end_line_idx = start_line_idx
-        end_col_idx = start_col_idx + string.len(params.startText) - 1
-        message = 'Opened file and selected text "' .. params.startText .. '"'
-      end
 
-      -- Apply the selection
-      vim.api.nvim_win_set_cursor(0, { start_line_idx + 1, start_col_idx })
-      vim.api.nvim_buf_set_mark(0, "<", start_line_idx, start_col_idx, {})
-      vim.api.nvim_buf_set_mark(0, ">", end_line_idx, end_col_idx, {})
-      vim.cmd("normal! gv")
-      vim.cmd("normal! zz") -- Center the selection in the window
-    else
-      message = 'Opened file, but text "' .. params.startText .. '" not found'
-    end
+        -- Apply the selection
+        vim.api.nvim_win_set_cursor(0, { start_line_idx + 1, start_col_idx })
+        vim.api.nvim_buf_set_mark(0, "<", start_line_idx, start_col_idx, {})
+        vim.api.nvim_buf_set_mark(0, ">", end_line_idx, end_col_idx, {})
+        vim.cmd("normal! gv")
+        vim.cmd("normal! zz") -- Center the selection in the window
+      else
+        message = 'Opened file, but text "' .. start_text .. '" not found'
+      end
+    end)
   end
 
   -- Return format based on makeFrontmost parameter
@@ -252,7 +280,7 @@ local function handler(params)
     }
   else
     -- Detailed JSON format when makeFrontmost=false
-    local buf = vim.api.nvim_get_current_buf()
+    local buf = target_win and vim.api.nvim_win_get_buf(target_win) or vim.api.nvim_get_current_buf()
     local detailed_info = {
       success = true,
       filePath = file_path,
@@ -264,7 +292,7 @@ local function handler(params)
       content = {
         {
           type = "text",
-          text = vim.json.encode(detailed_info, { indent = 2 }),
+          text = vim.json.encode(detailed_info),
         },
       },
     }
