@@ -88,12 +88,14 @@ local function gen_hl(staged, kind, ty)
 
   local sty = (staged and 'staged ' or '')
 
-  return hl,
-    {
-      desc = ("Used for %s of '%s' %ssigns."):format(what, ty, sty),
-      fg_factor = staged and 0.5 or nil,
-      unpack(fallbacks),
-    }
+  --- @type Gitsigns.Hldef
+  local spec = {
+    desc = ("Used for %s of '%s' %ssigns."):format(what, ty, sty),
+    fg_factor = staged and 0.5 or nil,
+    unpack(fallbacks),
+  }
+
+  return hl, spec
 end
 
 for _, staged in ipairs({ false, true }) do
@@ -123,6 +125,14 @@ vim.list_extend(M.hls, {
       'SignifyLineDelete',
       'DiffDelete',
       desc = 'Used for deleted lines in previews.',
+    },
+  },
+
+  {
+    GitSignsNoEOLPreview = {
+      'DiffNoEOL',
+      'Constant',
+      desc = 'Used for "No newline at end of file".',
     },
   },
 
@@ -299,14 +309,6 @@ function M.setup_highlights()
   end
 end
 
-function M.setup()
-  M.setup_highlights()
-  api.nvim_create_autocmd('ColorScheme', {
-    group = 'gitsigns',
-    callback = M.setup_highlights,
-  })
-end
-
 do --- temperature highlight
   local temp_colors = {} --- @type table<integer,string>
   local normal_bg --- @type [integer,integer,integer]?
@@ -320,7 +322,8 @@ do --- temperature highlight
   function M.get_temp_hl(min, max, t, alpha, fg)
     local Color = require('gitsigns.color')
 
-    local normalized_t = (t - min) / (math.max(max, t) - min)
+    local denom = math.max(max, t) - min
+    local normalized_t = denom ~= 0 and (t - min) / denom or 0
     local raw_temp_color = Color.temp(normalized_t)
 
     if normal_bg == nil then
@@ -346,6 +349,14 @@ do --- temperature highlight
     temp_colors[color] = hl_name
     return hl_name
   end
+end
+
+do -- Module-level activation
+  M.setup_highlights()
+  api.nvim_create_autocmd('ColorScheme', {
+    group = api.nvim_create_augroup('gitsigns.highlight', {}),
+    callback = M.setup_highlights,
+  })
 end
 
 return M

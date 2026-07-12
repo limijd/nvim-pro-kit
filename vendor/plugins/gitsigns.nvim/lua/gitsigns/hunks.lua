@@ -48,7 +48,7 @@ function M.create_hunk(old_start, old_count, new_start, new_count)
       new_count > 0 and ',' .. new_count or ''
     ),
 
-    vend = new_start + math.max(new_count - 1, 0),
+    vend = new_start + max(new_count - 1, 0),
     type = new_count == 0 and 'delete' or old_count == 0 and 'add' or 'change',
   }
 end
@@ -125,6 +125,33 @@ function M.patch_lines(hunk, fileformat)
   return lines
 end
 
+--- @param text string[]
+--- @param hunk Gitsigns.Hunk.Hunk
+--- @param reverse? boolean
+--- @return string[]
+function M.apply_to_text(text, hunk, reverse)
+  local removed = reverse and hunk.added or hunk.removed
+  local added = reverse and hunk.removed or hunk.added
+
+  local start = removed.start
+  if removed.count == 0 then
+    start = start + 1
+  end
+
+  local new = {} --- @type string[]
+  if start > 1 then
+    vim.list_extend(new, vim.list_slice(text, 1, start - 1))
+  end
+  if added.count > 0 then
+    vim.list_extend(new, added.lines)
+  end
+  local tail_start = start + removed.count
+  if tail_start <= #text then
+    vim.list_extend(new, vim.list_slice(text, tail_start, #text))
+  end
+  return new
+end
+
 local function tointeger(x)
   return tonumber(x) --[[@as integer]]
 end
@@ -177,12 +204,12 @@ end
 
 --- Calculate signs needed to be applied from a hunk for a specified line range.
 --- @param hunk Gitsigns.Hunk.Hunk
---- @param next Gitsigns.Hunk.Hunk?
+--- @param next_hunk Gitsigns.Hunk.Hunk?
 --- @param min_lnum integer
 --- @param max_lnum integer
 --- @param untracked? boolean
 --- @return Gitsigns.Sign[]
-local function calc_signs(hunk, next, min_lnum, max_lnum, untracked)
+local function calc_signs(hunk, next_hunk, min_lnum, max_lnum, untracked)
   local start, added, removed = hunk.added.start, hunk.added.count, hunk.removed.count
 
   if hunk.type == 'delete' and start == 0 then
@@ -204,10 +231,7 @@ local function calc_signs(hunk, next, min_lnum, max_lnum, untracked)
   local changedelete = hunk.type == 'change'
     and (
       removed > added
-      or (
-        (next and next.type == 'delete')
-        and hunk.added.start + hunk.added.count - 1 == next.added.start
-      )
+      or ((next_hunk and next_hunk.type == 'delete') and start + added - 1 == next_hunk.added.start)
     )
 
   for lnum = max(start, min_lnum), min(cend, max_lnum) do
@@ -246,7 +270,7 @@ function M.calc_signs(prev_hunk, hunk, next_hunk, min_lnum, max_lnum, untracked)
     log.eprintf('Invalid hunk with untracked=%s hunk="%s"', untracked, hunk.head)
     return {}
   end
-  min_lnum = math.max(1, min_lnum or 1)
+  min_lnum = max(1, min_lnum or 1)
   max_lnum = max_lnum or math.huge --[[@as integer]]
 
   if not config._new_sign_calc then
@@ -348,7 +372,6 @@ function M.create_patch(relpath, hunks, mode_bits, invert)
       results[#results + 1] = '\\ No newline at end of file'
     end
 
-    process_hunk.removed.start = start + offset
     offset = offset + (now_count - pre_count)
   end
 
@@ -379,10 +402,17 @@ end
 
 --- @param lnum integer
 --- @param hunks Gitsigns.Hunk.Hunk[]?
+--- @param line_count? integer
 --- @return Gitsigns.Hunk.Hunk?, integer?
-function M.find_hunk(lnum, hunks)
+function M.find_hunk(lnum, hunks, line_count)
   for i, hunk in ipairs(hunks or {}) do
     if lnum == 1 and hunk.added.start == 0 and hunk.vend == 0 then
+      return hunk, i
+    end
+
+    -- A trailing delete hunk lives one line past EOF in hunk coordinates, but
+    -- the cursor can only sit on the last real line.
+    if line_count and lnum == line_count and hunk.added.start == line_count + 1 then
       return hunk, i
     end
 
@@ -396,8 +426,9 @@ end
 --- @param hunks Gitsigns.Hunk.Hunk[]
 --- @param direction 'first'|'last'|'next'|'prev'
 --- @param wrap? boolean
+--- @param line_count? integer
 --- @return integer?
-function M.find_nearest_hunk(lnum, hunks, direction, wrap)
+function M.find_nearest_hunk(lnum, hunks, direction, wrap, line_count)
   if #hunks == 0 then
     return
   elseif direction == 'first' then
@@ -405,6 +436,13 @@ function M.find_nearest_hunk(lnum, hunks, direction, wrap)
   elseif direction == 'last' then
     return #hunks
   elseif direction == 'next' then
+    if line_count and lnum == line_count then
+      local last_hunk = hunks[#hunks]
+      -- Treat EOF as "on" a trailing delete hunk so next_hunk can advance.
+      if last_hunk.added.start == line_count + 1 then
+        lnum = lnum + 1
+      end
+    end
     if assert(hunks[1]).added.start > lnum then
       return 1
     end
@@ -418,12 +456,12 @@ function M.find_nearest_hunk(lnum, hunks, direction, wrap)
       end
     end
   elseif direction == 'prev' then
-    if math.max(assert(hunks[#hunks]).vend) < lnum then
+    if max(hunks[#hunks].vend) < lnum then
       return #hunks
     end
     for i = 1, #hunks do
-      if lnum <= math.max(hunks[i].vend, 1) then
-        if i > 1 and math.max(assert(hunks[i - 1]).vend, 1) < lnum then
+      if lnum <= max(hunks[i].vend, 1) then
+        if i > 1 and max(assert(hunks[i - 1]).vend, 1) < lnum then
           return i - 1
         elseif wrap then
           return #hunks
@@ -513,7 +551,7 @@ function M.filter_common(a, b)
 
   -- Need an offset of 1 in order to process when we hit the end of either
   -- a or b
-  for _ = 1, math.max(#a, #b) + 1 do
+  for _ = 1, max(#a, #b) + 1 do
     local a_h, b_h = a[a_i], b[b_i]
 
     if not a_h then
@@ -604,6 +642,17 @@ function M.linespec_for_hunk(hunk, fileformat)
         start_col = region[3],
         end_col = region[4],
       }
+    end
+
+    local no_nl_at_eof ---@type integer?
+    if hunk.removed.no_nl_at_eof and not hunk.added.no_nl_at_eof then
+      no_nl_at_eof = hunk.removed.count + 1
+    elseif not hunk.removed.no_nl_at_eof and hunk.added.no_nl_at_eof then
+      no_nl_at_eof = hunk.removed.count + hunk.added.count + 1
+    end
+    if no_nl_at_eof then
+      local mark = { start_row = 0, end_row = 1, hl_group = 'GitSignsNoEOLPreview' }
+      table.insert(hls, no_nl_at_eof, { { '\\ No newline at end of file', { mark } } })
     end
   end
 

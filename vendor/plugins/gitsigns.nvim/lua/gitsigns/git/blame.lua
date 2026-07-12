@@ -24,6 +24,7 @@ local util = require('gitsigns.util')
 --- @field num_hunks? integer
 --- @field hunk? string[]
 --- @field hunk_head? string
+--- @field previous? string
 
 --- @class Gitsigns.BlameInfo
 --- @field orig_lnum integer
@@ -113,11 +114,13 @@ local function incremental_iter(readline, commits, result)
     elseif key then
       key = key:gsub('%-', '_') --- @type string
       if vim.endswith(key, '_time') then
+        --- @diagnostic disable-next-line: assign-type-mismatch
         commit[key] = asinteger(value)
       else
         commit[key] = value
       end
     else
+      --- @diagnostic disable-next-line: assign-type-mismatch
       commit[line] = true
       if line ~= 'boundary' then
         log.dprintf("Unknown tag: '%s'", line)
@@ -138,13 +141,14 @@ local function incremental_iter(readline, commits, result)
   then
     commit = vim.tbl_extend('force', commit, NOT_COMMITTED)
   end
-  commits[sha] = commit --[[@as Gitsigns.CommitInfo]]
+  local commit_info = commit --[[@as Gitsigns.CommitInfo]]
+  commits[sha] = commit_info
 
   for j = 0, size - 1 do
     result[final_lnum + j] = {
       final_lnum = final_lnum + j,
       orig_lnum = orig_lnum + j,
-      commit = commits[sha],
+      commit = commit_info,
       filename = filename,
       previous_filename = previous_filename,
       previous_sha = previous_sha,
@@ -214,7 +218,7 @@ end
 --- @async
 --- @param obj Gitsigns.GitObj
 --- @param contents? string[]
---- @param lnum? integer
+--- @param lnum? integer|[integer, integer]
 --- @param revision? string
 --- @param opts? Gitsigns.BlameOpts
 --- @return table<integer, Gitsigns.BlameInfo>
@@ -239,6 +243,8 @@ function M.run_blame(obj, contents, lnum, revision, opts)
     return ret, {}
   end
 
+  --- @type Gitsigns.BlameOpts
+  --- EmmyLuaLs/emmylua-analyzer-rust#921
   opts = opts or {}
 
   local ignore_file = obj.repo.toplevel .. '/.git-blame-ignore-revs'
@@ -261,13 +267,13 @@ function M.run_blame(obj, contents, lnum, revision, opts)
       'blame',
       '--incremental',
       contents and { '--contents', '-' },
-      opts.ignore_whitespace and '-w',
-      lnum and { '-L', lnum .. ',+1' },
+      opts.ignore_whitespace and '-w' or nil,
+      lnum and { '-L', type(lnum) == 'table' and (lnum[1] .. ',' .. lnum[2]) or (lnum .. ',+1') },
       opts.extra_opts,
       uv.fs_stat(ignore_file) and { '--ignore-revs-file', ignore_file },
       revision,
       '--',
-      obj.file,
+      obj.relpath,
     }),
     {
       stdin = contents_str,

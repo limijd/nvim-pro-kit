@@ -8,7 +8,7 @@ local config = require('gitsigns.config').config
 --- @return fun(v:string): any decode
 local function getencdec()
   local m = jit and package.preload['string.buffer'] and require('string.buffer') or vim.mpack
-  --- @diagnostic disable-next-line: need-check-nil, undefined-field
+  --- @diagnostic disable-next-line: need-check-nil, undefined-field, return-type-mismatch
   --- EmmyLuaLs/emmylua-analyzer-rust#697
   return m.encode, m.decode
 end
@@ -53,7 +53,8 @@ local function run_diff(a, b, opts, linematch)
   if linematch ~= false then
     linematch0 = opts.linematch
   end
-  return vim.diff(a, b, {
+  --- @diagnostic disable-next-line: deprecated
+  return (vim.text and vim.text.diff or vim.diff)(a, b, {
     result_type = 'indices',
     algorithm = opts.algorithm,
     indent_heuristic = opts.indent_heuristic,
@@ -88,7 +89,8 @@ local function tohunks(fa, fb, rawhunks)
       for i = rs, rs + rc - 1 do
         hunk.removed.lines[#hunk.removed.lines + 1] = fa[i] or ''
       end
-      if rs + rc >= #fa and fa[#fa] ~= '' then
+      -- Mark no_nl_at_eof only when this hunk reaches the final line.
+      if rs + rc > #fa and fa[#fa] ~= '' then
         hunk.removed.no_nl_at_eof = true
       end
     end
@@ -96,7 +98,8 @@ local function tohunks(fa, fb, rawhunks)
       for i = as, as + ac - 1 do
         hunk.added.lines[#hunk.added.lines + 1] = fb[i] or ''
       end
-      if as + ac >= #fb and fb[#fb] ~= '' then
+      -- Mark no_nl_at_eof only when this hunk reaches the final line.
+      if as + ac > #fb and fb[#fb] ~= '' then
         hunk.added.no_nl_at_eof = true
       end
     end
@@ -119,6 +122,18 @@ function M.run_diff(fa, fb, linematch)
 end
 
 local gaps_between_regions = 5
+
+--- @param line string
+--- @return string
+local function split_word_diff_line(line)
+  if line == '' then
+    return ''
+  end
+
+  -- Keep a trailing separator so vim.diff can anchor edits after the final
+  -- character instead of widening them into a change at EOF.
+  return table.concat(vim.split(line, ''), '\n') .. '\n'
+end
 
 --- @param hunks Gitsigns.Hunk.Hunk[]
 --- @return Gitsigns.Hunk.Hunk[]
@@ -162,8 +177,8 @@ function M.run_word_diff(removed, added)
     local add = added[i] --- @cast add -?
 
     -- pair lines by position
-    local a = table.concat(vim.split(rmd, ''), '\n')
-    local b = table.concat(vim.split(add, ''), '\n')
+    local a = split_word_diff_line(rmd)
+    local b = split_word_diff_line(add)
 
     local hunks = {} --- @type Gitsigns.Hunk.Hunk[]
     for _, r in ipairs(run_diff(a, b, config.diff_opts)) do

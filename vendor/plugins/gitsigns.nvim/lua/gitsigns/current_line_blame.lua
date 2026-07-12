@@ -1,4 +1,5 @@
 local async = require('gitsigns.async')
+local BlameFormatter = require('gitsigns.blame_formatter')
 local debounce = require('gitsigns.debounce')
 local util = require('gitsigns.util')
 
@@ -23,18 +24,7 @@ local function reset(bufnr)
   vim.b[bufnr].gitsigns_blame_line_dict = nil
 end
 
---- @param fmt string
---- @param name string
---- @param info Gitsigns.BlameInfoPublic
---- @return string
-local function expand_blame_format(fmt, name, info)
-  if info.author == name then
-    info.author = 'You'
-  end
-  return util.expand_format(fmt, info)
-end
-
---- @param virt_text [string, string][]
+--- @param virt_text Gitsigns.BlameFmtChunk[]
 --- @return string
 local function flatten_virt_text(virt_text)
   local res = {} ---@type string[]
@@ -58,53 +48,68 @@ end
 --- @return integer
 local function line_len(bufnr, lnum)
   local line = assert(api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, true)[1])
-  return api.nvim_strwidth(line)
-end
+  local len = api.nvim_strwidth(line)
 
---- @param fmt string
---- @return Gitsigns.CurrentLineBlameFmtFun
-local function default_formatter(fmt)
-  return function(username, blame_info)
-    return {
-      {
-        expand_blame_format(fmt, username, blame_info),
-        'GitSignsCurrentLineBlame',
-      },
-    }
+  -- Add width of inline virtual text (e.g., inlay hints)
+  local extmarks = api.nvim_buf_get_extmarks(
+    bufnr,
+    -1,
+    { lnum - 1, 0 },
+    { lnum - 1, -1 },
+    { details = true }
+  )
+
+  for _, extmark in ipairs(extmarks) do
+    local details = extmark[4]
+    if details and details.virt_text and details.virt_text_pos == 'inline' then
+      for _, vt in ipairs(details.virt_text) do
+        len = len + api.nvim_strwidth(vt[1])
+      end
+    end
   end
+
+  return len
 end
 
 ---@param bcache Gitsigns.CacheEntry
 ---@param blame_info Gitsigns.BlameInfoPublic
----@return [string, string][]
+---@return Gitsigns.BlameFmtChunk[]
 local function get_blame_virt_text(bcache, blame_info)
   local git_obj = bcache.git_obj
   local use_nc = blame_info.author == 'Not Committed Yet'
+  local config_key = use_nc and 'current_line_blame_formatter_nc' or 'current_line_blame_formatter'
+  local fallback_formatter = use_nc and schema.current_line_blame_formatter_nc.default
+    or schema.current_line_blame_formatter.default
 
   local clb_formatter = use_nc and config.current_line_blame_formatter_nc
     or config.current_line_blame_formatter
 
   if type(clb_formatter) == 'function' then
-    local ok, res = pcall(clb_formatter, git_obj.repo.username, blame_info)
-    if ok then
-      --- @cast res -string
-      return res
-    end
-    --- @cast res string
+    local ok, result = pcall(clb_formatter, git_obj.repo.username, blame_info)
+    if not ok then
+      error_once('Failed running config.%s, using default:\n   %s', config_key, result)
+      clb_formatter = fallback_formatter
+    else
+      local ok_chunks, chunks = pcall(BlameFormatter.sanitize_chunks, result)
+      if ok_chunks then
+        return chunks
+      end
 
-    local nc_sfx = use_nc and '_nc' or ''
-    error_once(
-      'Failed running config.current_line_blame_formatter%s, using default:\n   %s',
-      nc_sfx,
-      res
-    )
-    --- @type string
-    clb_formatter = schema.current_line_blame_formatter.default
+      error_once('Invalid return from config.%s, using default:\n   %s', config_key, chunks)
+      clb_formatter = fallback_formatter
+    end
   end
 
   --- @cast clb_formatter string EmmyLuaLs/emmylua-analyzer-rust#372
 
-  return default_formatter(clb_formatter)(git_obj.repo.username, blame_info)
+  return {
+    {
+      BlameFormatter.expand_string(clb_formatter, git_obj.repo.username, blame_info, {
+        self_author_text = 'You',
+      }),
+      'GitSignsCurrentLineBlame',
+    },
+  }
 end
 
 --- @param bcache Gitsigns.CacheEntry
@@ -214,18 +219,24 @@ local function update(bufnr)
   handle_blame_info(bcache, lnum, blame_info, opts)
 end
 
+local update_throttled = debounce.throttle_async({ hash = 1 }, update)
+
 -- TODO(lewis6991): opts.delay is always defined as the schema set
 -- deep_extend=true
-M.update = debounce.debounce_trailing(function()
-  return config.current_line_blame_opts.delay
-end, async.create(1, debounce.throttle_by_id(update)))
+M.update = debounce.debounce_trailing(
+  function()
+    return config.current_line_blame_opts.delay
+  end,
+  --- @param bufnr integer
+  function(bufnr)
+    async.run(update_throttled, bufnr):raise_on_error()
+  end
+)
 
-function M.setup()
+function M.refresh()
   for k in pairs(cache) do
     reset(k)
   end
-
-  local group = api.nvim_create_augroup('gitsigns_blame', {})
 
   if not config.current_line_blame then
     return
@@ -233,6 +244,16 @@ function M.setup()
 
   -- show current buffer line blame immediately
   M.update(api.nvim_get_current_buf())
+end
+
+local function configure()
+  M.refresh()
+
+  local group = api.nvim_create_augroup('gitsigns.current_line_blame', {})
+
+  if not config.current_line_blame then
+    return
+  end
 
   local update_events = { 'BufEnter', 'CursorMoved', 'CursorMovedI', 'WinResized' }
   local reset_events = { 'InsertEnter', 'BufLeave' }
@@ -266,8 +287,12 @@ function M.setup()
   })
 end
 
-Config.subscribe('current_line_blame', function()
-  M.setup()
-end)
+do -- Module-level activation
+  configure()
+
+  Config.subscribe({ 'current_line_blame', 'current_line_blame_opts' }, function()
+    configure()
+  end)
+end
 
 return M

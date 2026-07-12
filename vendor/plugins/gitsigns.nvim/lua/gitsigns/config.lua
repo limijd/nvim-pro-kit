@@ -1,3 +1,5 @@
+local validate = require('gitsigns.util').validate
+
 --- @class (exact) Gitsigns.SchemaElem
 --- @field type type|type[]|fun(x:any): boolean
 --- @field type_help? string
@@ -9,8 +11,11 @@
 --- @field description string
 
 --- @class (exact) Gitsigns.DiffthisOpts
+---
+--- Split window vertically. Default to `config.diff_opts.vertical`. If running
+--- via command line, then shi is taken from the command modifiers.
 --- @field vertical? boolean
---- @field split? string
+--- @field split? 'aboveleft'|'belowright'|'topleft'|'botright'
 
 --- @class (exact) Gitsigns.DiffOpts
 --- @field algorithm 'myers'|'minimal'|'patience'|'histogram'
@@ -35,7 +40,22 @@
 --- | 'changedelete'
 --- | 'untracked'
 
---- @alias Gitsigns.CurrentLineBlameFmtFun fun(user: string, info: table<string,any>): [string,string][]
+--- @alias Gitsigns.CurrentLineBlameFmtFun fun(
+---   user: string,
+---   info: table<string,any>
+--- ): Gitsigns.BlameFmtChunk[]
+
+--- @alias Gitsigns.BlameFmtChunk [string, Gitsigns.HlName|Gitsigns.HlStack?]
+
+--- @class (exact) Gitsigns.BlameFormatterContext
+--- @field max_author_width integer
+--- @field hash_hl_group string
+
+--- @alias Gitsigns.BlameFormatterFun fun(
+---   user: string,
+---   info: Gitsigns.BlameInfoPublic,
+---   context: Gitsigns.BlameFormatterContext
+--- ): Gitsigns.BlameFmtChunk[], boolean?
 
 --- @class (exact) Gitsigns.CurrentLineBlameOpts : Gitsigns.BlameOpts
 --- @field virt_text? boolean
@@ -45,7 +65,9 @@
 --- @field use_focus? boolean
 
 --- @class (exact) Gitsigns.BlameOpts
+--- Ignore whitespace when running blame.
 --- @field ignore_whitespace? boolean
+--- Extra options passed to `git-blame`.
 --- @field extra_opts? string[]
 
 --- @class (exact) Gitsigns.Config
@@ -69,11 +91,12 @@
 --- @field watch_gitdir { enable: boolean, follow_files: boolean }
 --- @field max_file_length integer
 --- @field update_debounce integer
---- @field status_formatter fun(_: table<string,any>): string
+--- @field status_formatter fun(_: Gitsigns.StatusObj): string
 --- @field current_line_blame boolean
 --- @field current_line_blame_formatter string|Gitsigns.CurrentLineBlameFmtFun
 --- @field current_line_blame_formatter_nc string|Gitsigns.CurrentLineBlameFmtFun
 --- @field current_line_blame_opts Gitsigns.CurrentLineBlameOpts
+--- @field blame_formatter? string|Gitsigns.BlameFormatterFun
 --- @field preview_config vim.api.keyset.win_config
 --- @field auto_attach boolean
 --- @field attach_to_untracked boolean
@@ -87,9 +110,11 @@
 --- @field _git_version string
 --- @field _verbose boolean
 --- @field _test_mode boolean
+--- @field _allow_fs_poll_fallback boolean
 --- @field _new_sign_calc boolean
 --- @field _update_lock boolean
 --- @field _commit_maps boolean
+--- @field _statuscolumn? boolean
 
 --- @class Gitsigns.config
 local M = {}
@@ -739,6 +764,43 @@ M.schema = {
     ]],
   },
 
+  blame_formatter = {
+    type = { 'string', 'function' },
+    default = nil,
+    default_help = 'nil (use built-in layout)',
+    description = [[
+      String or function used to format commit header lines in the
+      `:Gitsigns blame` side panel.
+
+      When `nil`, the built-in blame side-panel layout is used.
+
+      When a string, accepts the same format specifiers as
+      |gitsigns-config-current_line_blame_formatter|. If the string contains
+      `<summary>`, the repeated summary line is suppressed.
+
+      When a function:
+        Parameters: ~
+          {name}       Git user name returned from `git config user.name`.
+          {blame_info} Table with the same keys as
+                       |gitsigns-config-current_line_blame_formatter|.
+          {context}    Table with:
+                         • `max_author_width`: integer
+                         • `hash_hl_group`: string
+
+        Return: ~
+          First return:
+            • a list of `[text, highlight]` chunks
+
+          Second return:
+            • `boolean?`
+
+          Returning `false` as the second value suppresses the repeated summary
+          line for subsequent lines in the same commit block.
+
+      The blame graph glyphs and heatmap remain renderer-controlled.
+    ]],
+  },
+
   trouble = {
     type = 'boolean',
     default = function()
@@ -781,6 +843,12 @@ M.schema = {
     description = 'Enable test mode',
     type = 'boolean',
     default = false,
+  },
+
+  _allow_fs_poll_fallback = {
+    description = 'Allow watch_gitdir to fall back to fs_poll',
+    type = 'boolean',
+    default = true,
   },
 
   word_diff = {
@@ -848,6 +916,14 @@ M.schema = {
     ]],
   },
 
+  _statuscolumn = {
+    type = 'boolean',
+    default = false,
+    description = [[
+      Statuscolumn mode is enabled
+    ]],
+  },
+
   debug_mode = {
     type = 'boolean',
     default = false,
@@ -871,20 +947,6 @@ function M.subscribe(k, cb)
   end
 end
 
-local nvim011 = vim.fn.has('nvim-0.11') == 1
-
---- @param k string
---- @param v any
---- @param ty type|fun(v:any):boolean
-local function validate(k, v, ty)
-  if nvim011 then
-    --- @diagnostic disable-next-line: redundant-parameter,param-type-mismatch
-    vim.validate(k, v, ty)
-  else
-    vim.validate({ [k] = { v, ty } })
-  end
-end
-
 --- @param user_config table
 function M.build(user_config)
   --- @cast user_config table<string,any>
@@ -898,9 +960,9 @@ function M.build(user_config)
       warn("gitsigns: Ignoring invalid configuration field '%s'", k)
     else
       local ty = s.type
-      if type(ty) == 'string' or type(ty) == 'function' then
+      if type(ty) == 'string' or type(ty) == 'table' or type(ty) == 'function' then
         --- EmmyLuaLs/emmylua-analyzer-rust#696
-        --- @diagnostic disable-next-line: param-type-not-match
+        --- @diagnostic disable-next-line: param-type-not-match, param-type-mismatch
         validate(k, v, ty)
       end
       if s.deprecated then

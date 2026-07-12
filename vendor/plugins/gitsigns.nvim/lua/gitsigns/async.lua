@@ -4,6 +4,7 @@ local pcall = copcall or pcall
 --- @param ... T...
 --- @return [T...] & { n: integer }
 local function pack_len(...)
+  --- @diagnostic disable-next-line: return-type-mismatch
   return { n = select('#', ...), ... }
 end
 
@@ -15,19 +16,20 @@ end
 local function unpack_len(t, first)
   -- EmmyLuaLs/emmylua-analyzer-rust#619
   --- @diagnostic disable-next-line: param-type-not-match, undefined-field, missing-return-value
-  return unpack(t, first or 1, t.n or table.maxn(t))
+  return unpack(t, first or 1, t.n or table.maxn(t --[[@as table]]))
 end
 
 --- @class Gitsigns.async
 local M = {}
 
 --- Weak table to keep track of running tasks
---- @type table<thread,Gitsigns.async.Task?>
+--- @type table<thread,Gitsigns.async.Task<any>?>
 local threads = setmetatable({}, { __mode = 'k' })
 
---- @return Gitsigns.async.Task?
+--- @return Gitsigns.async.Task<any>?
 local function running()
-  local task = threads[coroutine.running()]
+  --- @diagnostic disable-next-line: access-invisible
+  local task = threads[assert(coroutine.running())]
   if task and not (task:_completed() or task._closing) then
     return task
   end
@@ -63,11 +65,11 @@ Task.__index = Task
 
 --- @private
 --- @param func function
---- @return Gitsigns.async.Task
+--- @return Gitsigns.async.Task<any>
 function Task._new(func)
   local thread = coroutine.create(func)
 
-  --- @type Gitsigns.async.Task
+  --- @type Gitsigns.async.Task<any>
   local self = setmetatable({
     _closing = false,
     _thread = thread,
@@ -150,7 +152,7 @@ end
 ---   local result = task:wait() -- wait indefinitely
 --- ```
 --- @param timeout? integer Timeout in milliseconds
---- @return any ... result
+--- @return R
 function Task:wait(timeout)
   local res = pack_len(self:pwait(timeout))
   local stat = res[1]
@@ -169,11 +171,11 @@ end
 function Task:_traceback(msg, _lvl)
   _lvl = _lvl or 0
 
-  local thread = ('[%s] '):format(self._thread)
+  local thread = ('[%s] '):format(tostring(self._thread))
 
   local child = self._current_child
   if getmetatable(child) == Task then
-    --- @cast child Gitsigns.async.Task
+    --- @cast child Gitsigns.async.Task<any>
     msg = child:_traceback(msg, _lvl + 1)
   end
 
@@ -221,7 +223,6 @@ function Task:_finish(err, result)
 
   local errs = {} --- @type string[]
   for _, cb in pairs(self._callbacks) do
-    --- @type boolean
     local ok, cb_err = pcall(cb, err, unpack_len(result or {}))
     if not ok then
       errs[#errs + 1] = cb_err
@@ -354,10 +355,10 @@ end
 --- -- Since uv functions have sync versions. You can just do:
 --- local stat = vim.fs_stat('foo.txt')
 --- ```
---- @generic T
---- @param func async fun(...:T...)
+--- @generic T, R
+--- @param func async fun(...:T...): R...
 --- @param ... T...
---- @return Gitsigns.async.Task
+--- @return Gitsigns.async.Task<R>
 function M.run(func, ...)
   local task = Task._new(func)
   task:_resume(...)
@@ -366,7 +367,7 @@ end
 
 --- Returns the status of a task’s thread.
 ---
---- @param task? Gitsigns.async.Task
+--- @param task? Gitsigns.async.Task<any>
 --- @return 'running'|'suspended'|'normal'|'dead'?
 function M.status(task)
   task = task or running()
@@ -377,7 +378,7 @@ function M.status(task)
 end
 
 --- @async
---- @param task Gitsigns.async.Task
+--- @param task Gitsigns.async.Task<any>
 --- @return any ...
 local function await_task(task)
   --- @param callback fun(err?: string, ...: any)
@@ -438,7 +439,7 @@ end
 --- @async
 --- @overload fun(func: Gitsigns.async.CallbackFn): any ...
 --- @overload fun(argc: integer, func: Gitsigns.async.CallbackFn, ...:any): any ...
---- @overload fun(task: Gitsigns.async.Task): any ...
+--- @overload fun(task: Gitsigns.async.Task<any>): any ...
 function M.await(...)
   assert(running(), 'Not in async context')
 
@@ -491,45 +492,10 @@ function M.wrap(argc, func)
   end
 end
 
---- Use this to create a function which executes in an async context but
---- called from a non-async context.
----
---- The returned function will take the same arguments as the original function.
---- If argc is provided, the function will have an additional callback function
---- as the last argument which will be called when the function completes.
----
---- @generic T
---- @param argc integer
---- @param func async fun(...:T...)
---- @return fun(...:T...): Gitsigns.async.Task
-function M.create(argc, func)
-  assert(type(argc) == 'number')
-  assert(type(func) == 'function')
-
-  --- @param ... any
-  --- @return any ...
-  return function(...)
-    local task = Task._new(func)
-
-    task:raise_on_error()
-
-    --- @type fun(err:string?, ...:any)?
-    local callback = argc and select(argc + 1, ...) or nil
-    if callback and type(callback) == 'function' then
-      task:await(callback)
-    end
-
-    task:_resume(unpack({ ... }, 1, argc))
-
-    return task
-  end
-end
-
-if vim.schedule then
-  --- An async function that when called will yield to the Neovim scheduler to be
-  --- able to call the API.
-  M.schedule = M.wrap(1, vim.schedule)
-end
+--- An async function that when called will yield to the Neovim scheduler to be
+--- able to call the API.
+--- @type async fun()
+M.schedule = M.wrap(1, vim.schedule)
 
 do --- M.event()
   --- An event can be used to notify multiple tasks that some event has
@@ -649,6 +615,7 @@ do --- M.semaphore()
     self:release()
     local stat = r[1]
     if not stat then
+      --- @diagnostic disable-next-line: undefined-field
       local err = r[2]
       error(err)
     end

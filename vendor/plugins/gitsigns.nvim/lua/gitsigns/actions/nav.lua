@@ -4,14 +4,28 @@ local cache = require('gitsigns.cache').cache
 local Popup = require('gitsigns.popup')
 
 local api = vim.api
+local min, max = math.min, math.max
 
 --- @class Gitsigns.NavOpts
+--- Whether to loop around file or not. Defaults
+--- to the value 'wrapscan'
 --- @field wrap boolean
+--- Expand folds when navigating to a hunk which is
+--- inside a fold. Defaults to `true` if 'foldopen'
+--- contains `search`.
 --- @field foldopen boolean
+--- Whether to show navigation messages or not.
+--- Looks at 'shortmess' for default behaviour.
 --- @field navigation_message boolean
+--- Only navigate between non-contiguous hunks. Only useful if
+--- 'diff_opts' contains `linematch`. Defaults to `true`.
 --- @field greedy boolean
+--- Automatically open preview_hunk() upon navigating
+--- to a hunk.
 --- @field preview? boolean
+--- Number of times to advance. Defaults to |v:count1|.
 --- @field count integer
+--- Which kinds of hunks to target. Defaults to `'unstaged'`.
 --- @field target 'unstaged'|'staged'|'all'
 
 --- @class gitsigns.nav
@@ -24,7 +38,7 @@ local function findword(x, word)
   return string.find(x, '%f[%w_]' .. word .. '%f[^%w_]') ~= nil
 end
 
---- @param opts? Gitsigns.NavOpts
+--- @param opts? Partial<Gitsigns.NavOpts>
 --- @return Gitsigns.NavOpts
 local function process_nav_opts(opts)
   opts = opts or {}
@@ -55,7 +69,7 @@ local function process_nav_opts(opts)
     opts.target = 'unstaged'
   end
 
-  return opts
+  return opts --[[@as Gitsigns.NavOpts]]
 end
 
 --- @async
@@ -107,35 +121,35 @@ function M.nav_hunk(direction, opts)
   end
 
   local line = api.nvim_win_get_cursor(0)[1] --[[@as integer]]
+  local buf_line_count = api.nvim_buf_line_count(bufnr)
   local index --- @type integer?
 
   local forwards = direction == 'next' or direction == 'last'
 
   for _ = 1, opts.count do
-    index = Hunks.find_nearest_hunk(line, hunks, direction, opts.wrap)
+    index = Hunks.find_nearest_hunk(line, hunks, direction, opts.wrap, buf_line_count)
 
     if not index then
       if opts.navigation_message then
         api.nvim_echo({ { 'No more hunks', 'WarningMsg' } }, false, {})
       end
-      local _, col = vim.fn.getline(line):find('^%s*')
+      local _, col = (vim.fn.getline(line) --[[@as string]]):find('^%s*')
       --- @cast col -?
       api.nvim_win_set_cursor(0, { line, col })
       return
     end
     local hunk = assert(hunks[index])
     line = forwards and hunk.added.start or hunk.vend
+    -- Project topdelete/EOF-delete hunk coordinates back onto valid cursor rows.
+    line = max(min(line, buf_line_count), 1)
   end
 
   -- Check if preview popup is open before moving the cursor
   local should_preview = opts.preview or Popup.is_open('hunk') ~= nil
 
-  -- Handle topdelete
-  line = math.max(line, 1)
-
   vim.cmd([[ normal! m' ]]) -- add current cursor position to the jump list
 
-  local _, col = vim.fn.getline(line):find('^%s*')
+  local _, col = (vim.fn.getline(line) --[[@as string]]):find('^%s*')
   --- @cast col -?
   api.nvim_win_set_cursor(0, { line, col })
 
