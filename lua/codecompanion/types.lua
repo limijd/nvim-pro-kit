@@ -5,9 +5,13 @@
 ---@field embeddedContext boolean
 ---@field image boolean
 
+---@class ACP.sessionCapabilities
+---@field list? table|nil
+
 ---@class ACP.agentCapabilities
 ---@field loadSession boolean
 ---@field promptCapabilities ACP.promptCapabilities
+---@field sessionCapabilities? ACP.sessionCapabilities
 
 ---@class ACP.AuthMethod
 ---@field id string
@@ -22,6 +26,41 @@
 ---@field input? { hint: string } Optional input hint for arguments
 
 ---@alias ACP.availableCommands ACP.AvailableCommand[]
+
+---@meta Model Context Protocol
+
+---@class MCP.JSONRPCRequest
+---@field jsonrpc "2.0"
+---@field id integer | string
+---@field method string
+---@field params table<string, any>?
+
+---@class MCP.JSONRPCResultResponse
+---@field jsonrpc "2.0"
+---@field id integer | string
+---@field result table<string, any>?
+
+---@class MCP.JSONRPCErrorResponse
+---@field jsonrpc "2.0"
+---@field id integer | string
+---@field error { code: integer, message: string, data: any? }
+
+---@class MCP.Tool
+---@field name string
+---@field inputSchema table
+---@field description? string
+---@field title? string
+---@field execution? table
+
+---@class MCP.TextContent
+---@field type "text"
+---@field text string
+
+---@alias MCP.ContentBlock MCP.TextContent|any
+
+---@class MCP.CallToolResult
+---@field isError? boolean
+---@field content MCP.ContentBlock[]
 
 ---@meta Tree-sitter
 
@@ -48,7 +87,6 @@
 ---@field tools.calls? CodeCompanion.Chat.ToolCall[] Array of tool calls
 ---@field tools.id? string Tool ID
 ---@field opts? table Optional metadata used by the UI and processing
----@field opts.index? number If set, the message was inserted at this index
 ---@field opts.sync_all? boolean When synced, whether the entire buffer is shared
 ---@field opts.sync_diff? boolean When synced, whether only buffer diffs are shared
 ---@field opts.visible? boolean Whether the message should be shown in the chat UI
@@ -56,16 +94,17 @@
 ---@field _meta.id? number Unique identifier for the message (generated via hash)
 ---@field _meta.cycle? number The chat turn cycle when this message was added
 ---@field _meta.index? number The index of the chat message in the messages stack
----@field _meta.tag? string A tag to identify special messages (e.g. "system_prompt_from_config", "tool")
+---@field _meta.tag? string A tag to identify special messages — see `codecompanion.interactions.shared.tags`
+---@field _meta.cumulative_tokens? number Actual cumulative token count from the API when this message was generated
+---@field _meta.estimated_tokens? number Estimated token count associated with this message
 ---@field context? { id?: string, path?: string, mimetype?: string, url?: string } Optional context object
 ---@field reasoning? CodeCompanion.Chat.Reasoning Optional reasoning object returned by some adapters
 ---@field type? string Optional message type used by the UI (e.g. "llm_message", "tool_message", "reasoning_message")
 ---@field _raw? any Any adapter-specific raw payload stored with the message
 ---@field created_at? number Unix timestamp (optional, helpful for sorting/logging)
----@field tokens? number Optional token count associated with this message
 
 ---@class CodeCompanion.Chat.ToolFunctionCall
----@field name string Name of the function/tool (e.g. "cmd_runner", "grep_search")
+---@field name string Name of the function/tool (e.g. "run_command", "grep_search")
 ---@field arguments string|table Raw JSON string or parsed table of arguments
 
 ---@class CodeCompanion.Chat.ToolCall
@@ -92,17 +131,19 @@
 ---@field context table The context of the chat buffer from the completion menu
 ---@field opts table The options for the slash command
 
----@class CodeCompanion.Variables
----@field vars table The variables from the config
+---@class CodeCompanion.EditorContext
+---@field editor_context table The editor context from the config
 
----@class CodeCompanion.Variable
+---@class CodeCompanion.EditorContext
 ---@field Chat CodeCompanion.Chat The chat buffer
+---@field buffer_context CodeCompanion.BufferContext The buffer context to share with the LLM-
 ---@field config table The config for the variable
 ---@field target string The buffer that's being targeted by the variable
 ---@field params string Any additional parameters for the variable
 
----@class CodeCompanion.VariableArgs
----@field Chat CodeCompanion.Chat The chat buffer
+---@class CodeCompanion.EditorContextArgs
+---@field Chat? CodeCompanion.Chat The chat buffer (nil for CLI interactions)
+---@field buffer_context CodeCompanion.BufferContext The buffer context to share with the LLM
 ---@field config table The config for the variable
 ---@field target string The buffer that's being targeted by the variable
 ---@field params string Any additional parameters for the variable
@@ -120,6 +161,9 @@
 ---@field id number The unique identifier for the event
 ---@field reuse fun(chat: CodeCompanion.Chat): boolean Should the current prompt be reused?
 ---@field order number The order in which the events are executed
+
+---@class CodeCompanion.Tools.Unresolved : CodeCompanion.Tools.Tool
+---@field extends? string The factory to use for resolution (e.g. "cmd_tool")
 
 ---@class CodeCompanion.Tools.Tool
 ---@field name string The name of the tool
@@ -153,12 +197,12 @@
 ---@field SlashCommand CodeCompanion.SlashCommand
 ---@field title string The title of the provider's window
 
----@class CodeCompanion.Actions.Provider
+---@class CodeCompanion.ActionPalette.Provider
 ---@field validate table Validate an item
 ---@field resolve table Resolve an item into an action
 ---@field context table Store all arguments in this table
 
----@class CodeCompanion.Actions.ProvidersArgs Arguments that can be injected into the chat
+---@class CodeCompanion.ActionPalette.ProvidersArgs Arguments that can be injected into the chat
 ---@field validate table Validate an item
 ---@field resolve table Resolve an item into an action
 ---@field context table The buffer context
@@ -166,6 +210,7 @@
 ---@class CodeCompanion.BufferContext
 ---@field bufnr number The buffer number
 ---@field buftype string The buffer type
+---@field code string|false The lines of the selection
 ---@field cursor_pos number[] The cursor position as [line, col]
 ---@field end_col number The end column of the selection
 ---@field end_line number The end line of the selection
@@ -176,6 +221,8 @@
 ---@field lines string[] The lines in the buffer
 ---@field line_count number The number of lines in the buffer
 ---@field mode string The current mode
+---@field relative_path string The path to the buffer relative to the current working directory
 ---@field start_line number The start line of the selection
 ---@field start_col number The start column of the selection
 ---@field winnr number The window number
+---@field user_prompt string The prompt provided by the user

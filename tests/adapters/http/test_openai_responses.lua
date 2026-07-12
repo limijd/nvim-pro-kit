@@ -1,4 +1,5 @@
 local h = require("tests.helpers")
+local tags = require("codecompanion.interactions.shared.tags")
 local adapter
 
 local new_set = MiniTest.new_set
@@ -57,8 +58,9 @@ T["Responses"]["can output tool calls"] = function()
     },
     role = "tool",
     tools = {
-      id = "fc_0cf9af0f913994140068e27139a1948193bbf214a9664ec92c",
       call_id = "call_a9oyUMlFhnX8HvqzlfIx5Uek",
+      id = "fc_0cf9af0f913994140068e27139a1948193bbf214a9664ec92c",
+      name = "weather",
     },
   }, adapter.handlers.tools.format_response(adapter, tool_call, output))
 end
@@ -115,7 +117,7 @@ T["Responses"]["build_messages"]["images"] = function()
         mimetype = "image/jpg",
       },
       _meta = {
-        tag = "image",
+        tag = tags.IMAGE,
       },
     },
     {
@@ -146,6 +148,74 @@ T["Responses"]["build_messages"]["images"] = function()
           },
         },
         role = "user",
+      },
+    },
+  }
+
+  h.eq(expected, adapter.handlers.request.build_messages(adapter, messages))
+end
+
+T["Responses"]["build_messages"]["multiple consecutive images are not merged as text"] = function()
+  local messages = {
+    {
+      content = "img1_base64",
+      role = "user",
+      opts = { visible = false },
+      context = { mimetype = "image/png" },
+      _meta = { tag = tags.IMAGE },
+    },
+    {
+      content = "img2_base64",
+      role = "user",
+      opts = { visible = false },
+      context = { mimetype = "image/png" },
+      _meta = { tag = tags.IMAGE },
+    },
+    {
+      content = "img3_base64",
+      role = "user",
+      opts = { visible = false },
+      context = { mimetype = "image/png" },
+      _meta = { tag = tags.IMAGE },
+    },
+    {
+      content = "How many images do you see?",
+      role = "user",
+    },
+  }
+
+  local expected = {
+    input = {
+      {
+        role = "user",
+        content = {
+          {
+            type = "input_image",
+            image_url = "data:image/png;base64,img1_base64",
+          },
+        },
+      },
+      {
+        role = "user",
+        content = {
+          {
+            type = "input_image",
+            image_url = "data:image/png;base64,img2_base64",
+          },
+        },
+      },
+      {
+        role = "user",
+        content = {
+          {
+            type = "input_image",
+            image_url = "data:image/png;base64,img3_base64",
+          },
+          {
+            type = "input_text",
+            text = "How many images do you see?",
+          },
+        },
       },
     },
   }
@@ -538,6 +608,140 @@ T["Responses"]["Streaming"]["can process tools"] = function()
   }
 
   h.eq(expected, tools)
+end
+
+T["Responses"]["Compaction"] = new_set()
+
+T["Responses"]["Compaction"]["build_messages includes context_management when enabled"] = function()
+  adapter.opts.can_manage_context = true
+
+  local messages = {
+    { role = "system", content = "You are helpful" },
+    { role = "user", content = "Hello" },
+  }
+
+  local result = adapter.handlers.request.build_messages(adapter, messages)
+
+  h.not_eq(nil, result.context_management)
+  h.eq("compaction", result.context_management[1].type)
+  h.eq(true, result.context_management[1].compact_threshold >= 50000)
+
+  adapter.opts.can_manage_context = nil
+end
+
+T["Responses"]["Compaction"]["build_messages omits context_management when disabled"] = function()
+  adapter.opts.can_manage_context = false
+
+  local messages = {
+    { role = "user", content = "Hello" },
+  }
+
+  local result = adapter.handlers.request.build_messages(adapter, messages)
+
+  h.eq(nil, result.context_management)
+
+  adapter.opts.can_manage_context = nil
+end
+
+T["Responses"]["Compaction"]["build_messages replays compaction items from _meta"] = function()
+  local compaction_item = {
+    encrypted_content = "gAAAABopaqueblobencrypted",
+    id = "compaction_001",
+    type = "compaction",
+  }
+
+  local messages = {
+    {
+      role = "user",
+      content = "Hello",
+    },
+    {
+      role = "assistant",
+      content = "Hi there!",
+      _meta = {
+        compaction = compaction_item,
+      },
+    },
+    {
+      role = "user",
+      content = "Tell me more",
+    },
+  }
+
+  local result = adapter.handlers.request.build_messages(adapter, messages)
+
+  -- The compaction item should appear before the assistant message
+  h.eq(compaction_item, result.input[2])
+  h.eq({ role = "assistant", content = "Hi there!" }, result.input[3])
+  h.eq({ role = "user", content = "Tell me more" }, result.input[4])
+end
+
+T["Responses"]["Compaction"]["No Streaming"] = new_set({
+  hooks = {
+    pre_case = function()
+      adapter = require("codecompanion.adapters").extend("openai_responses", {
+        opts = {
+          stream = false,
+        },
+      })
+    end,
+  },
+})
+
+T["Responses"]["Compaction"]["No Streaming"]["extracts compaction items from response"] = function()
+  local data = vim.fn.readfile("tests/adapters/http/stubs/openai_responses_compaction_no_streaming.txt")
+  data = table.concat(data, "\n")
+
+  local json = { body = data }
+  local result = adapter.handlers.response.parse_chat(adapter, json)
+
+  h.eq("Here is the compacted response", result.output.content)
+  h.not_eq(nil, result.output.meta.compaction)
+  h.eq("compaction", result.output.meta.compaction.type)
+  h.eq("compaction_001", result.output.meta.compaction.id)
+  h.eq("gAAAABcompactiontestdataopaqueblobencrypted", result.output.meta.compaction.encrypted_content)
+end
+
+T["Responses"]["Compaction"]["Streaming"] = new_set()
+
+T["Responses"]["Compaction"]["Streaming"]["extracts compaction items from response.completed"] = function()
+  local compaction_items = nil
+  local output = ""
+  local lines = vim.fn.readfile("tests/adapters/http/stubs/openai_responses_compaction_streaming.txt")
+  for _, line in ipairs(lines) do
+    local chat_output = adapter.handlers.response.parse_chat(adapter, line)
+    if chat_output and chat_output.output then
+      if chat_output.output.content then
+        output = output .. chat_output.output.content
+      end
+      if chat_output.output.meta and chat_output.output.meta.compaction then
+        compaction_items = chat_output.output.meta.compaction
+      end
+    end
+  end
+
+  h.expect_starts_with("Compacted response", output)
+  h.not_eq(nil, compaction_items)
+  h.eq("compaction", compaction_items.type)
+  h.eq("compaction_stream_001", compaction_items.id)
+end
+
+T["Responses"]["Compaction"]["Streaming"]["captures compaction from output_item.added without response.completed"] = function()
+  local compaction_items = nil
+  local lines = vim.fn.readfile("tests/adapters/http/stubs/openai_responses_compaction_cancelled_streaming.txt")
+  for _, line in ipairs(lines) do
+    local chat_output = adapter.handlers.response.parse_chat(adapter, line)
+    if chat_output and chat_output.output then
+      if chat_output.output.meta and chat_output.output.meta.compaction then
+        compaction_items = chat_output.output.meta.compaction
+      end
+    end
+  end
+
+  h.not_eq(nil, compaction_items)
+  h.eq("compaction", compaction_items.type)
+  h.eq("compaction_cancelled_001", compaction_items.id)
+  h.eq("gAAAABcancelledcompactiondata", compaction_items.encrypted_content)
 end
 
 return T

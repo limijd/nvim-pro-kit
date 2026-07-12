@@ -1,10 +1,20 @@
-local adapter_utils = require("codecompanion.utils.adapters")
+local adapter_utils = require("codecompanion.adapters.utils")
+local config = require("codecompanion.config")
+local fetch_models = require("codecompanion.adapters.utils.models.fetch")
 local log = require("codecompanion.utils.log")
-local tokens = require("codecompanion.utils.tokens")
-local transform = require("codecompanion.utils.tool_transformers")
+local tags = require("codecompanion.interactions.shared.tags")
+local tool_transformer = require("codecompanion.adapters.utils.tool_transformers")
 
-local input_tokens = 0
-local output_tokens = 0
+local models_source = {
+  name = "Anthropic",
+  url = "https://api.anthropic.com/v1/models",
+  ---@param adapter CodeCompanion.HTTPAdapter
+  ---@return table
+  headers = function(adapter)
+    adapter_utils.get_env_vars(adapter, { timeout = config.adapters.opts.cmd_timeout })
+    return adapter_utils.set_env_vars(adapter, adapter.headers)
+  end,
+}
 
 ---@class CodeCompanion.HTTPAdapter.Anthropic: CodeCompanion.HTTPAdapter
 return {
@@ -15,12 +25,11 @@ return {
     user = "user",
   },
   features = {
-    tokens = true,
     text = true,
+    tokens = true,
   },
   opts = {
-    cache_breakpoints = 4, -- Cache up to this many messages
-    cache_over = 300, -- Cache any message which has this many tokens or more
+    compaction = true,
     stream = true,
     tools = true,
     vision = true,
@@ -33,18 +42,20 @@ return {
     ["content-type"] = "application/json",
     ["x-api-key"] = "${api_key}",
     ["anthropic-version"] = "2023-06-01",
-    ["anthropic-beta"] = "prompt-caching-2024-07-31",
   },
-  temp = {},
+  temp = {
+    input_tokens = 0,
+    output_tokens = 0,
+  },
   available_tools = {
     ["code_execution"] = {
       description = "The code execution tool allows Claude to run Bash commands and manipulate files, including writing code, in a secure, sandboxed environment",
       ---@param self CodeCompanion.HTTPAdapter.Anthropic
-      ---@param tools table The transformed tools table
-      callback = function(self, tools)
-        self.headers["anthropic-beta"] = (self.headers["anthropic-beta"] .. "," or "") .. "code-execution-2025-08-25"
+      ---@param meta { tools: table }
+      callback = function(self, meta)
+        adapter_utils.add_header(self.headers, "anthropic-beta", "code-execution-2025-08-25")
 
-        table.insert(tools, {
+        table.insert(meta.tools, {
           type = "code_execution_20250825",
           name = "code_execution",
         })
@@ -53,12 +64,11 @@ return {
     ["memory"] = {
       description = "Enables Claude to store and retrieve information across conversations through a memory file directory. Claude can create, read, update, and delete files that persist between sessions, allowing it to build knowledge over time without keeping everything in the context window",
       ---@param self CodeCompanion.HTTPAdapter.Anthropic
-      ---@param tools table The transformed tools table
-      callback = function(self, tools)
-        self.headers["anthropic-beta"] = (self.headers["anthropic-beta"] .. "," or "")
-          .. "context-management-2025-06-27"
+      ---@param meta { tools: table }
+      callback = function(self, meta)
+        adapter_utils.add_header(self.headers, "anthropic-beta", "context-management-2025-06-27")
 
-        table.insert(tools, {
+        table.insert(meta.tools, {
           type = "memory_20250818",
           name = "memory",
         })
@@ -71,11 +81,11 @@ return {
     ["web_fetch"] = {
       description = "The web fetch tool allows Claude to retrieve full content from specified web pages and PDF documents.",
       ---@param self CodeCompanion.HTTPAdapter.Anthropic
-      ---@param tools table The transformed tools table
-      callback = function(self, tools)
-        self.headers["anthropic-beta"] = (self.headers["anthropic-beta"] .. "," or "") .. "web-fetch-2025-09-10"
+      ---@param meta { tools: table }
+      callback = function(self, meta)
+        adapter_utils.add_header(self.headers, "anthropic-beta", "web-fetch-2025-09-10")
 
-        table.insert(tools, {
+        table.insert(meta.tools, {
           type = "web_fetch_20250910",
           name = "web_fetch",
           max_uses = 5,
@@ -85,9 +95,9 @@ return {
     ["web_search"] = {
       description = "The web search tool gives Claude direct access to real-time web content, allowing it to answer questions with up-to-date information beyond its knowledge cutoff",
       ---@param self CodeCompanion.HTTPAdapter.Anthropic
-      ---@param tools table The transformed tools table
-      callback = function(self, tools)
-        table.insert(tools, {
+      ---@param meta { tools: table }
+      callback = function(self, meta)
+        table.insert(meta.tools, {
           type = "web_search_20250305",
           name = "web_search",
           max_uses = 5,
@@ -104,24 +114,21 @@ return {
       end
 
       -- Make sure the individual model options are set
-      local model = self.schema.model.default
-      local model_opts = self.schema.model.choices[model]
+      local model_opts = adapter_utils.model_choice(self)
       if model_opts and model_opts.opts then
         self.opts = vim.tbl_deep_extend("force", self.opts, model_opts.opts)
         if not model_opts.opts.has_vision then
           self.opts.vision = false
         end
-      end
 
-      -- Add the extended output header if enabled
-      if self.temp.extended_output then
-        self.headers["anthropic-beta"] = (self.headers["anthropic-beta"] .. "," or "") .. "output-128k-2025-02-19"
-      end
-
-      -- Ref: https://docs.anthropic.com/en/docs/build-with-claude/tool-use/token-efficient-tool-use
-      if self.opts.has_token_efficient_tools then
-        self.headers["anthropic-beta"] = (self.headers["anthropic-beta"] .. "," or "")
-          .. "token-efficient-tools-2025-02-19"
+        -- Ref: https://platform.claude.com/docs/en/build-with-claude/compaction
+        if self.opts.compaction ~= false and model_opts.opts.can_manage_context then
+          self.opts.can_manage_context = true
+          adapter_utils.add_header(self.headers, "anthropic-beta", "compact-2026-01-12")
+        else
+          self.opts.can_manage_context = false
+          adapter_utils.remove_header(self.headers, "anthropic-beta", "compact-2026-01-12")
+        end
       end
 
       return true
@@ -133,14 +140,31 @@ return {
     ---@param messages table
     ---@return table
     form_parameters = function(self, params, messages)
-      if self.temp.extended_thinking and self.temp.thinking_budget then
-        params.thinking = {
-          type = "enabled",
-          budget_tokens = self.temp.thinking_budget,
-        }
-      end
-      if self.temp.extended_thinking then
-        params.temperature = 1
+      local models = adapter_utils.model_choice(self)
+      if self.temp.extended_thinking and (models and models.opts and models.opts.can_reason) then
+        -- Anthropic plan on deprecating this in future model releases so I'm
+        -- labelling it as "legacy_reasoning" for now. Will remove later
+        -- Ref: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
+        if models.opts.legacy_reasoning then
+          params.thinking = {
+            type = "enabled",
+            budget_tokens = self.temp.thinking_budget,
+          }
+        else
+          params.thinking = {
+            type = "adaptive",
+          }
+        end
+        -- Thinking isn't compatible with temperature or top_k
+        -- Ref: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
+        params.temperature = nil
+        params.top_k = nil
+
+        -- top_p must be between 1 and 0.95
+        -- Ref: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
+        if params.top_p and (params.top_p > 1 or params.top_p < 0.95) then
+          params.top_p = 1
+        end
       end
 
       return params
@@ -157,7 +181,7 @@ return {
       local system = vim
         .iter(messages)
         :filter(function(msg)
-          return msg.role == "system"
+          return msg.role == "system" and msg.content and msg.content ~= ""
         end)
         :map(function(msg)
           return {
@@ -177,10 +201,13 @@ return {
         end)
         :totable()
 
-      -- 3–7. Clean up, role‐convert, and handle tool calls in one pass
+      -- 3–9. Clean up, role‐convert, and handle tool calls in one pass
       messages = vim.tbl_map(function(m)
+        -- Capture compaction data before filtering removes _meta
+        local compaction = m._meta and m._meta.compaction
+
         -- 3. Account for any images
-        if m._meta and m._meta.tag == "image" and m.context and m.context.mimetype then
+        if m._meta and m._meta.tag == tags.IMAGE and m.context and m.context.mimetype then
           if self.opts and self.opts.vision then
             m.content = {
               {
@@ -232,14 +259,13 @@ return {
         -- 6. Treat 'tool' role as user and convert tool results to Anthropic format
         if m.role == "tool" then
           m.role = self.roles.user
-          -- Convert tool result from CodeCompanion format to Anthropic format
-          if m.tools and m.tools.type == "tool_result" then
+          if m.tools then
             -- Handle content that might already be in Anthropic's format
             if type(m.content) == "table" and m.content.type == "tool_result" then
               -- Already in Anthropic format, keep it as-is but ensure it's in an array
               m.content = { m.content }
             else
-              -- Convert from CodeCompanion format to Anthropic format
+              -- Convert from the canonical tool-result shape to Anthropic's format
               m.content = {
                 {
                   type = "tool_result",
@@ -278,13 +304,20 @@ return {
           })
         end
 
+        -- 9. Include any compaction block from a previous response
+        -- Ref: https://platform.claude.com/docs/en/build-with-claude/compaction
+        if compaction and m.role == self.roles.llm and type(m.content) == "table" then
+          local insert_pos = (m.content[1] and m.content[1].type == "thinking") and 2 or 1
+          table.insert(m.content, insert_pos, compaction)
+        end
+
         return m
       end, messages)
 
-      -- 9. Merge consecutive messages with the same role
+      -- 10. Merge consecutive messages with the same role
       messages = adapter_utils.merge_messages(messages)
 
-      -- 10. Ensure that any consecutive tool results are merged and text messages are included
+      -- 11. Ensure that any consecutive tool results are merged and text messages are included
       if has_tools then
         for _, m in ipairs(messages) do
           if m.role == self.roles.user and m.content and m.content ~= "" then
@@ -316,36 +349,52 @@ return {
         end
       end
 
-      -- 11+. Cache large messages per opts.cache_over / cache_breakpoints
-      local breakpoints_used = 0
-      for i = #messages, 1, -1 do
-        local msgs = messages[i]
-        if msgs.role == self.roles.user then
-          -- Loop through the content
-          for _, msg in ipairs(msgs.content) do
-            if msg.type ~= "text" or msg.text == "" then
-              goto continue
-            end
-            if
-              tokens.calculate(msg.text) >= self.opts.cache_over and breakpoints_used < self.opts.cache_breakpoints
-            then
-              msg.cache_control = { type = "ephemeral" }
-              breakpoints_used = breakpoints_used + 1
-            end
-            ::continue::
-          end
-        end
-      end
-      if system and breakpoints_used < self.opts.cache_breakpoints then
-        for _, prompt in ipairs(system) do
-          if breakpoints_used < self.opts.cache_breakpoints then
-            prompt.cache_control = { type = "ephemeral" }
-            breakpoints_used = breakpoints_used + 1
-          end
-        end
+      local context_management = nil
+      if self.opts.can_manage_context then
+        local helpers = require("codecompanion.interactions.chat.helpers")
+
+        context_management = {
+          ["edits"] = {
+            -- {
+            --   type = "clear_thinking_20251015",
+            --   keep = {
+            --     type = "thinking_turns",
+            --     value = 3,
+            --   },
+            -- },
+            -- {
+            --   type = "clear_tool_uses_20250919",
+            --   keep = {
+            --     type = "tool_uses",
+            --     value = 5,
+            --   },
+            --   trigger = {
+            --     type = "input_tokens",
+            --     value = 50000,
+            --   },
+            -- },
+            {
+              type = "compact_20260112",
+              trigger = {
+                type = "input_tokens",
+                -- Must be at LEAST 50,000 tokens to trigger compaction
+                -- Ref: https://platform.claude.com/docs/en/build-with-claude/compaction#parameters
+                value = math.max(50000, helpers.trigger_context_management(self)),
+              },
+            },
+          },
+        }
       end
 
-      return { system = system, messages = messages }
+      return {
+        context_management = context_management,
+        system = system,
+        messages = messages,
+
+        -- 12. Enable automatic prompt caching
+        -- Ref: https://platform.claude.com/docs/en/build-with-claude/prompt-caching#automatic-caching
+        cache_control = { type = "ephemeral" },
+      }
     end,
 
     ---Form the reasoning output that is stored in the chat buffer
@@ -379,7 +428,7 @@ return {
     ---@return table|nil
     form_tools = function(self, tools)
       if not self.opts.tools or not tools then
-        return
+        return nil
       end
 
       local transformed = {}
@@ -387,15 +436,29 @@ return {
         for _, schema in pairs(tool) do
           if schema._meta and schema._meta.adapter_tool then
             if self.available_tools[schema.name] then
-              self.available_tools[schema.name].callback(self, transformed)
+              self.available_tools[schema.name].callback(self, { tools = transformed })
             end
           else
-            table.insert(transformed, transform.to_anthropic(schema))
+            table.insert(transformed, tool_transformer.to_anthropic(schema))
           end
         end
       end
 
       return { tools = transformed }
+    end,
+
+    ---Form the structured output schema for the request body
+    ---@param self CodeCompanion.HTTPAdapter
+    ---@param schema CodeCompanion.StructuredOutput.Schema
+    ---@return table|nil
+    form_structured_output = function(self, schema)
+      if not schema then
+        return
+      end
+      if not self.opts.can_form_structured_outputs then
+        return log:warn("Model `%s` does not support structured outputs", self.model and self.model.name)
+      end
+      return require("codecompanion.adapters.utils.structured_outputs").to_anthropic(schema)
     end,
 
     ---Returns the number of tokens generated from the LLM
@@ -413,12 +476,13 @@ return {
 
         if ok then
           if json.type == "message_start" then
-            input_tokens = (json.message.usage.input_tokens or 0)
+            self.temp.input_tokens = (json.message.usage.input_tokens or 0)
               + (json.message.usage.cache_creation_input_tokens or 0)
+              + (json.message.usage.cache_read_input_tokens or 0)
 
-            output_tokens = json.message.usage.output_tokens or 0
+            self.temp.output_tokens = json.message.usage.output_tokens or 0
           elseif json.type == "message_delta" then
-            return (input_tokens + output_tokens + json.usage.output_tokens)
+            return (self.temp.input_tokens + self.temp.output_tokens + json.usage.output_tokens)
           elseif json.type == "message" then
             return (json.usage.input_tokens + json.usage.output_tokens)
           end
@@ -458,6 +522,9 @@ return {
               output.reasoning = output.reasoning or {}
               output.reasoning.content = ""
             end
+            if json.content_block.type == "compaction" then
+              output.meta = { compaction = { type = "compaction", content = "" } }
+            end
             if json.content_block.type == "tool_use" and tools then
               -- Source: https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview#single-tool-example
               table.insert(tools, {
@@ -474,6 +541,8 @@ return {
             elseif json.delta.type == "signature_delta" then
               output.reasoning = output.reasoning or {}
               output.reasoning.signature = json.delta.signature
+            elseif json.delta.type == "compaction_delta" then
+              output.meta = { compaction = { type = "compaction", content = json.delta.content } }
             else
               output.content = json.delta.text
               if json.delta.partial_json and tools then
@@ -494,6 +563,9 @@ return {
               elseif content.type == "thinking" then
                 output.reasoning = output.reasoning and output.reasoning or {}
                 output.reasoning.content = content.text
+              elseif content.type == "compaction" then
+                output.meta = output.meta or {}
+                output.meta.compaction = { type = "compaction", content = content.content }
               elseif content.type == "tool_use" and tools then
                 table.insert(tools, {
                   _index = i,
@@ -579,9 +651,9 @@ return {
           role = "tool",
           content = output,
           tools = {
-            type = "tool_result",
             call_id = tool_call.id,
             is_error = false,
+            name = tool_call["function"].name,
           },
           -- Chat Buffer option: To tell the chat buffer that this shouldn't be visible
           opts = { visible = false },
@@ -606,47 +678,13 @@ return {
       mapping = "parameters",
       type = "enum",
       desc = "The model that will complete your prompt. See https://docs.anthropic.com/claude/docs/models-overview for additional details and options.",
-      default = "claude-sonnet-4-5-20250929",
-      choices = {
-        ["claude-sonnet-4-5-20250929"] = {
-          formatted_name = "Claude Sonnet 4.5",
-          opts = { can_reason = true, has_vision = true },
-        },
-        ["claude-haiku-4-5-20251001"] = {
-          formatted_name = "Claude Haiku 4.5",
-          opts = { can_reason = true, has_vision = true },
-        },
-
-        ["claude-sonnet-4-20250514"] = {
-          formatted_name = "Claude Sonnet 4",
-          opts = { can_reason = true, has_vision = true },
-        },
-        ["claude-3-7-sonnet-20250219"] = {
-          formatted_name = "Claude 3.7 Sonnet",
-          opts = { can_reason = true, has_vision = true, has_token_efficient_tools = true },
-        },
-        ["claude-3-5-sonnet-20241022"] = {
-          formatted_name = "Claude Sonnet 3.5",
-          opts = { has_vision = true },
-        },
-        ["claude-opus-4-1-20250805"] = {
-          formatted_name = "Claude Opus 4.1",
-          opts = { can_reason = true, has_vision = true },
-        },
-        ["claude-opus-4-20250514"] = {
-          formatted_name = "Claude Opus 4",
-          opts = { can_reason = true, has_vision = true },
-        },
-        ["claude-3-5-haiku-20241022"] = {
-          formatted_name = "Claude Haiku 3.5",
-          opts = { has_vision = true },
-        },
-        ["claude-3-opus-20240229"] = {
-          formatted_name = "Claude Opus 3",
-          opts = { has_vision = true },
-        },
-        "claude-2.1",
-      },
+      default = "claude-sonnet-5",
+      ---@param self CodeCompanion.HTTPAdapter
+      ---@param opts? { async?: boolean }
+      ---@return table<string, CodeCompanion.Adapter.ModelChoice>
+      choices = function(self, opts)
+        return fetch_models.get(models_source, self, opts)
+      end,
     },
     ---@type CodeCompanion.Schema
     extended_output = {
@@ -658,9 +696,9 @@ return {
       desc = "Enable larger output context (128k tokens). Only available with claude-3-7-sonnet-20250219.",
       ---@param self CodeCompanion.HTTPAdapter
       enabled = function(self)
-        local model = self.schema.model.default
-        if self.schema.model.choices[model] and self.schema.model.choices[model].opts then
-          return self.schema.model.choices[model].opts.can_reason
+        local models = adapter_utils.model_choice(self)
+        if models and models.opts and models.opts.can_reasn then
+          return true
         end
         return false
       end,
@@ -673,21 +711,17 @@ return {
       optional = true,
       desc = "Enable extended thinking for more thorough reasoning. Requires thinking_budget to be set.",
       default = function(self)
-        local model = self.schema.model
-        if
-          model.choices[model.default]
-          and model.choices[model.default].opts
-          and model.choices[model.default].opts.can_reason == true
-        then
+        local models = adapter_utils.model_choice(self)
+        if models and models.opts and models.opts.can_reason == true then
           return true
         end
         return false
       end,
       ---@param self CodeCompanion.HTTPAdapter
       enabled = function(self)
-        local model = self.schema.model.default
-        if self.schema.model.choices[model] and self.schema.model.choices[model].opts then
-          return self.schema.model.choices[model].opts.can_reason
+        local models = adapter_utils.model_choice(self)
+        if models and models.opts and models.opts.can_reason == true then
+          return true
         end
         return false
       end,
@@ -705,9 +739,11 @@ return {
       end,
       ---@param self CodeCompanion.HTTPAdapter
       enabled = function(self)
-        local model = self.schema.model.default
-        if self.schema.model.choices[model] and self.schema.model.choices[model].opts then
-          return self.schema.model.choices[model].opts.can_reason
+        local models = adapter_utils.model_choice(self)
+        if models and models.opts then
+          if models.opts.legacy_reasoning then
+            return true
+          end
         end
         return false
       end,
@@ -719,13 +755,9 @@ return {
       type = "number",
       optional = true,
       default = function(self)
-        local model = self.schema.model.default
-        if
-          self.schema.model.choices[model]
-          and self.schema.model.choices[model].opts
-          and self.schema.model.choices[model].opts.can_reason
-        then
-          return self.schema.thinking_budget.default + 1000
+        local models = adapter_utils.model_choice(self)
+        if models and models.meta and models.meta.max_tokens then
+          return models.meta.max_tokens
         end
         return 4096
       end,
@@ -742,6 +774,15 @@ return {
       optional = true,
       default = 0,
       desc = "Amount of randomness injected into the response. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks. Note that even with temperature of 0.0, the results will not be fully deterministic.",
+      enabled = function(self)
+        local model = adapter_utils.model(self)
+        if
+          vim.tbl_contains({ "claude-opus-4-7", "claude-opus-4-8" }, model) or vim.startswith(model, "claude-fable")
+        then
+          return false
+        end
+        return true
+      end,
       validate = function(n)
         return n >= 0 and n <= 1, "Must be between 0 and 1.0"
       end,

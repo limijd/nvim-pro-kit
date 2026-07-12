@@ -6,90 +6,35 @@ local T = new_set()
 local child = MiniTest.new_child_neovim()
 T = new_set({
   hooks = {
-    pre_case = function()
+    pre_once = function()
       h.child_start(child)
-      child.lua([[
-        h = require('tests.helpers')
-
-        -- Mock ACP connection for chat integration tests
-        _G.mock_acp_connection = {
-          connected = false,
-          session_id = nil,
-
-          connect_and_initialize = function(self)
-            self.connected = true
-            self.session_id = "test-session-123"
-            return self
-          end,
-
-          session_prompt = function(self, messages)
-            return {
-              messages = messages,
-              handlers = {},
-              options = {},
-
-              on_message_chunk = function(self, handler)
-                self.handlers.message_chunk = handler
-                return self
-              end,
-
-              on_thought_chunk = function(self, handler)
-                self.handlers.thought_chunk = handler
-                return self
-              end,
-
-              on_tool_call = function(self, handler)
-                self.handlers.tool_call = handler
-                return self
-              end,
-
-              on_tool_update = function(self, handler)
-                self.handlers.tool_update = handler
-                return self
-              end,
-
-              on_permission_request = function(self, handler)
-                self.handlers.permission_request = handler
-                return self
-              end,
-
-              on_complete = function(self, handler)
-                self.handlers.complete = handler
-                return self
-              end,
-
-              on_error = function(self, handler)
-                self.handlers.error = handler
-                return self
-              end,
-
-              with_options = function(self, opts)
-                self.options = opts
-                return self
-              end,
-
-              send = function(self)
-                -- Store for verification, don't actually send
-                _G.last_prompt_request = self
-                return { shutdown = function() end }
-              end
-            }
-          end,
-
-          disconnect = function(self)
-            self.connected = false
-            self.session_id = nil
-          end
-        }
-      ]])
+      child.lua([[h = require('tests.helpers')]])
+      child.lua([[mocks_acp = require("tests.mocks.acp")]])
     end,
-    post_case = function()
+    pre_case = function()
       child.lua([[
-        _G.mock_acp_connection = nil
         _G.last_prompt_request = nil
+        _G.last_permission_request = nil
+        _G.codecompanion_chat_metadata = {}
+        package.loaded["codecompanion.acp"] = nil
       ]])
     end,
-    post_once = child.stop,
+    post_once = function()
+      child.lua([[
+        _G.last_prompt_request = nil
+        _G.last_permission_request = nil
+        _G.codecompanion_chat_metadata = nil
+
+        -- Reset modules that tests may have overridden
+        package.loaded["codecompanion.acp"] = nil
+        package.loaded["codecompanion.interactions.chat.acp.request_permission"] = nil
+        package.loaded["codecompanion.interactions.chat.acp.handler"] = nil
+        package.loaded["codecompanion.interactions.chat.acp.commands"] = nil
+        package.loaded["codecompanion.interactions.chat"] = nil
+        package.loaded["codecompanion.config"] = nil
+      ]])
+      child.stop()
+    end,
   },
 })
 
@@ -97,7 +42,6 @@ T["ACPHandler"] = new_set()
 
 T["ACPHandler"]["establishes connection when needed"] = function()
   local result = child.lua([[
-    -- Create chat with ACP adapter
     local chat = h.setup_chat_buffer({}, {
       name = "test_acp",
       config = {
@@ -116,28 +60,25 @@ T["ACPHandler"]["establishes connection when needed"] = function()
     local ACPHandler = require("codecompanion.interactions.chat.acp.handler")
     local handler = ACPHandler.new(chat)
 
-    -- Mock the ACP client to return our mock connection
+    local conn = mocks_acp.new()
     package.loaded["codecompanion.acp"] = {
-      new = function(args)
-        return _G.mock_acp_connection
-      end
+      new = function() return conn end
     }
 
-    -- Submit should establish connection
-    local request = handler:submit({
+    handler:submit({
       messages = {{ type = "text", text = "Hello" }}
     })
 
     return {
       has_connection = chat.acp_connection ~= nil,
-      connection_established = chat.acp_connection.connected,
+      is_ready = chat.acp_connection:is_ready(),
       session_id = chat.acp_connection.session_id,
       request_sent = _G.last_prompt_request ~= nil
     }
   ]])
 
   h.is_true(result.has_connection)
-  h.is_true(result.connection_established)
+  h.is_true(result.is_ready)
   h.eq("test-session-123", result.session_id)
   h.is_true(result.request_sent)
 end
@@ -217,6 +158,44 @@ T["ACPHandler"]["handles thought chunks"] = function()
   h.eq(2, result.reasoning_collected)
 end
 
+T["ACPHandler"]["suppresses thought chunks when show_reasoning is false"] = function()
+  local result = child.lua([[
+    local chat = h.setup_chat_buffer({
+      display = {
+        chat = {
+          show_reasoning = false
+        }
+      }
+    }, {
+      name = "test_acp",
+      config = {
+        name = "test_acp",
+        type = "acp",
+        handlers = { form_messages = function(a, m) return m end }
+      }
+    })
+
+    local ACPHandler = require("codecompanion.interactions.chat.acp.handler")
+    local handler = ACPHandler.new(chat)
+
+    local buffer_messages = {}
+    chat.add_buf_message = function(self, data, opts)
+      table.insert(buffer_messages, { data = data, opts = opts })
+    end
+
+    handler:handle_thought_chunk("Let me think about this...")
+    handler:handle_thought_chunk("I need to consider...")
+
+    return {
+      message_count = #buffer_messages,
+      reasoning_collected = #handler.reasoning
+    }
+  ]])
+
+  h.eq(0, result.message_count)
+  h.eq(2, result.reasoning_collected)
+end
+
 T["ACPHandler"]["coordinates completion flow"] = function()
   local result = child.lua([[
     local chat = h.setup_chat_buffer({}, {
@@ -241,7 +220,7 @@ T["ACPHandler"]["coordinates completion flow"] = function()
     handler:handle_message_chunk("Response part 1")
     handler:handle_message_chunk(" and part 2")
     handler:handle_thought_chunk("My reasoning")
-    handler:handle_completion("end_turn")
+    handler:handle_complete("end_turn")
 
     return {
       status = chat.status,
@@ -272,12 +251,10 @@ T["ACPHandler"]["handles connection errors"] = function()
     local handler = ACPHandler.new(chat)
 
     -- Mock connection failure
+    local conn = mocks_acp.new()
+    conn.connect_and_authenticate = function() return nil end
     package.loaded["codecompanion.acp"] = {
-      new = function(args)
-        return {
-          connect_and_initialize = function() return nil end -- Connection fails
-        }
-      end
+      new = function() return conn end
     }
 
     local completion_called = false
@@ -313,11 +290,9 @@ T["ACPHandler"]["integrates with chat submit flow"] = function()
       }
     })
 
-    -- Mock the ACP connection
+    local conn = mocks_acp.new()
     package.loaded["codecompanion.acp"] = {
-      new = function(args)
-        return _G.mock_acp_connection
-      end
+      new = function() return conn end
     }
 
     -- Add a user message to submit
@@ -380,7 +355,7 @@ T["ACPHandler"]["hydrates permission request with cached diff tool_call"] = func
     -- Stub the permission UI to capture the request
     _G.last_permission_request = nil
     package.loaded["codecompanion.interactions.chat.acp.request_permission"] = {
-      show = function(chat_arg, request)
+      confirm = function(chat_arg, request)
         _G.last_permission_request = request
       end
     }
@@ -426,7 +401,7 @@ T["ACPHandler"]["permission request passes through when toolCallId unknown"] = f
     -- Stub the permission UI to capture the request
     _G.last_permission_request = nil
     package.loaded["codecompanion.interactions.chat.acp.request_permission"] = {
-      show = function(chat_arg, request)
+      confirm = function(chat_arg, request)
         _G.last_permission_request = request
       end
     }
@@ -610,23 +585,10 @@ T["ACPHandler"]["handles no connection"] = function()
   h.eq("\\cost", result.content)
 end
 
-T["ACPHandler"]["Session Modes"] = new_set()
+T["ACPHandler"]["Permission Queue"] = new_set()
 
-T["ACPHandler"]["Session Modes"]["caches modes from session creation"] = function()
+T["ACPHandler"]["Permission Queue"]["queues concurrent requests and presents one at a time"] = function()
   local result = child.lua([[
-    -- Mock ACP connection with modes
-    local mock_connection = vim.deepcopy(_G.mock_acp_connection)
-    mock_connection.get_modes = function(self)
-      return self._modes
-    end
-    mock_connection._modes = {
-      currentModeId = "default",
-      availableModes = {
-        { id = "default", name = "Always Ask", description = "Prompts for permission" },
-        { id = "plan", name = "Plan Mode", description = "Analyze but not modify" },
-      }
-    }
-
     local chat = h.setup_chat_buffer({}, {
       name = "test_acp",
       config = {
@@ -636,37 +598,50 @@ T["ACPHandler"]["Session Modes"]["caches modes from session creation"] = functio
       }
     })
 
-    chat.acp_connection = mock_connection
+    local ACPHandler = require("codecompanion.interactions.chat.acp.handler")
+    local handler = ACPHandler.new(chat)
 
-    local modes = chat.acp_connection:get_modes()
+    -- Track which requests reach the permission UI
+    local confirmed = {}
+    package.loaded["codecompanion.interactions.chat.acp.request_permission"] = {
+      confirm = function(chat_arg, request)
+        table.insert(confirmed, request)
+      end
+    }
+
+    -- Send three permission requests concurrently
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_1", kind = "edit", title = "Edit file A" },
+      options = { { kind = "allow_once", optionId = "allow", name = "Allow" } },
+      respond = function() end,
+    })
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_2", kind = "edit", title = "Edit file B" },
+      options = { { kind = "allow_once", optionId = "allow", name = "Allow" } },
+      respond = function() end,
+    })
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_3", kind = "edit", title = "Edit file C" },
+      options = { { kind = "allow_once", optionId = "allow", name = "Allow" } },
+      respond = function() end,
+    })
 
     return {
-      has_modes = modes ~= nil,
-      current_mode = modes and modes.currentModeId,
-      mode_count = modes and #modes.availableModes or 0,
-      first_mode_name = modes and modes.availableModes[1] and modes.availableModes[1].name,
+      confirmed_count = #confirmed,
+      first_id = confirmed[1] and confirmed[1].tool_call.toolCallId,
+      queue_count = handler._permission.queue:count(),
+      active = handler._permission.active,
     }
   ]])
 
-  h.is_true(result.has_modes)
-  h.eq("default", result.current_mode)
-  h.eq(2, result.mode_count)
-  h.eq("Always Ask", result.first_mode_name)
+  h.eq(1, result.confirmed_count)
+  h.eq("tool_1", result.first_id)
+  h.eq(2, result.queue_count)
+  h.is_true(result.active)
 end
 
-T["ACPHandler"]["Session Modes"]["updates metadata with current mode"] = function()
+T["ACPHandler"]["Permission Queue"]["presents next request after user responds"] = function()
   local result = child.lua([[
-    local mock_connection = vim.deepcopy(_G.mock_acp_connection)
-    mock_connection.get_modes = function(self)
-      return {
-        currentModeId = "plan",
-        availableModes = {
-          { id = "default", name = "Always Ask" },
-          { id = "plan", name = "Plan Mode" },
-        }
-      }
-    end
-
     local chat = h.setup_chat_buffer({}, {
       name = "test_acp",
       config = {
@@ -676,30 +651,221 @@ T["ACPHandler"]["Session Modes"]["updates metadata with current mode"] = functio
       }
     })
 
-    chat.acp_connection = mock_connection
+    local ACPHandler = require("codecompanion.interactions.chat.acp.handler")
+    local handler = ACPHandler.new(chat)
+
+    local confirmed = {}
+    package.loaded["codecompanion.interactions.chat.acp.request_permission"] = {
+      confirm = function(chat_arg, request)
+        table.insert(confirmed, request)
+      end
+    }
+
+    local responses = {}
+    local make_respond = function(id)
+      return function(option_id, canceled)
+        table.insert(responses, { id = id, option_id = option_id, canceled = canceled })
+      end
+    end
+
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_1" },
+      options = { { kind = "allow_once", optionId = "allow", name = "Allow" } },
+      respond = make_respond("tool_1"),
+    })
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_2" },
+      options = { { kind = "allow_once", optionId = "allow", name = "Allow" } },
+      respond = make_respond("tool_2"),
+    })
+
+    -- Simulate user accepting the first request
+    confirmed[1].respond("allow", false)
+
+    return {
+      confirmed_count = #confirmed,
+      second_id = confirmed[2] and confirmed[2].tool_call.toolCallId,
+      responses = responses,
+      queue_empty = handler._permission.queue:is_empty(),
+      active = handler._permission.active,
+    }
+  ]])
+
+  h.eq(2, result.confirmed_count)
+  h.eq("tool_2", result.second_id)
+  h.eq("tool_1", result.responses[1].id)
+  h.eq("allow", result.responses[1].option_id)
+  h.is_true(result.queue_empty)
+  h.is_true(result.active)
+end
+
+T["ACPHandler"]["Permission Queue"]["clears queue on completion"] = function()
+  local result = child.lua([[
+    local chat = h.setup_chat_buffer({}, {
+      name = "test_acp",
+      config = {
+        name = "test_acp",
+        type = "acp",
+        handlers = { form_messages = function(a, m) return m end }
+      }
+    })
+
+    local ACPHandler = require("codecompanion.interactions.chat.acp.handler")
+    local handler = ACPHandler.new(chat)
+
+    local confirmed = {}
+    package.loaded["codecompanion.interactions.chat.acp.request_permission"] = {
+      confirm = function(chat_arg, request)
+        table.insert(confirmed, request)
+      end
+    }
+
+    local rejected = {}
+    local make_respond = function(id)
+      return function(option_id, canceled)
+        if canceled then
+          table.insert(rejected, id)
+        end
+      end
+    end
+
+    -- Queue up three requests
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_1" },
+      options = {},
+      respond = make_respond("tool_1"),
+    })
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_2" },
+      options = {},
+      respond = make_respond("tool_2"),
+    })
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_3" },
+      options = {},
+      respond = make_respond("tool_3"),
+    })
+
+    -- Simulate completion while requests are still queued
+    chat.done = function() end
+    handler:handle_complete()
+
+    return {
+      queue_empty = handler._permission.queue:is_empty(),
+      active = handler._permission.active,
+      rejected = rejected,
+    }
+  ]])
+
+  h.is_true(result.queue_empty)
+  h.is_false(result.active)
+  h.eq({ "tool_1", "tool_2", "tool_3" }, result.rejected)
+end
+
+T["ACPHandler"]["Permission Queue"]["clears queue on error"] = function()
+  local result = child.lua([[
+    local chat = h.setup_chat_buffer({}, {
+      name = "test_acp",
+      config = {
+        name = "test_acp",
+        type = "acp",
+        handlers = { form_messages = function(a, m) return m end }
+      }
+    })
+
+    local ACPHandler = require("codecompanion.interactions.chat.acp.handler")
+    local handler = ACPHandler.new(chat)
+
+    local confirmed = {}
+    package.loaded["codecompanion.interactions.chat.acp.request_permission"] = {
+      confirm = function(chat_arg, request)
+        table.insert(confirmed, request)
+      end
+    }
+
+    local rejected = {}
+    local make_respond = function(id)
+      return function(option_id, canceled)
+        if canceled then
+          table.insert(rejected, id)
+        end
+      end
+    end
+
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_1" },
+      options = {},
+      respond = make_respond("tool_1"),
+    })
+    handler:handle_permission_request({
+      tool_call = { toolCallId = "tool_2" },
+      options = {},
+      respond = make_respond("tool_2"),
+    })
+
+    -- Stub add_buf_message and done
+    chat.add_buf_message = function() end
+    chat.done = function() end
+    handler:handle_error("Something went wrong")
+
+    return {
+      queue_empty = handler._permission.queue:is_empty(),
+      active = handler._permission.active,
+      rejected = rejected,
+    }
+  ]])
+
+  h.is_true(result.queue_empty)
+  h.is_false(result.active)
+  h.eq({ "tool_1", "tool_2" }, result.rejected)
+end
+
+T["ACPHandler"]["Config Options"] = new_set()
+
+T["ACPHandler"]["Config Options"]["updates metadata with config options"] = function()
+  local result = child.lua([[
+    local chat = h.setup_chat_buffer({}, {
+      name = "test_acp",
+      config = {
+        name = "test_acp",
+        type = "acp",
+        handlers = { form_messages = function(a, m) return m end }
+      }
+    })
+
+    chat.acp_connection = mocks_acp.new({
+      config_options = {
+        {
+          type = "select",
+          id = "mode",
+          name = "Mode",
+          category = "mode",
+          currentValue = "plan",
+          options = {
+            { value = "default", name = "Always Ask" },
+            { value = "plan", name = "Plan Mode" },
+          },
+        },
+      },
+    })
     chat:update_metadata()
 
     local metadata = _G.codecompanion_chat_metadata[chat.bufnr]
 
     return {
-      has_mode = metadata.mode ~= nil,
-      current_mode_id = metadata.mode and metadata.mode.current,
-      current_mode_name = metadata.mode and metadata.mode.name,
+      has_config_options = metadata.config_options ~= nil,
+      mode_current = metadata.config_options and metadata.config_options.mode and metadata.config_options.mode.current,
+      mode_name = metadata.config_options and metadata.config_options.mode and metadata.config_options.mode.name,
     }
   ]])
 
-  h.is_true(result.has_mode)
-  h.eq("plan", result.current_mode_id)
-  h.eq("Plan Mode", result.current_mode_name)
+  h.is_true(result.has_config_options)
+  h.eq("plan", result.mode_current)
+  h.eq("Plan Mode", result.mode_name)
 end
 
-T["ACPHandler"]["Session Modes"]["handles no modes gracefully"] = function()
+T["ACPHandler"]["Config Options"]["handles no config options gracefully"] = function()
   local result = child.lua([[
-    local mock_connection = vim.deepcopy(_G.mock_acp_connection)
-    mock_connection.get_modes = function(self)
-      return nil
-    end
-
     local chat = h.setup_chat_buffer({}, {
       name = "test_acp",
       config = {
@@ -709,38 +875,23 @@ T["ACPHandler"]["Session Modes"]["handles no modes gracefully"] = function()
       }
     })
 
-    chat.acp_connection = mock_connection
+    chat.acp_connection = mocks_acp.new({ config_options = {} })
     chat:update_metadata()
 
     local metadata = _G.codecompanion_chat_metadata[chat.bufnr]
 
     return {
       metadata_exists = metadata ~= nil,
-      has_mode = metadata.mode ~= nil,
+      has_config_options = metadata.config_options ~= nil,
     }
   ]])
 
   h.is_true(result.metadata_exists)
-  h.is_false(result.has_mode)
+  h.is_false(result.has_config_options)
 end
 
-T["ACPHandler"]["Session Modes"]["reflects mode changes in metadata"] = function()
+T["ACPHandler"]["Config Options"]["reflects config option changes in metadata"] = function()
   local result = child.lua([[
-    local mock_connection = vim.deepcopy(_G.mock_acp_connection)
-    mock_connection.session_id = "test-session-123"
-
-    -- Use a table to hold the current mode so we can modify it
-    local mode_state = { current = "default" }
-    mock_connection.get_modes = function(self)
-      return {
-        currentModeId = mode_state.current,
-        availableModes = {
-          { id = "default", name = "Always Ask" },
-          { id = "plan", name = "Plan Mode" },
-        }
-      }
-    end
-
     local chat = h.setup_chat_buffer({}, {
       name = "test_acp",
       config = {
@@ -750,23 +901,35 @@ T["ACPHandler"]["Session Modes"]["reflects mode changes in metadata"] = function
       }
     })
 
-    chat.acp_connection = mock_connection
+    local config_opts = {
+      {
+        type = "select",
+        id = "mode",
+        name = "Mode",
+        category = "mode",
+        currentValue = "default",
+        options = {
+          { value = "default", name = "Always Ask" },
+          { value = "plan", name = "Plan Mode" },
+        },
+      },
+    }
+    chat.acp_connection = mocks_acp.new({ config_options = config_opts })
     chat:update_metadata()
 
     local metadata_before = vim.deepcopy(_G.codecompanion_chat_metadata[chat.bufnr])
 
-    -- Simulate mode change in the connection
-    mode_state.current = "plan"
+    -- Simulate config option change
+    config_opts[1].currentValue = "plan"
 
-    -- Update metadata to reflect the change
     chat:update_metadata()
 
     local metadata_after = _G.codecompanion_chat_metadata[chat.bufnr]
 
     return {
-      mode_before = metadata_before.mode and metadata_before.mode.current,
-      mode_after = metadata_after.mode and metadata_after.mode.current,
-      name_after = metadata_after.mode and metadata_after.mode.name,
+      mode_before = metadata_before.config_options and metadata_before.config_options.mode and metadata_before.config_options.mode.current,
+      mode_after = metadata_after.config_options and metadata_after.config_options.mode and metadata_after.config_options.mode.current,
+      name_after = metadata_after.config_options and metadata_after.config_options.mode and metadata_after.config_options.mode.name,
     }
   ]])
 

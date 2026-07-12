@@ -1,5 +1,5 @@
 ---
-description: Configure the default system prompt in CodeCompanion
+description: "Customize CodeCompanion's system prompt for chat and inline interactions — replace the default, add dynamic context, or tune language and tone for your LLM."
 ---
 
 # Configuring System Prompts
@@ -63,9 +63,21 @@ The user's Neovim version is ${version}.
 The user is working on a ${os} machine. Please respond with system specific commands if applicable.
 `````
 
+The format of the date can be changed in your config by altering the `date_format` option:
+
+```lua
+require("codecompanion").setup({
+  interactions = {
+    opts = {
+      date_format = "%A, %d %B %Y", -- Example: "Monday, 01 January 2024"
+    },
+  },
+})
+```
+
 ## Tool System Prompt
 
-CodeCompanion also ships with a separate system prompt when [tools](/usage/chat-buffer/tools) are used in the chat buffer:
+CodeCompanion also ships with a separate system prompt when [tools](/usage/chat-buffer/agents-tools) are used in the chat buffer:
 
 `````txt
 <instructions>
@@ -180,7 +192,7 @@ require("codecompanion").setup({
             replace_main_system_prompt = false, -- Replace the main system prompt with the tools system prompt?
 
             ---The tool system prompt
-            ---@param args { tools: string[]} The tools available
+            ---@param args { ctx: CodeCompanion.SystemPrompt.Context, tools: string[]} The tools available
             ---@return string
             prompt = function(args)
               return "My custom tools prompt"

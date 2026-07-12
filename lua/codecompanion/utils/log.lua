@@ -10,13 +10,20 @@ for k, v in pairs(vim.log.levels) do
   levels_reverse[v] = k
 end
 
+local TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S"
+
+---A timestamp in the log format, with millisecond precision appended
+---@return string
+local function timestamp()
+  local seconds, microseconds = vim.uv.gettimeofday()
+  return os.date(TIMESTAMP_FMT, seconds) .. string.format(".%03d", math.floor(microseconds / 1000))
+end
+
 function LogHandler.new(opts)
-  vim.validate({
-    type = { opts.type, "string" },
-    handle = { opts.handle, "function" },
-    formatter = { opts.formatter, "function" },
-    level = { opts.level, "number", true },
-  })
+  vim.validate("type", opts.type, "string")
+  vim.validate("handle", opts.handle, "function")
+  vim.validate("formatter", opts.formatter, "function")
+  vim.validate("level", opts.level, "number", true)
   return setmetatable({
     type = opts.type,
     handle = opts.handle,
@@ -45,25 +52,17 @@ local function default_formatter(level, msg, ...)
   local ok, text = pcall(string.format, msg, vim.F.unpack_len(args))
   if ok then
     local str_level = levels_reverse[level]
-    return string.format("[%s] %s\n%s", str_level, os.date("%Y-%m-%d %H:%M:%S"), text)
+    return string.format("[%s] %s\n%s", str_level, os.date(TIMESTAMP_FMT), text)
   else
     return string.format("[ERROR] error formatting log line: '%s' args %s", msg, vim.inspect(args))
   end
 end
 
----@param opts table
----@return CodeCompanion.LogHandler
-local function create_file_handler(opts)
+---Create a non-blocking writer that queues text and flushes it to a file in batches
+---@param path string
+---@return fun(text: string) write
+local function async_writer(path)
   local a = require("plenary.async")
-  vim.validate({
-    filename = { opts.filename, "string" },
-  })
-  local ok, stdpath = pcall(vim.fn.stdpath, "log")
-  if not ok then
-    stdpath = vim.fn.stdpath("cache")
-  end
-  local path = vim.fs.joinpath(stdpath, opts.filename)
-  --
   local write_queue = {}
   local is_writing = false
 
@@ -79,7 +78,7 @@ local function create_file_handler(opts)
     a.run(function()
       local err, fd = a.uv.fs_open(path, "a", 438)
       if err then
-        vim.notify(string.format("Failed to open log file: %s", err), vim.log.levels.ERROR, { title = "CodeCompanion" })
+        vim.notify(string.format("Failed to open %s: %s", path, err), vim.log.levels.ERROR, { title = "CodeCompanion" })
         is_writing = false
         return
       end
@@ -87,7 +86,7 @@ local function create_file_handler(opts)
       err, _ = a.uv.fs_write(fd, text)
       if err then
         vim.notify(
-          string.format("Failed to write to log file: %s", err),
+          string.format("Failed to write to %s: %s", path, err),
           vim.log.levels.ERROR,
           { title = "CodeCompanion" }
         )
@@ -96,7 +95,7 @@ local function create_file_handler(opts)
       err = a.uv.fs_close(fd)
       if err then
         vim.notify(
-          string.format("Failed to close log file: %s", err),
+          string.format("Failed to close %s: %s", path, err),
           vim.log.levels.ERROR,
           { title = "CodeCompanion" }
         )
@@ -107,9 +106,25 @@ local function create_file_handler(opts)
     end)
   end
 
-  opts.handle = function(_level, text)
-    table.insert(write_queue, text .. "\n")
+  return function(text)
+    table.insert(write_queue, text)
     vim.schedule(process_queue)
+  end
+end
+
+---@param opts table
+---@return CodeCompanion.LogHandler
+local function create_file_handler(opts)
+  vim.validate("filename", opts.filename, "string")
+  local ok, stdpath = pcall(vim.fn.stdpath, "log")
+  if not ok then
+    stdpath = vim.fn.stdpath("cache")
+  end
+  local path = vim.fs.joinpath(stdpath, opts.filename)
+
+  local write = async_writer(path)
+  opts.handle = function(_level, text)
+    write(text .. "\n")
   end
 
   return LogHandler.new(opts)
@@ -152,9 +167,7 @@ end
 ---@param opts table
 ---@return CodeCompanion.LogHandler
 local function create_handler(opts)
-  vim.validate({
-    type = { opts.type, "string" },
-  })
+  vim.validate("type", opts.type, "string")
   if not opts.formatter then
     opts.formatter = default_formatter
   end
@@ -180,10 +193,8 @@ local Logger = {}
 
 ---@param opts CodeCompanion.LoggerArgs
 function Logger.new(opts)
-  vim.validate({
-    handlers = { opts.handlers, "table" },
-    level = { opts.level, "number", true },
-  })
+  vim.validate("handlers", opts.handlers, "table")
+  vim.validate("level", opts.level, "number", true)
   local handlers = {}
   for _, defn in ipairs(opts.handlers) do
     table.insert(handlers, create_handler(defn))
@@ -311,6 +322,20 @@ M.get_logfile = function()
   end
 
   return vim.fs.joinpath(stdpath, "codecompanion.log")
+end
+
+---Create a temp file that captures a request's streamed response, one timestamped entry per chunk
+---@return { path: string, write: fun(data: string|table) }
+M.new_response_file = function()
+  local path = vim.fn.tempname() .. ".log"
+  local write = async_writer(path)
+  return {
+    path = path,
+    write = function(data)
+      local content = type(data) == "table" and vim.inspect(data) or data
+      write(timestamp() .. "\n" .. content .. "\n")
+    end,
+  }
 end
 
 ---@param logger CodeCompanion.Logger

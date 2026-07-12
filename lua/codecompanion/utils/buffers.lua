@@ -3,15 +3,28 @@ local api = vim.api
 local M = {}
 
 ---Get the visible lines in all visible buffers
+---@param excluded? { buftypes?: string[], fts?: string[] }
 ---@return table
-function M.get_visible_lines()
+function M.get_visible_lines(excluded)
   local lines = {}
   local wins = vim.api.nvim_list_wins()
 
   for _, win in ipairs(wins) do
     local bufnr = vim.api.nvim_win_get_buf(win)
+    local ft = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+    local bt = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
 
-    if vim.api.nvim_get_option_value("filetype", { buf = bufnr }) ~= "codecompanion" then
+    local skip = false
+    if excluded then
+      if excluded.fts and vim.tbl_contains(excluded.fts, ft) then
+        skip = true
+      end
+      if excluded.buftypes and vim.tbl_contains(excluded.buftypes, bt) then
+        skip = true
+      end
+    end
+
+    if not skip then
       local start_line = vim.api.nvim_win_call(win, function()
         return vim.fn.line("w0")
       end)
@@ -30,16 +43,16 @@ function M.get_visible_lines()
   return lines
 end
 
----Get the relative name of a buffer from the buffer number
+---Get the name of a buffer from the buffer number
 ---@param bufnr number
----@return table
+---@return string
 function M.name_from_bufnr(bufnr)
   local bufname = api.nvim_buf_get_name(bufnr)
   if vim.fn.has("win32") == 1 then
     -- On Windows, slashes need to be consistent with getcwd, which uses backslashes
     bufname = bufname:gsub("/", "\\")
   end
-  return vim.fn.fnamemodify(bufname, ":.")
+  return bufname
 end
 
 ---Get the information of a given buffer
@@ -47,16 +60,15 @@ end
 ---@return table
 function M.get_info(bufnr)
   local bufname = api.nvim_buf_get_name(bufnr)
-  local relative_path = vim.fn.fnamemodify(bufname, ":.")
 
   return {
     bufnr = bufnr,
     filetype = api.nvim_get_option_value("filetype", { buf = bufnr }),
-    number = bufnr,
     name = vim.fn.fnamemodify(bufname, ":t"),
+    number = bufnr,
     path = bufname,
-    short_path = vim.fn.fnamemodify(bufname, ":h:t") .. "/" .. vim.fn.fnamemodify(bufname, ":t"),
-    relative_path = relative_path,
+    relative_path = vim.fn.fnamemodify(bufname, ":."),
+    short_path = vim.fs.joinpath(vim.fn.fnamemodify(bufname, ":h:t"), vim.fn.fnamemodify(bufname, ":t")),
   }
 end
 
@@ -121,7 +133,7 @@ function M.add_line_numbers(content)
 
   content = vim.split(content, "\n")
   for i, line in ipairs(content) do
-    table.insert(formatted, string.format("%d:  %s", i, line))
+    table.insert(formatted, string.format("%d |%s", i, line))
   end
 
   return table.concat(formatted, "\n")

@@ -28,8 +28,8 @@ T["Utils"]["extract_placeholders()"]["extracts multiple placeholders"] = functio
 end
 
 T["Utils"]["extract_placeholders()"]["extracts dot-notation placeholders"] = function()
-  local result = child.lua([[return utils.extract_placeholders("${shared.code} and ${utils.helper}")]])
-  h.eq(result, { "shared.code", "utils.helper" })
+  local result = child.lua([[return utils.extract_placeholders("${context.code} and ${utils.helper}")]])
+  h.eq(result, { "context.code", "utils.helper" })
 end
 
 T["Utils"]["extract_placeholders()"]["handles nested paths"] = function()
@@ -74,7 +74,7 @@ T["Utils"]["extract_all_placeholders()"]["extracts from deeply nested tables"] =
     return utils.extract_all_placeholders({
       prompts = {
         { role = "system", content = "Hello ${name}" },
-        { role = "user", content = "Use ${shared.code} and ${utils.format}" },
+        { role = "user", content = "Use ${context.code} and ${utils.format}" },
       },
       opts = {
         description = "Test ${context.bufnr}",
@@ -85,7 +85,7 @@ T["Utils"]["extract_all_placeholders()"]["extracts from deeply nested tables"] =
   -- Check all expected placeholders are present (order doesn't matter)
   h.eq(#result, 4)
   h.expect_tbl_contains("name", result)
-  h.expect_tbl_contains("shared.code", result)
+  h.expect_tbl_contains("context.code", result)
   h.expect_tbl_contains("utils.format", result)
   h.expect_tbl_contains("context.bufnr", result)
 end
@@ -149,8 +149,8 @@ end
 T["Utils"]["replace_placeholders()"]["replaces dot-notation placeholders"] = function()
   local result = child.lua([[
     return utils.replace_placeholders(
-      "Code: ${shared.code}",
-      { ["shared.code"] = "function() end" }
+      "Code: ${context.code}",
+      { ["context.code"] = "function() end" }
     )
   ]])
   h.eq(result, "Code: function() end")
@@ -198,6 +198,52 @@ T["Utils"]["replace_placeholders()"]["handles special characters in placeholder 
     )
   ]])
   h.eq(result, "Value: test")
+end
+
+T["Utils"]["replace_placeholders()"]["handles percent signs in replacement values"] = function()
+  local result = child.lua([[
+    return utils.replace_placeholders(
+      '(<a href="https://my.test.page/tester.php?login=${email}" title="Test Page">%20</a>)',
+      { email = "testuser%40testing.org" }
+    )
+  ]])
+  h.eq(result, '(<a href="https://my.test.page/tester.php?login=testuser%40testing.org" title="Test Page">%20</a>)')
+end
+
+T["Utils"]["replace_placeholders()"]["handles simple percent signs in replacement"] = function()
+  local result = child.lua([[
+    return utils.replace_placeholders(
+      "Encoded: ${value}",
+      { value = "%20" }
+    )
+  ]])
+  h.eq(result, "Encoded: %20")
+end
+
+T["Utils"]["replace_placeholders()"]["preserves special pattern characters in replacement values"] = function()
+  local result = child.lua([[
+    return utils.replace_placeholders(
+      "Code: ${context.code}",
+      { ["context.code"] = 'require("lazy.minit").repro({ spec = plugins })' }
+    )
+  ]])
+  h.eq(result, 'Code: require("lazy.minit").repro({ spec = plugins })')
+end
+
+T["Utils"]["replace_placeholders()"]["preserves parentheses and dots in table replacement"] = function()
+  child.lua([[
+    _G.test_table = {
+      { role = "user", content = "Review this: ${context.code}" },
+    }
+    utils.replace_placeholders(_G.test_table, {
+      ["context.code"] = "obj.method(arg1, arg2) + 100%",
+    })
+  ]])
+
+  local result = child.lua([[return _G.test_table]])
+  h.eq(result, {
+    { role = "user", content = "Review this: obj.method(arg1, arg2) + 100%" },
+  })
 end
 
 T["Utils"]["resolve_nested_value()"] = MiniTest.new_set()
@@ -257,6 +303,22 @@ T["Utils"]["resolve_nested_value()"]["handles numeric keys in path"] = function(
     return utils.resolve_nested_value(tbl, "items.1")
   ]])
   h.eq(result, vim.NIL) -- Won't resolve numeric keys as strings
+end
+
+T["Utils"]["timestamp_from_iso()"] = MiniTest.new_set()
+
+T["Utils"]["timestamp_from_iso()"]["parses a UTC timestamp back to the same UTC fields"] = function()
+  -- Round-trips through os.date in UTC, so the result is correct regardless of the machine's timezone
+  local result = child.lua([[
+    local ts = utils.timestamp_from_iso("2026-03-18T22:29:29.993Z")
+    return os.date("!%Y-%m-%dT%H:%M:%S", ts)
+  ]])
+  h.eq(result, "2026-03-18T22:29:29")
+end
+
+T["Utils"]["timestamp_from_iso()"]["returns nil for an unparseable string"] = function()
+  local result = child.lua([[return utils.timestamp_from_iso("not a timestamp")]])
+  h.eq(result, vim.NIL)
 end
 
 return T

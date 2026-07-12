@@ -104,6 +104,39 @@ T["Mistral adapter"]["form_messages"]["it can form tools to be sent to the API"]
   h.eq({ tools = { weather } }, adapter.handlers.form_tools(adapter, tools))
 end
 
+T["Mistral adapter"]["form_structured_output"] = new_set()
+
+T["Mistral adapter"]["form_structured_output"]["forms the request body for the API"] = function()
+  local schema = {
+    name = "weather",
+    strict = true,
+    schema = { type = "object", properties = { location = { type = "string" } }, required = { "location" } },
+  }
+
+  adapter.opts.can_form_structured_outputs = true
+  local output = adapter.handlers.form_structured_output(adapter, schema)
+
+  h.eq("json_schema", output.response_format.type)
+  h.eq("weather", output.response_format.json_schema.name)
+  h.eq(true, output.response_format.json_schema.strict)
+  h.eq({
+    type = "object",
+    properties = { location = { type = "string" } },
+    required = { "location" },
+    additionalProperties = false,
+  }, output.response_format.json_schema.schema)
+end
+
+T["Mistral adapter"]["form_structured_output"]["returns nil when no schema"] = function()
+  adapter.opts.can_form_structured_outputs = true
+  h.eq(nil, adapter.handlers.form_structured_output(adapter, nil))
+end
+
+T["Mistral adapter"]["form_structured_output"]["returns nil when the model cannot form structured outputs"] = function()
+  adapter.opts.can_form_structured_outputs = false
+  h.eq(nil, adapter.handlers.form_structured_output(adapter, { name = "weather", schema = {} }))
+end
+
 T["Mistral adapter"]["Streaming"] = new_set({
   hooks = {
     pre_case = function()
@@ -232,6 +265,30 @@ T["Mistral adapter"]["No Streaming"]["can output for the inline assistant"] = fu
   local json = { body = data }
 
   h.eq("Dynamic Language", adapter.handlers.inline_output(adapter, json).output)
+end
+
+T["Mistral model_transformers"] = new_set()
+
+T["Mistral model_transformers"]["from_mistral() transforms the stubbed model list"] = function()
+  local model_transformers = require("codecompanion.adapters.utils.models.transform")
+
+  local body = table.concat(vim.fn.readfile("tests/adapters/http/stubs/model_list/mistral.json"), "\n")
+  local json = vim.json.decode(body)
+
+  local result = {}
+  for _, model in ipairs(json.data) do
+    local id, entry = model_transformers.from_mistral(model)
+    result[id] = entry
+  end
+
+  h.eq("mistral-medium-2505", result["mistral-medium-2505"].formatted_name)
+  h.eq({ context_window = 131072 }, result["mistral-medium-2505"].meta)
+  h.eq(true, result["mistral-medium-2505"].opts.has_vision)
+  h.eq(true, result["mistral-medium-2505"].opts.can_use_tools)
+  h.eq(false, result["mistral-medium-2505"].opts.can_reason)
+
+  h.eq(false, result["voxtral-mini-latest"].opts.can_use_tools)
+  h.eq(false, result["voxtral-mini-latest"].opts.can_form_structured_outputs)
 end
 
 return T

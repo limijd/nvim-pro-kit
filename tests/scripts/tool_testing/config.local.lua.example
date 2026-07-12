@@ -1,0 +1,67 @@
+local M = {}
+
+M.adapters = {
+  {
+    name = "anthropic",
+    enabled = true,
+    models = {
+      "claude-haiku-4-5",
+      "claude-sonnet-4-6",
+      "claude-opus-4-8",
+    },
+    timeout = 30000,
+  },
+  {
+    name = "copilot",
+    enabled = true,
+    models = {
+      "claude-haiku-4.5",
+      "gemini-3.5-flash",
+      "gpt-5-mini",
+      "gpt-5.4",
+    },
+    timeout = 30000,
+  },
+  {
+    name = "deepseek",
+    enabled = true,
+    models = {
+      "deepseek-v4-flash",
+      "deepseek-v4-pro",
+    },
+    timeout = 30000,
+  },
+  {
+    name = "gemini",
+    enabled = true,
+    models = {
+      "gemini-3.1-flash-lite-preview",
+      "gemini-3.1-pro-preview",
+      "gemini-3.5-flash",
+    },
+    timeout = 30000,
+  },
+  {
+    name = "openai_responses",
+    enabled = true,
+    models = {
+      "gpt-5.4-mini",
+      "gpt-5.4",
+    },
+    timeout = 30000,
+  },
+  {
+    name = "openrouter",
+    enabled = true,
+    models = {
+      "google/gemma-4-31b-it",
+      "qwen/qwen3.6-27b",
+      "qwen/qwen3-coder-30b-a3b-instruct",
+      "qwen/qwen3-coder-next",
+      "z-ai/glm-4.7-flash",
+    },
+    timeout = 60000,
+  },
+}
+
+return M

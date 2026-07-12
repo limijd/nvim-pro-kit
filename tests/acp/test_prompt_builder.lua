@@ -10,7 +10,7 @@ local T = new_set({
 
       -- Load the ACP module in child
       child.lua([[
-				package.loaded['codecompanion.utils.adapters'] = {
+				package.loaded['codecompanion.adapters.utils'] = {
 					get_env_vars = function(a) return a end,
 					set_env_vars = function(_, x) return x end,
 				}
@@ -306,7 +306,7 @@ T["Prompt Builder"]["Auto-cancels when no handler is registered"] = function()
   ]])
 
   h.eq(13, result.id)
-  h.eq("canceled", result.outcome)
+  h.eq("cancelled", result.outcome)
   h.eq(false, result.has_optionId)
 end
 

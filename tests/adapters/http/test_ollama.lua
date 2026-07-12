@@ -1,6 +1,8 @@
 local h = require("tests.helpers")
+local tags = require("codecompanion.interactions.shared.tags")
 local adapter
 
+local child = MiniTest.new_child_neovim()
 local new_set = MiniTest.new_set
 T = new_set()
 
@@ -153,7 +155,7 @@ T["Ollama adapter"]["Streaming"]["can form messages with images"] = function()
         mimetype = "image/jpg",
       },
       _meta = {
-        tag = "image",
+        tag = tags.IMAGE,
       },
       opts = {
         visible = false,
@@ -341,6 +343,183 @@ T["Ollama adapter"]["No Streaming"]["can output for the inline assistant"] = fun
   local json = { body = data }
 
   h.eq("Dynamic Scripting language", adapter.handlers.inline_output(adapter, json).output)
+end
+
+T["Ollama adapter"]["OLLAMA_HOST"] = new_set()
+
+T["Ollama adapter"]["OLLAMA_HOST"]["uses OLLAMA_HOST when set"] = function()
+  local adapter_utils = require("codecompanion.adapters.utils")
+  vim.env.OLLAMA_HOST = "http://192.168.1.100:11434"
+  adapter_utils.get_env_vars(adapter)
+  h.eq("http://192.168.1.100:11434", adapter.env_replaced.url)
+  vim.env.OLLAMA_HOST = nil
+end
+
+T["Ollama adapter"]["OLLAMA_HOST"]["fallback to localhost when OLLAMA_HOST is not set"] = function()
+  local adapter_utils = require("codecompanion.adapters.utils")
+  vim.env.OLLAMA_HOST = nil
+  adapter_utils.get_env_vars(adapter)
+  h.eq("http://localhost:11434", adapter.env_replaced.url)
+end
+
+T["Ollama get_models"] = new_set({
+  hooks = {
+    pre_case = function()
+      h.child_start(child)
+      child.lua([[
+        h = require('tests.helpers')
+        config = require('tests.config')
+        require('codecompanion').setup(config)
+      ]])
+    end,
+    post_once = child.stop,
+  },
+})
+
+T["Ollama get_models"]["choices() extracts context_window into meta"] = function()
+  local result = child.lua([[
+    local get_models = require("codecompanion.adapters.http.ollama.get_models")
+    local Curl = require("plenary.curl")
+
+    local tags_body = vim.json.encode({
+      models = { { name = "llama3.1:latest" } },
+    })
+    local show_body = vim.json.encode({
+      capabilities = { "completion" },
+      details = {
+        family = "llama",
+        families = { "llama" },
+        format = "gguf",
+        parameter_size = "8.0B",
+        parent_model = "",
+        quantization_level = "Q4_0",
+      },
+      model_info = {
+        ["llama.context_length"] = 8192,
+      },
+    })
+
+    Curl.get = function(url, opts)
+      if opts.callback then
+        opts.callback({ status = 200, body = tags_body })
+      end
+    end
+    Curl.post = function(url, opts)
+      if opts.callback then
+        opts.callback({ status = 200, body = show_body })
+      end
+    end
+
+    local adapter = require("codecompanion.adapters.http").extend("ollama", {
+      schema = {
+        model = {
+          default = "llama3.1:latest",
+          choices = { "llama3.1:latest" },
+        },
+      },
+    })
+
+    return get_models.choices(adapter, { async = false })
+  ]])
+
+  h.eq({ context_window = 8192 }, result["llama3.1:latest"].meta)
+  h.eq(false, result["llama3.1:latest"].opts.can_reason)
+  h.eq(false, result["llama3.1:latest"].opts.can_use_tools)
+  h.eq(false, result["llama3.1:latest"].opts.has_vision)
+end
+
+T["Ollama get_models"]["choices() extracts capabilities into opts"] = function()
+  local result = child.lua([[
+    local get_models = require("codecompanion.adapters.http.ollama.get_models")
+    local Curl = require("plenary.curl")
+
+    local tags_body = vim.json.encode({
+      models = { { name = "qwq:latest" } },
+    })
+    local show_body = vim.json.encode({
+      capabilities = { "completion", "thinking", "tools", "vision" },
+      details = {
+        family = "qwen3",
+        families = { "qwen3" },
+        format = "gguf",
+        parameter_size = "32.8B",
+        parent_model = "",
+        quantization_level = "Q4_0",
+      },
+      model_info = {
+        ["qwen3.context_length"] = 40960,
+      },
+    })
+
+    Curl.get = function(url, opts)
+      if opts.callback then
+        opts.callback({ status = 200, body = tags_body })
+      end
+    end
+    Curl.post = function(url, opts)
+      if opts.callback then
+        opts.callback({ status = 200, body = show_body })
+      end
+    end
+
+    local adapter = require("codecompanion.adapters.http").extend("ollama", {
+      schema = {
+        model = {
+          default = "qwq:latest",
+          choices = { "qwq:latest" },
+        },
+      },
+    })
+
+    return get_models.choices(adapter, { async = false })
+  ]])
+
+  h.eq({ context_window = 40960 }, result["qwq:latest"].meta)
+  h.eq(true, result["qwq:latest"].opts.can_reason)
+  h.eq(true, result["qwq:latest"].opts.can_use_tools)
+  h.eq(true, result["qwq:latest"].opts.has_vision)
+end
+
+T["Ollama get_models"]["choices() handles missing model_info gracefully"] = function()
+  local result = child.lua([[
+    local get_models = require("codecompanion.adapters.http.ollama.get_models")
+    local Curl = require("plenary.curl")
+
+    local tags_body = vim.json.encode({
+      models = { { name = "custom:latest" } },
+    })
+    local show_body = vim.json.encode({
+      capabilities = { "completion" },
+      details = {
+        family = "custom",
+      },
+    })
+
+    Curl.get = function(url, opts)
+      if opts.callback then
+        opts.callback({ status = 200, body = tags_body })
+      end
+    end
+    Curl.post = function(url, opts)
+      if opts.callback then
+        opts.callback({ status = 200, body = show_body })
+      end
+    end
+
+    local adapter = require("codecompanion.adapters.http").extend("ollama", {
+      schema = {
+        model = {
+          default = "custom:latest",
+          choices = { "custom:latest" },
+        },
+      },
+    })
+
+    return get_models.choices(adapter, { async = false })
+  ]])
+
+  h.eq(nil, result["custom:latest"].meta)
+  h.eq("custom:latest", result["custom:latest"].formatted_name)
 end
 
 return T

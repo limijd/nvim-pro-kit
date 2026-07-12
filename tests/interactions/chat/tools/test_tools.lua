@@ -27,7 +27,7 @@ T["Tools"]["resolve"] = new_set()
 T["Tools"]["resolve"]["can resolve built-in tools"] = function()
   child.lua([[
     _G.tool = _G.tools.resolve({
-      callback = "interactions.chat.tools.builtin.create_file",
+      path = "interactions.chat.tools.builtin.create_file",
       description = "Update a buffer with the LLM's response",
     })
   ]])
@@ -39,7 +39,7 @@ end
 T["Tools"]["resolve"]["can resolve user's tools"] = function()
   child.lua([[
     _G.tool = _G.tools.resolve({
-      callback = vim.fn.getcwd() .. "/tests/stubs/foo.lua",
+      path = vim.fn.getcwd() .. "/tests/stubs/foo.lua",
       description = "Some foo function",
     })
   ]])
@@ -56,7 +56,7 @@ T["Tools"][":find"]["should find a group and a tool with same prefix"] = functio
     local message = {
       content = "Use @{tool_group_tool} @{tool_group} for something"
     }
-    local tools, groups = _G.tools:find(_G.chat, message)
+    local tools, groups = _G.tools:find(message)
     return {
      tools = tools,
      groups = groups
@@ -72,7 +72,7 @@ T["Tools"][":find"]["should not find a group when tool name starts with group na
     local message = {
       content = "Use @{tool_group_tool} for something"
     }
-    local tools, groups = _G.tools:find(_G.chat, message)
+    local tools, groups = _G.tools:find(message)
     return {
      tools = tools,
      groups = groups
@@ -91,7 +91,7 @@ T["Tools"][":find"]["should find tools added after a chat is initialized"] = fun
 
     -- Add a dynamic tool after chat is already created
     config.interactions.chat.tools.dynamic_test_tool = {
-    callback = "",
+      path = "",
       description = "Dynamic tool",
       enabled = true,
     }

@@ -15,15 +15,20 @@ load(vim.fn.system("curl -s https://raw.githubusercontent.com/folke/lazy.nvim/ma
 local plugins = {
   {
     "olimorris/codecompanion.nvim",
+    -- Test with local version (delete if not required)
+    -- dir = "~/Code/Neovim/codecompanion.nvim",
     dependencies = {
-      -- needed to install additional parsers
-      { "nvim-treesitter/nvim-treesitter", build = ":TSUpdate" },
       { "nvim-lua/plenary.nvim" },
-      -- Test with blink.cmp (delete if not required)
+      {
+        "nvim-treesitter/nvim-treesitter",
+        lazy = false,
+        build = ":TSUpdate",
+      },
+
+      -- Test with blink.cmp
       {
         "saghen/blink.cmp",
-        lazy = false,
-        version = "*",
+        version = "1.*",
         opts = {
           keymap = {
             preset = "enter",
@@ -36,7 +41,8 @@ local plugins = {
           },
         },
       },
-      -- Test with nvim-cmp
+
+      -- Or, test with nvim-cmp
       -- { "hrsh7th/nvim-cmp" },
     },
     opts = {
@@ -55,17 +61,22 @@ local plugins = {
 
 -- Leaving this comment in to see if the issue author notices ;-)
 -- This is so I can tell if they've really tested with their own minimal.lua file
+-- or if they're just copy-pasting from the docs and pasting it into the issue
 
 require("lazy.minit").repro({ spec = plugins })
 
+-- CONFIGURE PLUGINS HERE -----------------------------------------------------
+
 -- Setup Tree-sitter
-local ts_status, treesitter = pcall(require, "nvim-treesitter.configs")
-if ts_status then
-  treesitter.setup({
-    ensure_installed = { "lua", "markdown", "markdown_inline", "yaml", "diff" },
-    highlight = { enable = true },
-  })
-end
+-- NOTE: Please restart Neovim to ensure parsers are loaded correctly
+require("nvim-treesitter")
+  .install({
+    "lua",
+    "markdown",
+    "markdown_inline",
+    "yaml",
+  }, { summary = true, max_jobs = 10 })
+  :wait(1800000)
 
 -- Setup nvim-cmp
 -- local cmp_status, cmp = pcall(require, "cmp")

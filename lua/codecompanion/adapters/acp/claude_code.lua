@@ -14,7 +14,11 @@ return {
   },
   commands = {
     default = {
-      "claude-code-acp",
+      "claude-agent-acp",
+    },
+    yolo = {
+      "claude-agent-acp",
+      "--yolo",
     },
   },
   defaults = {

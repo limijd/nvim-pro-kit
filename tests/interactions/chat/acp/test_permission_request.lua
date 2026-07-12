@@ -17,493 +17,363 @@ T = new_set({
         cfg.display.chat.floating_window = cfg.display.chat.floating_window or {
           width = 60, height = 12, row = "center", col = "center", relative = "editor", opts = {},
         }
-        -- Sensible default to avoid timeouts during tests
+        cfg.display.diff.window = cfg.display.diff.window or {}
         cfg.interactions = cfg.interactions or {}
         cfg.interactions.chat = cfg.interactions.chat or {}
         cfg.interactions.chat.opts = cfg.interactions.chat.opts or {}
-        cfg.interactions.chat.opts.acp_timeout_response = "reject_once"
+        cfg.interactions.chat.keymaps = cfg.interactions.chat.keymaps or {}
+        cfg.interactions.inline = cfg.interactions.inline or {}
+        cfg.interactions.shared.keymaps = cfg.interactions.shared.keymaps or {
+          view_diff = { modes = { n = "gv" } },
+          always_accept = { modes = { n = "g1" } },
+          accept_change = { modes = { n = "g2" } },
+          reject_change = { modes = { n = "g3" } },
+          cancel = { modes = { n = "g4" } },
+          next_hunk = { modes = { n = "}" } },
+          previous_hunk = { modes = { n = "{" } },
+        }
       ]])
     end,
     post_case = function()
       child.lua([[
+        -- Clean up any floating windows
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+          if vim.api.nvim_win_is_valid(win) then
+            local cfg = vim.api.nvim_win_get_config(win)
+            if cfg.relative and cfg.relative ~= "" then
+              pcall(vim.api.nvim_win_close, win, true)
+            end
+          end
+        end
+        -- Unload modules
         package.loaded["codecompanion.interactions.chat.acp.request_permission"] = nil
-        package.loaded["codecompanion.providers.diff.inline"] = nil
-        package.loaded["codecompanion.interactions.chat.helpers.wait"] = nil
-        package.loaded["codecompanion.interactions.chat.helpers.diff"] = nil
-        package.loaded["codecompanion.interactions.chat.helpers"] = nil
-        package.loaded["codecompanion.utils.ui"] = nil
+        package.loaded["codecompanion.helpers"] = nil
+        package.loaded["codecompanion.diff"] = nil
+        package.loaded["codecompanion.diff.ui"] = nil
       ]])
     end,
     post_once = child.stop,
   },
 })
 
--- Small helper to set up mocks per-case and run body inside child
-local function with_mocks(opts)
-  opts = opts or {}
-  return child.lua(([[
-    _G.__CAPT = {}
-
-    -- Mock Inline diff provider
-    package.loaded["codecompanion.providers.diff.inline"] = {
-      new = function(args)
-        _G.__CAPT.inline_new = {
-          bufnr = args.bufnr,
-          id = args.id,
-          contents = args.contents,
-        }
-        return {
-          accept = function(_) _G.__CAPT.accept_called = true end,
-          reject = function(_) _G.__CAPT.reject_called = true end,
-        }
-      end
-    }
-
-    -- Mock diff helper
-    package.loaded["codecompanion.interactions.chat.helpers.diff"] = {
-      open_buffer_and_window = function(bufnr)
-        -- Return the buffer and create a window for it
-        local winnr = vim.fn.bufwinid(bufnr)
-        if winnr == -1 then
-          winnr = vim.api.nvim_open_win(bufnr, true, {
-            relative = "editor",
-            width = 60, height = 12,
-            row = 1, col = 1,
-            style = "minimal", border = "single",
-          })
+T["no diff -> approval prompt -> return selected option"] = function()
+  local result = child.lua([[
+    -- Stub approval_prompt to auto-select by label
+    local ap = require("codecompanion.interactions.chat.helpers.approval_prompt")
+    ap.request = function(_, opts)
+      for _, choice in ipairs(opts.choices) do
+        if choice.label == "Accept" then
+          choice.callback()
+          return
         end
-        return bufnr, winnr
       end
-    }
+    end
 
-    -- Mock helpers
-    package.loaded["codecompanion.interactions.chat.helpers"] = {
-      hide_chat_for_floating_diff = function(_chat) end
-    }
-
-    -- Mock UI float creator: create real scratch buffer + floating window
-    package.loaded["codecompanion.utils.ui"] = {
-      create_float = function(lines, _opts)
-        local bufnr = vim.api.nvim_create_buf(false, true)
-        if lines then
-          vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, lines)
-        end
-        local w = vim.api.nvim_open_win(bufnr, true, {
-          relative = "editor",
-          width = 60, height = 12,
-          row = 1, col = 1,
-          style = "minimal", border = "single",
-        })
-        return bufnr, w
+    local responded = {}
+    local chat = { bufnr = 0 }
+    local request = {
+      tool_call = {
+        toolCallId = "tc-nodiff",
+        kind = "execute",
+        title = "Run command",
+        status = "pending",
+        content = {}, -- no diff entries
+      },
+      options = {
+        { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
+        { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
+      },
+      respond = function(option_id, canceled)
+        responded = { option_id = option_id, canceled = canceled }
       end,
-      create_basic_floating_window = function(bufnr, _opts)
-        local w = vim.api.nvim_open_win(bufnr, true, {
-          relative = "editor",
-          width = 60, height = 12,
-          row = 1, col = 1,
-          style = "minimal", border = "single",
-        })
-        return w
-      end,
-      create_background_window = function() return nil end,
-      close_background_window = function() end,
-      set_winbar = function(_winnr, _text, _hl) end,
-      create_floating_window = function(bufnr, _opts)
-        local w = vim.api.nvim_open_win(bufnr, true, {
-          relative = "editor",
-          width = 60, height = 12,
-          row = 1, col = 1,
-          style = "minimal", border = "single",
-          title = _opts and _opts.title or "Diff",
-          title_pos = "center",
-        })
-        return w
-      end,
-      build_float_title = function(opts)
-        opts = opts or {}
-        if opts.path then
-          return (opts.title_prefix or "Test") .. ": " .. vim.fn.fnamemodify(opts.path, ":t")
-        end
-        return opts.title or opts.title_prefix or "Test"
-      end
-    }
-
-    -- Mock wait helper
-    package.loaded["codecompanion.interactions.chat.helpers.wait"] = {
-      for_decision = function(diff_id, _events, cb, _opts)
-        _G.__CAPT.wait = { id = diff_id, cb = cb }
-        %s
-      end
     }
 
     local permissions = require("codecompanion.interactions.chat.acp.request_permission")
-
-    return (function()
-      %s
-    end)()
-  ]]):format(opts.wait_behavior or "", opts.body))
-end
-
-T["accept path selects allow_* and calls diff.accept"] = function()
-  local result = with_mocks({
-    wait_behavior = [[
-      -- Resolve immediately as accepted
-      cb({ accepted = true })
-    ]],
-    body = [[
-      local responded = {}
-      local chat = { bufnr = 0 }
-      local request = {
-        tool_call = {
-          toolCallId = "tc-accept",
-          kind = "edit",
-          title = "Apply changes",
-          status = "pending",
-          content = { { type = "diff", path = "file.txt", oldText = "old", newText = "new" } },
-        },
-        options = {
-          { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
-          { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
-        },
-        respond = function(option_id, canceled)
-          responded = { option_id = option_id, canceled = canceled }
-        end,
-      }
-
-      permissions.show(chat, request)
-
-      return {
-        option_id = responded.option_id,
-        canceled = responded.canceled,
-        accept_called = _G.__CAPT.accept_called == true,
-        inline_bufnr = _G.__CAPT.inline_new and _G.__CAPT.inline_new.bufnr or nil,
-        original_had_old = _G.__CAPT.inline_new and _G.__CAPT.inline_new.contents and _G.__CAPT.inline_new.contents[1] == "old",
-      }
-    ]],
-  })
+    permissions.confirm(chat, request)
+    return responded
+  ]])
 
   h.eq("allow_once_id", result.option_id)
   h.eq(false, result.canceled)
-  h.eq(true, result.accept_called)
-  h.is_true(type(result.inline_bufnr) == "number")
-  h.eq(true, result.original_had_old)
 end
 
-T["reject path selects reject_* and calls diff.reject"] = function()
-  local result = with_mocks({
-    wait_behavior = [[
-      -- Resolve immediately as rejected (no timeout)
-      cb({ accepted = false, timeout = false })
-    ]],
-    body = [[
-      local responded = {}
-      local chat = { bufnr = 0 }
-      local request = {
-        tool_call = {
-          toolCallId = "tc-reject",
-          kind = "edit",
-          title = "Apply changes",
-          status = "pending",
-          content = { { type = "diff", path = "file.txt", oldText = "old", newText = "new" } },
-        },
-        options = {
-          { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
-          { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
-        },
-        respond = function(option_id, canceled)
-          responded = { option_id = option_id, canceled = canceled }
-        end,
-      }
-
-      permissions.show(chat, request)
-
-      return {
-        option_id = responded.option_id,
-        canceled = responded.canceled,
-        reject_called = _G.__CAPT.reject_called == true,
-      }
-    ]],
-  })
-
-  h.eq("reject_once_id", result.option_id)
-  h.eq(false, result.canceled)
-  h.eq(true, result.reject_called)
-end
-
-T["no diff -> confirm -> return reject option"] = function()
-  local result = with_mocks({
-    wait_behavior = [[
-      -- no diff flow doesn't call wait.for_decision
-    ]],
-    body = [[
-      -- Stub confirm to pick the second choice ("Reject" given options order)
-      vim.fn.confirm = function(_, _, _)
-        return 2
-      end
-
-      local responded = {}
-      local chat = { bufnr = 0 }
-      local request = {
-        tool_call = {
-          toolCallId = "tc-nodiff",
-          kind = "execute",
-          title = "Run command",
-          status = "pending",
-          content = {}, -- no diff entries
-        },
-        options = {
-          { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
-          { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
-        },
-        respond = function(option_id, canceled)
-          responded = { option_id = option_id, canceled = canceled }
-        end,
-      }
-
-      local permissions = require("codecompanion.interactions.chat.acp.request_permission")
-      permissions.show(chat, request)
-      return responded
-    ]],
-  })
-
-  -- Expect we selected "Reject" via confirm
-  h.eq("reject_once_id", result.option_id)
-  h.eq(false, result.canceled)
-end
-
-T["no diff -> confirm -> return cancel option"] = function()
-  local result = with_mocks({
-    wait_behavior = [[
-      -- no diff flow doesn't call wait.for_decision
-    ]],
-    body = [[
-      -- Stub confirm to cancel
-      vim.fn.confirm = function(_, _, _)
-        return 0
-      end
-
-      local responded = {}
-      local chat = { bufnr = 0 }
-      local request = {
-        tool_call = {
-          toolCallId = "tc-nodiff",
-          kind = "execute",
-          title = "Run command",
-          status = "pending",
-          content = {}, -- no diff entries
-        },
-        options = {
-          { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
-          { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
-        },
-        respond = function(option_id, canceled)
-          responded = { option_id = option_id, canceled = canceled }
-        end,
-      }
-
-      local permissions = require("codecompanion.interactions.chat.acp.request_permission")
-      permissions.show(chat, request)
-      return responded
-    ]],
-  })
-
-  -- Expect cancellation when confirm returns 0
-  h.eq(nil, result.option_id)
-  h.eq(true, result.canceled)
-end
-
-T["diff flow -> timeout uses TIMEOUT_RESPONSE and rejects"] = function()
-  local result = with_mocks({
-    wait_behavior = [[
-      -- Resolve as timeout (not accepted)
-      cb({ accepted = false, timeout = true })
-    ]],
-    body = [[
-      local responded = {}
-      local chat = { bufnr = 0 }
-      local request = {
-        tool_call = {
-          toolCallId = "tc-timeout",
-          kind = "edit",
-          title = "Apply changes",
-          status = "pending",
-          content = { { type = "diff", path = "file.txt", oldText = "old", newText = "new" } },
-        },
-        options = {
-          { optionId = "allow_once_id",  name = "Allow",  kind = "allow_once"  },
-          { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
-        },
-        respond = function(option_id, canceled)
-          responded = { option_id = option_id, canceled = canceled }
-        end,
-      }
-
-      local permissions = require("codecompanion.interactions.chat.acp.request_permission")
-      permissions.show(chat, request)
-
-      return {
-        option_id = responded.option_id,
-        canceled = responded.canceled,
-        reject_called = _G.__CAPT.reject_called == true,
-      }
-    ]],
-  })
-
-  -- TIMEOUT_RESPONSE is 'reject_once' in pre_case
-  h.eq("reject_once_id", result.option_id)
-  h.eq(false, result.canceled)
-  h.eq(true, result.reject_called)
-end
-
-T["diff flow -> autocmd rejects (WinClosed)"] = function()
-  local result = with_mocks({
-    wait_behavior = [[
-      -- Do not resolve automatically; let WinClosed autocmd drive decision
-    ]],
-    body = [[
-      local responded = {}
-      local chat = { bufnr = 0 }
-      local request = {
-        tool_call = {
-          toolCallId = "tc-autocmd",
-          kind = "edit",
-          title = "Apply changes",
-          status = "pending",
-          content = { { type = "diff", path = "file.txt", oldText = "old", newText = "new" } },
-        },
-        options = {
-          { optionId = "allow_once_id",  name = "Allow",  kind = "allow_once"  },
-          { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
-        },
-        respond = function(option_id, canceled)
-          responded = { option_id = option_id, canceled = canceled }
-        end,
-      }
-
-      local permissions = require("codecompanion.interactions.chat.acp.request_permission")
-      permissions.show(chat, request)
-
-      -- Find the diff window created for the inline provider
-      local bufnr = _G.__CAPT.inline_new.bufnr
-      local winnr
-      for _, win in ipairs(vim.api.nvim_list_wins()) do
-        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
-          winnr = win
-          break
+T["no diff -> approval prompt -> reject option"] = function()
+  local result = child.lua([[
+    -- Stub approval_prompt to auto-select by label
+    local ap = require("codecompanion.interactions.chat.helpers.approval_prompt")
+    ap.request = function(_, opts)
+      for _, choice in ipairs(opts.choices) do
+        if choice.label == "Reject" then
+          choice.callback()
+          return
         end
       end
+    end
 
-      if winnr then
-        vim.api.nvim_win_close(winnr, true)
-      end
+    local responded = {}
+    local chat = { bufnr = 0 }
+    local request = {
+      tool_call = {
+        toolCallId = "tc-nodiff",
+        kind = "execute",
+        title = "Run command",
+        status = "pending",
+        content = {}, -- no diff entries
+      },
+      options = {
+        { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
+        { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
+      },
+      respond = function(option_id, canceled)
+        responded = { option_id = option_id, canceled = canceled }
+      end,
+    }
 
-      -- Wait briefly for autocmd to fire and respond() to be called
-      vim.wait(300, function()
-        return responded.canceled ~= nil or responded.option_id ~= nil
-      end, 10)
+    local permissions = require("codecompanion.interactions.chat.acp.request_permission")
+    permissions.confirm(chat, request)
+    return responded
+  ]])
 
-      return {
-        option_id = responded.option_id,
-        canceled = responded.canceled,
-        reject_called = _G.__CAPT.reject_called == true,
-      }
-    ]],
-  })
-
-  -- Closing the window should pick a reject option (prefer reject_once) and not cancel
   h.eq("reject_once_id", result.option_id)
   h.eq(false, result.canceled)
-  h.eq(true, result.reject_called)
 end
 
-T["installs keymaps only for present kinds and mapping triggers respond"] = function()
-  local result = with_mocks({
-    wait_behavior = [[
-      -- Don't resolve automatically; let keymaps drive the decision
-      -- We keep the callback stored in _G.__CAPT.wait
-    ]],
-    body = [[
-      -- Configure ACP mappings
-      local cfg = require("codecompanion.config")
-      cfg.interactions.chat.keymaps = {
-        _acp_allow_always = { modes = { n = "g1" } },
-        _acp_allow_once   = { modes = { n = "g2" } },
-        _acp_reject_once  = { modes = { n = "g3" } },
-        -- Intentionally omit 'reject_always'
+T["diff flow -> approval prompt shows view option"] = function()
+  local result = child.lua([[
+    -- Capture what approval_prompt receives
+    local ap = require("codecompanion.interactions.chat.helpers.approval_prompt")
+    _G.__approval_opts = nil
+    ap.request = function(_, opts)
+      _G.__approval_opts = {
+        title = opts.title,
+        prompt = opts.prompt,
+        choice_keys = {},
+        choice_labels = {},
       }
+      for _, choice in ipairs(opts.choices) do
+        table.insert(_G.__approval_opts.choice_keys, choice.keymap)
+        table.insert(_G.__approval_opts.choice_labels, choice.label)
+      end
+    end
 
-      local responded = {}
-      local chat = { bufnr = 0 }
-      local request = {
-        tool_call = {
-          toolCallId = "tc-keys",
-          kind = "edit",
-          title = "Apply changes",
-          status = "pending",
-          content = { { type = "diff", path = "file.txt", oldText = "old", newText = "new" } },
-        },
-        options = {
-          { optionId = "allow_always_id", name = "Always", kind = "allow_always" },
-          { optionId = "allow_once_id",   name = "Allow",  kind = "allow_once" },
-          { optionId = "reject_once_id",  name = "Reject", kind = "reject_once" },
-        },
-        respond = function(option_id, canceled)
-          _G.__CAPT.responded = { option_id = option_id, canceled = canceled }
-        end,
-      }
+    local chat = { bufnr = 0 }
+    local request = {
+      tool_call = {
+        toolCallId = "tc-diff",
+        kind = "edit",
+        title = "Apply changes",
+        status = "pending",
+        content = { { type = "diff", path = "file.txt", oldText = "old line", newText = "new line" } },
+      },
+      options = {
+        { optionId = "allow_always_id", name = "Always", kind = "allow_always" },
+        { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
+        { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
+      },
+      respond = function() end,
+    }
 
-      local permissions = require("codecompanion.interactions.chat.acp.request_permission")
-      permissions.show(chat, request)
+    local permissions = require("codecompanion.interactions.chat.acp.request_permission")
+    permissions.confirm(chat, request)
+    return _G.__approval_opts
+  ]])
 
-      -- The float and buffer were created in ui.create_float; switch to it to use buffer-local mappings
-      local bufnr = _G.__CAPT.inline_new.bufnr
-      local winnr
-      for _, win in ipairs(vim.api.nvim_list_wins()) do
-        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
-          winnr = win
-          break
+  -- Small diff triggers inline mode with file-based title
+  h.eq("Proposed edits for `file.txt`:", result.title)
+  -- Inline diff text is included in the prompt
+  h.eq(true, result.prompt:find("diff") ~= nil)
+  h.eq("gv", result.choice_keys[1])
+  h.eq("View", result.choice_labels[1])
+  h.eq("Always accept", result.choice_labels[2])
+  h.eq("Accept", result.choice_labels[3])
+  h.eq("Reject", result.choice_labels[4])
+end
+
+T["diff flow -> view opens diff with keymaps"] = function()
+  local result = child.lua([[
+    -- Stub approval_prompt to auto-select "View"
+    local ap = require("codecompanion.interactions.chat.helpers.approval_prompt")
+    ap.request = function(_, opts)
+      for _, choice in ipairs(opts.choices) do
+        if choice.label == "View" then
+          choice.callback()
+          return
         end
       end
-      _G.__CAPT.win = winnr  -- store for later keypress
+    end
 
-      -- Verify mappings exist as expected
-      local function map_exists(lhs)
-        for _, m in ipairs(vim.api.nvim_buf_get_keymap(bufnr, "n")) do
-          if m.lhs == lhs then return true end
-        end
-        return false
+    _G.__responded = nil
+    local chat = { bufnr = 0 }
+    local request = {
+      tool_call = {
+        toolCallId = "tc-diff",
+        kind = "edit",
+        title = "Apply changes",
+        status = "pending",
+        content = { { type = "diff", path = "file.txt", oldText = "old line", newText = "new line" } },
+      },
+      options = {
+        { optionId = "allow_always_id", name = "Always", kind = "allow_always" },
+        { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
+        { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
+      },
+      respond = function(option_id, canceled)
+        _G.__responded = { option_id = option_id, canceled = canceled }
+      end,
+    }
+
+    local permissions = require("codecompanion.interactions.chat.acp.request_permission")
+    permissions.confirm(chat, request)
+
+    -- Diff keymaps now come from shared keymaps config
+    local keymaps = require("codecompanion.config").interactions.shared.keymaps
+
+    -- Find the diff floating window
+    local diff_bufnr, diff_winnr
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local cfg = vim.api.nvim_win_get_config(win)
+      if cfg.relative and cfg.relative ~= "" then
+        diff_winnr = win
+        diff_bufnr = vim.api.nvim_win_get_buf(win)
+        break
       end
-      local has_g1 = map_exists("g1") -- allow_always present
-      local has_g2 = map_exists("g2") -- allow_once present
-      local has_g3 = map_exists("g3") -- reject_once present
-      local has_g4 = map_exists("g4") -- reject_always absent
+    end
 
-      return {
-        has_g1 = has_g1,
-        has_g2 = has_g2,
-        has_g3 = has_g3,
-        has_g4 = has_g4,
-      }
-    ]],
-  })
+    -- Check keymaps exist on the buffer
+    local function map_exists(bufnr, lhs)
+      for _, m in ipairs(vim.api.nvim_buf_get_keymap(bufnr, "n")) do
+        if m.lhs == lhs then return true end
+      end
+      return false
+    end
 
-  h.eq(true, result.has_g1)
-  h.eq(true, result.has_g2)
-  h.eq(true, result.has_g3)
-  h.eq(false, result.has_g4)
+    return {
+      has_diff_window = diff_winnr ~= nil,
+      has_accept = diff_bufnr and map_exists(diff_bufnr, keymaps.accept_change.modes.n) or false,
+      has_always = diff_bufnr and map_exists(diff_bufnr, keymaps.always_accept.modes.n) or false,
+      has_reject = diff_bufnr and map_exists(diff_bufnr, keymaps.reject_change.modes.n) or false,
+      has_close = diff_bufnr and map_exists(diff_bufnr, "q") or false,
+    }
+  ]])
 
-  child.lua([[ if _G.__CAPT.win then vim.api.nvim_set_current_win(_G.__CAPT.win) end ]])
-  child.type_keys("g2")
-  child.lua([[ vim.cmd("redraw") ]])
+  h.eq(true, result.has_diff_window)
+  h.eq(true, result.has_accept)
+  h.eq(true, result.has_always)
+  h.eq(true, result.has_reject)
+  h.eq(true, result.has_close)
+end
 
-  -- Read back what respond() captured and whether accept() was called
-  local responded = child.lua_get([[_G.__CAPT.responded]])
-  local accept_called = child.lua_get([[ _G.__CAPT.accept_called == true ]])
+T["diff flow -> accept without viewing responds directly"] = function()
+  local result = child.lua([[
+    -- Stub approval_prompt to auto-select the "Allow" option
+    local ap = require("codecompanion.interactions.chat.helpers.approval_prompt")
+    ap.request = function(_, opts)
+      for _, choice in ipairs(opts.choices) do
+        if choice.label == "Accept" then
+          choice.callback()
+          return
+        end
+      end
+    end
 
-  -- Pressing g2 should accept with allow_once_id
-  h.eq("allow_once_id", responded.option_id)
-  h.eq(false, responded.canceled)
-  h.is_true(accept_called)
+    local responded = {}
+    local chat = { bufnr = 0 }
+    local request = {
+      tool_call = {
+        toolCallId = "tc-diff",
+        kind = "edit",
+        title = "Apply changes",
+        status = "pending",
+        content = { { type = "diff", path = "file.txt", oldText = "old", newText = "new" } },
+      },
+      options = {
+        { optionId = "allow_always_id", name = "Always", kind = "allow_always" },
+        { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
+        { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
+      },
+      respond = function(option_id, canceled)
+        responded = { option_id = option_id, canceled = canceled }
+      end,
+    }
+
+    local permissions = require("codecompanion.interactions.chat.acp.request_permission")
+    permissions.confirm(chat, request)
+
+    -- No diff window should have been opened
+    local has_float = false
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local cfg = vim.api.nvim_win_get_config(win)
+      if cfg.relative and cfg.relative ~= "" then
+        has_float = true
+        break
+      end
+    end
+
+    return {
+      has_float = has_float,
+      option_id = responded.option_id,
+      canceled = responded.canceled,
+    }
+  ]])
+
+  h.eq(false, result.has_float)
+  h.eq("allow_once_id", result.option_id)
+  h.eq(false, result.canceled)
+end
+
+T["diff flow -> empty oldText and newText does not show diff"] = function()
+  local result = child.lua([[
+    -- Stub approval_prompt to auto-select first option
+    local ap = require("codecompanion.interactions.chat.helpers.approval_prompt")
+    ap.request = function(_, opts)
+      opts.choices[1].callback()
+    end
+
+    local responded = {}
+    local chat = { bufnr = 0 }
+    local request = {
+      tool_call = {
+        toolCallId = "tc-empty",
+        kind = "edit",
+        title = "Empty diff",
+        status = "pending",
+        content = { { type = "diff", path = "file.txt", oldText = "", newText = "" } },
+      },
+      options = {
+        { optionId = "allow_once_id", name = "Allow", kind = "allow_once" },
+        { optionId = "reject_once_id", name = "Reject", kind = "reject_once" },
+      },
+      respond = function(option_id, canceled)
+        responded = { option_id = option_id, canceled = canceled }
+      end,
+    }
+
+    local permissions = require("codecompanion.interactions.chat.acp.request_permission")
+    permissions.confirm(chat, request)
+
+    -- Check no floating window was created
+    local has_float = false
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local cfg = vim.api.nvim_win_get_config(win)
+      if cfg.relative and cfg.relative ~= "" then
+        has_float = true
+        break
+      end
+    end
+
+    return {
+      has_float = has_float,
+      option_id = responded.option_id,
+      canceled = responded.canceled,
+      -- Empty diff falls through to non-diff path (no "View" option)
+      first_choice_label = _G.__first_label,
+    }
+  ]])
+
+  -- Empty diff should fall through to approval prompt without View option
+  h.eq(false, result.has_float)
+  h.eq("allow_once_id", result.option_id)
+  h.eq(false, result.canceled)
 end
 
 return T

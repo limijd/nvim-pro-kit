@@ -4,14 +4,12 @@
 ---@field mapping? string Where to map the item to the request
 ---@field order nil|integer The order to display the item when the full schema is shown
 ---@field optional nil|boolean
----@field choices nil|table|fun(self: CodeCompanion.HTTPAdapter): table<string>
+---@field choices nil|table|fun(self: CodeCompanion.HTTPAdapter, opts?: { async?: boolean }): table<string>
 ---@field desc string The description of the schema item
 ---@field enabled? nil|fun(self: CodeCompanion.HTTPAdapter): boolean
 ---@field validate? fun(value: any): boolean, nil|string
 
 local M = {}
-
-local islist = vim.islist or vim.tbl_islist
 
 ---Return the default values for a schema
 ---@param adapter CodeCompanion.HTTPAdapter
@@ -20,6 +18,9 @@ M.get_default = function(adapter, defaults)
   local schema = adapter.schema
   local ret = {}
   for k, v in pairs(schema) do
+    if v.enabled == false then
+      goto continue
+    end
     if type(v.enabled) == "function" and not v.enabled(adapter) then
       goto continue
     end
@@ -63,9 +64,9 @@ local function validate_type(schema, value, adapter)
     end
   elseif ptype == "list" then
     -- TODO validate subtype
-    return type(value) == "table" and islist(value)
+    return type(value) == "table" and vim.islist(value)
   elseif ptype == "map" then
-    local valid = type(value) == "table" and (vim.tbl_isempty(value) or not islist(value))
+    local valid = type(value) == "table" and (vim.tbl_isempty(value) or not vim.islist(value))
     -- TODO validate subtype and subtype_key
     if valid then
       -- Hack to make sure empty dicts get serialized properly

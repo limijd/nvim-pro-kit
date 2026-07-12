@@ -11,7 +11,7 @@ local diff = vim.text.diff or vim.diff
 
 ---@class CodeCompanion.BufferDiffs
 ---@field buffers table<number, CodeCompanion.BufferDiffs.State> Map of buffer numbers to their states
----@field augroup integer The autocmd group ID
+---@field augroup number The autocmd group ID
 ---@field sync fun(self: CodeCompanion.BufferDiffs, bufnr: number): nil Start syncing a buffer
 ---@field unsync fun(self: CodeCompanion.BufferDiffs, bufnr: number): nil Stop syncing a buffer
 ---@field get_changes fun(self: CodeCompanion.BufferDiffs, bufnr: number): boolean, table
@@ -151,7 +151,7 @@ function BufferDiffs:check_for_changes(chat)
       local has_changed, old_content = self:get_changes(item.bufnr)
 
       if has_changed and old_content then
-        local filename = vim.fn.fnamemodify(api.nvim_buf_get_name(item.bufnr), ":.")
+        local filename = api.nvim_buf_get_name(item.bufnr)
         local current_content = api.nvim_buf_get_lines(item.bufnr, 0, -1, false)
         local diff_content = format_changes_as_diff(old_content, current_content)
 

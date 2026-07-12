@@ -7,6 +7,11 @@
   --vw-blue: #118dc3;
   --vw-yellow: #eea825;
 
+  .VPMenu,
+  .dropdown-menu {
+    background-color: var(--vp-c-bg) !important;
+  }
+
   /* Base */
   --vw-base-bg: var(--vp-c-bg);
   --vw-base-fg: var(--vw-fg);

@@ -70,6 +70,10 @@ function PromptBuilder:on_error(fn)
   self.handlers.error = fn
   return self
 end
+function PromptBuilder:on_cancel(fn)
+  self.handlers.cancel = fn
+  return self
+end
 function PromptBuilder:with_options(opts)
   self.options = vim.tbl_extend("force", self.options, opts or {})
   return self
@@ -103,13 +107,13 @@ function PromptBuilder:send()
   end
 
   -- Send the prompt
-  local req = {
-    jsonrpc = "2.0",
-    id = self.connection._state.next_id,
-    method = self.connection.METHODS.SESSION_PROMPT,
-    params = { sessionId = self.connection.session_id, prompt = self.messages },
-  }
-  self.connection._state.next_id = self.connection._state.next_id + 1
+  local jsonrpc = require("codecompanion.utils.jsonrpc")
+  local id = self.connection._state.id_gen:next()
+  self._request_id = id
+  local req = jsonrpc.request(id, self.connection.METHODS.SESSION_PROMPT, {
+    sessionId = self.connection.session_id,
+    prompt = self.messages,
+  })
   self.connection:write_message(self.connection.methods.encode(req) .. "\n")
 
   self._streaming_started = false
@@ -121,10 +125,10 @@ function PromptBuilder:send()
   }
 end
 
----Extract renderable text from a content block
+---Extract text from an ACP content block
 ---@param block table|nil
 ---@return string|nil
-function PromptBuilder:get_renderable_text(block)
+local function extract_text(block)
   if not block or type(block) ~= "table" then
     return nil
   end
@@ -152,6 +156,9 @@ function PromptBuilder:get_renderable_text(block)
   return nil
 end
 
+-- Export as static for reuse (e.g. session restore)
+PromptBuilder.extract_text = extract_text
+
 ---Handle session update from the server
 ---@param params table
 ---@return nil
@@ -166,13 +173,13 @@ function PromptBuilder:handle_session_update(params)
 
   if params.sessionUpdate == "agent_message_chunk" then
     if self.handlers.message_chunk then
-      local text = self:get_renderable_text(params.content)
+      local text = extract_text(params.content)
       if text and text ~= "" then
         self.handlers.message_chunk(text)
       end
     end
   elseif params.sessionUpdate == "agent_thought_chunk" then
-    local text = self:get_renderable_text(params.content)
+    local text = extract_text(params.content)
     if text and text ~= "" and self.handlers.thought_chunk then
       self.handlers.thought_chunk(text)
     end
@@ -211,9 +218,9 @@ function PromptBuilder:handle_permission_request(id, params)
     session_id = params.sessionId,
     tool_call = tool_call,
     options = options,
-    respond = function(option_id, canceled)
-      if canceled or not option_id then
-        respond({ outcome = "canceled" })
+    respond = function(option_id, cancelled)
+      if cancelled or not option_id then
+        respond({ outcome = "cancelled" })
       else
         respond({ outcome = "selected", optionId = option_id })
       end
@@ -295,6 +302,13 @@ function PromptBuilder:cancel()
       utils.fire("RequestFinished", self.options)
     end
   end
+
+  -- Handler MUST respond to all requests with "cancelled"
+  -- Ref: https://agentclientprotocol.com/protocol/prompt-turn#cancellation
+  if self.handlers.cancel then
+    pcall(self.handlers.cancel)
+  end
+
   self.connection._active_prompt = nil
 end
 
