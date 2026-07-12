@@ -12,7 +12,7 @@ local utils = require "telescope.utils"
 local from_entry = {}
 
 function from_entry.path(entry, validate, escape)
-  escape = vim.F.if_nil(escape, true)
+  escape = utils.if_nil(escape, true)
   local path = entry.path
   if path == nil then
     path = entry.filename
@@ -26,7 +26,7 @@ function from_entry.path(entry, validate, escape)
   end
 
   -- only 0 if neither filereadable nor directory
-  if validate then
+  if validate and path ~= "[No Name]" then
     -- We need to expand for filereadable and isdirectory
     -- TODO(conni2461): we are not going to return the expanded path because
     --                  this would lead to cache misses in the perviewer.
