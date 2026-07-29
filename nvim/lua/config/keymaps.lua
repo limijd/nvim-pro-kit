@@ -404,6 +404,13 @@ map("n", "<leader>bd", "<cmd>bdelete<cr>", vim.tbl_extend("force", default_opts,
 map("n", "<leader>bn", "<cmd>bnext<cr>", vim.tbl_extend("force", default_opts, { desc = "Next buffer" }))
 map("n", "<leader>bp", "<cmd>bprevious<cr>", vim.tbl_extend("force", default_opts, { desc = "Previous buffer" }))
 
+map(
+  { "n", "v" },
+  "<leader>f",
+  "=",
+  vim.tbl_extend("force", default_opts, { remap = true, noremap = false, desc = "Format/indent" })
+)
+
 map("n", "<leader>tn", "<cmd>tabnew<cr>", vim.tbl_extend("force", default_opts, { desc = "New tab" }))
 map("n", "<leader>to", "<cmd>tabonly<cr>", vim.tbl_extend("force", default_opts, { desc = "Close other tabs" }))
 map("n", "<leader>tc", "<cmd>tabclose<cr>", vim.tbl_extend("force", default_opts, { desc = "Close tab" }))
