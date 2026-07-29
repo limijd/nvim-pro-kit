@@ -4,7 +4,7 @@ local api = vim.api
 local uv = vim.uv or vim.loop
 local util = require("config.util")
 local dir_separator = package.config:sub(1, 1)
-local path_separator = package.config:sub(3, 3)
+local path_separator = vim.fn.has "win32" == 1 and ";" or ":"
 local repo_root = util.repo_root()
 
 local function detect_platform()
